@@ -35,6 +35,7 @@ import {
 	dedupeGridProfiles,
 	distanceView,
 	indexProfilesById,
+	sortByDistance,
 } from "./grid-profiles";
 import { buildCascadeQuery } from "./grid-query";
 import { GridSearchFiltersState } from "./grid-search-filters-state.svelte";
@@ -47,9 +48,17 @@ class GridState {
 	items: GridProfile[] = $state.raw([]);
 	hiddenDistanceOnly = $state(false);
 	popularOnly = $state(false);
-	readonly profiles: GridProfile[] = $derived(
-		distanceView({
-			profiles: dedupeGridProfiles(this.items).filter(
+	crossedOnly = $state(false);
+	readonly profiles: GridProfile[] = $derived.by(() => {
+		const deduped = dedupeGridProfiles(this.items);
+		// The crossed list shows exactly the profiles hidden by a cross.
+		if (this.crossedOnly) {
+			return sortByDistance(
+				deduped.filter((profile) => swipeDecisions.isNope(profile.id)),
+			);
+		}
+		return distanceView({
+			profiles: deduped.filter(
 				(profile) =>
 					!swipeDecisions.isNope(profile.id) &&
 					// Lazy items stay until they resolve; popularity is unknown
@@ -59,8 +68,8 @@ class GridState {
 						profile.isPopular),
 			),
 			hiddenDistanceOnly: this.hiddenDistanceOnly,
-		}),
-	);
+		});
+	});
 	nextPage: number | null = $state(0);
 	readonly paging = new SentinelPaging({
 		loadPage: (page) => this.#loadPage(page),
@@ -129,6 +138,11 @@ class GridState {
 
 	togglePopularOnly(): void {
 		this.popularOnly = !this.popularOnly;
+		this.#resetScrollToTop();
+	}
+
+	toggleCrossedOnly(): void {
+		this.crossedOnly = !this.crossedOnly;
 		this.#resetScrollToTop();
 	}
 

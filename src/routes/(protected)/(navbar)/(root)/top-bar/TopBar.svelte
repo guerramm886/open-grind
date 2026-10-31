@@ -4,6 +4,7 @@
 	import { topChrome } from "$lib/util/screen-chrome.svelte";
 	import GridFilters from "../GridFilters.svelte";
 	import LocationChange from "../LocationChange.svelte";
+	import ChooseDeckButton from "./ChooseDeckButton.svelte";
 	import QuickFilters from "./QuickFilters.svelte";
 
 	let openFilters = $state({ all: false, age: false, position: false });
@@ -17,13 +18,16 @@
 	direction="topToBottom"
 	{@attach topChrome}
 >
-	<div
-		data-scroll-intent="x"
-		class="scrollbar-thin flex gap-0.5 overflow-x-auto p-4 pt-0"
-	>
-		<LocationChange />
-		<QuickFilters bind:openFilters />
-		<CommandCenterTrigger />
+	<div class="flex items-start gap-0.5 p-4 pt-0">
+		<ChooseDeckButton />
+		<div
+			data-scroll-intent="x"
+			class="scrollbar-thin flex min-w-0 flex-1 gap-0.5 overflow-x-auto"
+		>
+			<LocationChange />
+			<QuickFilters bind:openFilters />
+			<CommandCenterTrigger />
+		</div>
 	</div>
 </ProgressiveBlur>
 <GridFilters bind:open={openFilters.all} />

@@ -1,69 +1,78 @@
 import type { GridProfile } from "./grid";
 
-// Heart / cross decisions, kept on this device only.
-// Crossed profiles leave the grid; "later" only lasts for this session.
+// Local decisions kept on this device.
+// "Cross" hides a profile from the grid; "later" only lasts for this session.
+// The heart is Grindr's real favorite (handled server-side, not here).
 
-export type SwipeDecision = "like" | "nope";
+const STORAGE_KEY = "crossed-profiles-v1";
 
-const STORAGE_KEY = "swipe-decisions-v1";
-
-function load(): Record<number, SwipeDecision> {
+function load(): Record<number, true> {
 	try {
 		const raw = localStorage.getItem(STORAGE_KEY);
-		return raw ? (JSON.parse(raw) as Record<number, SwipeDecision>) : {};
+		return raw ? (JSON.parse(raw) as Record<number, true>) : {};
 	} catch {
 		return {};
 	}
 }
 
-class SwipeDecisions {
-	#byId: Record<number, SwipeDecision> = $state.raw(load());
-	#later: number[] = $state.raw([]);
+export type DecisionAction = { id: number; action: "cross" | "favorite" };
 
-	decision(id: number): SwipeDecision | null {
-		return this.#byId[id] ?? null;
-	}
+class SwipeDecisions {
+	#crossed: Record<number, true> = $state.raw(load());
+	// Most recent decisions, for the "undo" button (session only).
+	#history: DecisionAction[] = $state.raw([]);
 
 	isNope(id: number): boolean {
-		return this.#byId[id] === "nope";
+		return this.#crossed[id] === true;
 	}
 
-	isLater(id: number): boolean {
-		return this.#later.includes(id);
+	get canUndo(): boolean {
+		return this.#history.length > 0;
 	}
 
-	decide(id: number, decision: SwipeDecision): void {
-		this.#byId = { ...this.#byId, [id]: decision };
-		this.#later = this.#later.filter((laterId) => laterId !== id);
+	#persist(): void {
 		try {
-			localStorage.setItem(STORAGE_KEY, JSON.stringify(this.#byId));
+			localStorage.setItem(STORAGE_KEY, JSON.stringify(this.#crossed));
 		} catch (error) {
 			console.error(error);
 		}
 	}
 
-	later(id: number): void {
-		this.#later = [...this.#later.filter((laterId) => laterId !== id), id];
+	record(entry: DecisionAction): void {
+		this.#history = [...this.#history, entry];
 	}
 
-	// The nearest profile still to decide (grid is already distance-sorted).
-	// Profiles left "for later" fall to the end; crossed ones are gone already.
+	undo(): DecisionAction | null {
+		const last = this.#history.at(-1);
+		if (last === undefined) return null;
+		this.#history = this.#history.slice(0, -1);
+		return last;
+	}
+
+	cross(id: number): void {
+		this.#crossed = { ...this.#crossed, [id]: true };
+		this.#persist();
+	}
+
+	uncross(id: number): void {
+		const { [id]: _removed, ...rest } = this.#crossed;
+		this.#crossed = rest;
+		this.#persist();
+	}
+
+	// The nearest profile still to decide (grid is already distance-sorted):
+	// not crossed and not already a Grindr favorite.
 	nextNearestUndecided(
 		profiles: readonly GridProfile[],
 		excludeId?: number,
 	): number | null {
-		let firstLater: number | null = null;
 		for (const profile of profiles) {
 			if (profile.type !== "rendered") continue;
 			if (profile.id === excludeId) continue;
-			if (this.decision(profile.id) !== null) continue;
-			if (this.isLater(profile.id)) {
-				firstLater ??= profile.id;
-				continue;
-			}
+			if (this.isNope(profile.id) || profile.isFavorite) continue;
 			return profile.id;
 		}
-		return firstLater;
+		return null;
 	}
 }
 

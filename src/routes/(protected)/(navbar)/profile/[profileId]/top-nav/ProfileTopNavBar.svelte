@@ -2,7 +2,6 @@
 	import type { Profile } from "$lib/model/users/profiles";
 	import type { PendingViewabilityChange } from "../profile-state.svelte";
 	import EditProfileButton from "./EditProfileButton.svelte";
-	import FavoriteProfileToggle from "./FavoriteProfileToggle.svelte";
 	import ProfileActionsMenu from "./ProfileActionsMenu.svelte";
 
 	let {
@@ -30,11 +29,6 @@
 		{#if ourProfile}
 			<EditProfileButton />
 		{:else if profile}
-			<FavoriteProfileToggle
-				profileId={profile.profileId}
-				isFavorite={profile.isFavorite}
-				{onFavorite}
-			/>
 			<ProfileActionsMenu
 				profileId={profile.profileId}
 				{changingViewability}

@@ -37,6 +37,13 @@ export function distanceView({
 	return shown.sort((a, b) => distanceOf(a) - distanceOf(b));
 }
 
+// Nearest first, keeping profiles with no distance (and lazy ones) at the end.
+export function sortByDistance(profiles: GridProfile[]): GridProfile[] {
+	const distanceOf = (profile: GridProfile) =>
+		profile.type === "rendered" ? (profile.distance ?? Infinity) : Infinity;
+	return [...profiles].sort((a, b) => distanceOf(a) - distanceOf(b));
+}
+
 export function indexProfilesById(
 	profiles: readonly GridProfile[],
 ): ReadonlyMap<number, number> {

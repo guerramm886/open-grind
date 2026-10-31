@@ -189,7 +189,12 @@
 				onTap={(tapType) => profileState.setTap(tapType)}
 			/>
 			{#if active && !ourProfile}
-				<ProfileDecisionBar profileId={profile.profileId} />
+				<ProfileDecisionBar
+					profileId={profile.profileId}
+					isFavorite={profile.isFavorite}
+					onFavorite={(isFavorite) =>
+						profileState.setFavorite(isFavorite)}
+				/>
 			{/if}
 		{/if}
 	{/if}

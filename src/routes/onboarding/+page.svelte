@@ -14,7 +14,6 @@
 	import { updatesSelfManaged } from "$lib/updates/capability.svelte";
 	import { saveAutomaticChecks } from "$lib/updates/update-settings.svelte";
 	import { bottomChrome } from "$lib/util/screen-chrome.svelte";
-	import icon from "../../../contrib/logo/open-grind.svg";
 
 	let checkAutomatically = $state(true);
 	let addToAppsMenu = $state(true);
@@ -32,7 +31,7 @@
 			if (addToAppsMenu && offerAppsMenu()) {
 				await setDesktopEntryInstalled(true).catch((error: unknown) =>
 					showErrorToast({
-						label: "Couldn't add Open Grind to your apps",
+						label: "Couldn't add Martin's Grindr to your apps",
 						error,
 					}),
 				);
@@ -54,10 +53,28 @@
 	<div
 		class="flex flex-1 flex-col items-center justify-center gap-6 text-center"
 	>
-		<img src={icon} alt="" class="size-28" />
+		<svg
+			viewBox="0 0 108 108"
+			class="size-28"
+			xmlns="http://www.w3.org/2000/svg"
+			aria-hidden="true"
+		>
+			<path
+				d="M33 76 V36 L54 58 L75 36 V76"
+				fill="none"
+				stroke="var(--primary)"
+				stroke-width="8"
+				stroke-linecap="round"
+				stroke-linejoin="round"
+			/>
+			<path
+				d="M80 27 C80 24.5 83.5 23 85.5 25.5 C87.5 23 91 24.5 91 27 C91 30.5 85.5 34 85.5 34 C85.5 34 80 30.5 80 27 Z"
+				fill="var(--primary)"
+			/>
+		</svg>
 		<div class="flex flex-col gap-1">
 			<h1 class="font-heading text-3xl font-semibold tracking-tight">
-				Open Grind
+				Martin's Grindr
 			</h1>
 			<p class="text-xl text-muted-foreground">
 				Unofficial Grindr client
@@ -84,7 +101,7 @@
 				{#if offerAppsMenu()}
 					<Label class="flex items-center rounded-xl p-2">
 						<Checkbox bind:checked={addToAppsMenu} />
-						Add Open Grind to your apps menu
+						Add Martin's Grindr to your apps menu
 					</Label>
 				{/if}
 			</div>
