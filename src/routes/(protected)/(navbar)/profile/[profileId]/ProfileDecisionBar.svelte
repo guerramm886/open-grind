@@ -123,45 +123,41 @@
 </script>
 
 <div
-	class="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex justify-center pb-[calc(var(--nav-height)+var(--safe-area-bottom)+0.75rem)]"
+	class="pointer-events-none absolute right-3 bottom-[calc(var(--nav-height)+var(--safe-area-bottom)+1.25rem)] z-20 flex flex-col items-center gap-3"
 >
-	<div
-		class="pointer-events-auto flex items-center gap-4 rounded-full bg-card/85 px-4 py-2 neon-ring backdrop-blur-sm"
+	<button
+		type="button"
+		aria-label={isFavorite ? "Favorito" : "Agregar a favoritos"}
+		disabled={busy}
+		class={[
+			"pointer-events-auto flex size-13 items-center justify-center rounded-full backdrop-blur-sm transition active:scale-90",
+			isFavorite
+				? "neon-glow bg-primary text-primary-foreground"
+				: "border-2 border-primary/70 bg-card/70 text-primary",
+		]}
+		onclick={favorite}
 	>
-		<button
-			type="button"
-			aria-label={crossed ? "Sacar la cruz" : "Cruz"}
-			disabled={busy}
-			class={[
-				"flex size-14 items-center justify-center rounded-full border-2 border-destructive/70 text-destructive transition active:scale-90",
-				{ "bg-destructive text-white": crossed },
-			]}
-			onclick={cross}
-		>
-			<XIcon weight="bold" class="size-6" />
-		</button>
-		<button
-			type="button"
-			aria-label="Volver atrás"
-			disabled={!swipeDecisions.canUndo}
-			class="flex size-11 items-center justify-center rounded-full bg-secondary text-secondary-foreground transition active:scale-90 disabled:opacity-40"
-			onclick={undo}
-		>
-			<ArrowCounterClockwiseIcon weight="bold" class="size-5" />
-		</button>
-		<button
-			type="button"
-			aria-label={isFavorite ? "Favorito" : "Agregar a favoritos"}
-			disabled={busy}
-			class={[
-				"flex size-14 items-center justify-center rounded-full transition active:scale-90",
-				isFavorite
-					? "neon-glow bg-primary text-primary-foreground"
-					: "border-2 border-primary/70 text-primary",
-			]}
-			onclick={favorite}
-		>
-			<HeartIcon weight={isFavorite ? "fill" : "bold"} class="size-6" />
-		</button>
-	</div>
+		<HeartIcon weight={isFavorite ? "fill" : "bold"} class="size-6" />
+	</button>
+	<button
+		type="button"
+		aria-label="Volver atrás"
+		disabled={!swipeDecisions.canUndo}
+		class="pointer-events-auto flex size-10 items-center justify-center rounded-full bg-card/70 text-secondary-foreground backdrop-blur-sm transition active:scale-90 disabled:opacity-40"
+		onclick={undo}
+	>
+		<ArrowCounterClockwiseIcon weight="bold" class="size-5" />
+	</button>
+	<button
+		type="button"
+		aria-label={crossed ? "Sacar la cruz" : "Cruz"}
+		disabled={busy}
+		class={[
+			"pointer-events-auto flex size-13 items-center justify-center rounded-full border-2 border-destructive/70 backdrop-blur-sm transition active:scale-90",
+			crossed ? "bg-destructive text-white" : "bg-card/70 text-destructive",
+		]}
+		onclick={cross}
+	>
+		<XIcon weight="bold" class="size-6" />
+	</button>
 </div>
