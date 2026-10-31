@@ -46,10 +46,17 @@ class GridState {
 	filters = new GridSearchFiltersState({ onQueryChange: () => this.retry() });
 	items: GridProfile[] = $state.raw([]);
 	hiddenDistanceOnly = $state(false);
+	popularOnly = $state(false);
 	readonly profiles: GridProfile[] = $derived(
 		distanceView({
 			profiles: dedupeGridProfiles(this.items).filter(
-				(profile) => !swipeDecisions.isNope(profile.id),
+				(profile) =>
+					!swipeDecisions.isNope(profile.id) &&
+					// Lazy items stay until they resolve; popularity is unknown
+					// until then.
+					(!this.popularOnly ||
+						profile.type !== "rendered" ||
+						profile.isPopular),
 			),
 			hiddenDistanceOnly: this.hiddenDistanceOnly,
 		}),
@@ -117,6 +124,15 @@ class GridState {
 
 	toggleHiddenDistanceOnly(): void {
 		this.hiddenDistanceOnly = !this.hiddenDistanceOnly;
+		this.#resetScrollToTop();
+	}
+
+	togglePopularOnly(): void {
+		this.popularOnly = !this.popularOnly;
+		this.#resetScrollToTop();
+	}
+
+	#resetScrollToTop(): void {
 		this.scrollY = 0;
 		untrack(() => {
 			for (const listener of this.#startOverListeners) listener();

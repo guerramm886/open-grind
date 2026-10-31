@@ -16,8 +16,32 @@ function load(): Record<number, SwipeDecision> {
 
 class SwipeDecisions {
 	open = $state(false);
+	// Local filters for the deck only (not sent to the server).
+	minAge: number | null = $state(null);
+	maxAge: number | null = $state(null);
+	maxDistanceKm: number | null = $state(null);
 	#byId: Record<number, SwipeDecision> = $state.raw(load());
 	#later: number[] = $state.raw([]);
+
+	passesFilters({
+		age,
+		distanceMeters,
+	}: {
+		age: number | null | undefined;
+		distanceMeters: number | null;
+	}): boolean {
+		if (this.minAge !== null && (age == null || age < this.minAge))
+			return false;
+		if (this.maxAge !== null && (age == null || age > this.maxAge))
+			return false;
+		if (
+			this.maxDistanceKm !== null &&
+			(distanceMeters === null ||
+				distanceMeters > this.maxDistanceKm * 1000)
+		)
+			return false;
+		return true;
+	}
 
 	decision(id: number): SwipeDecision | null {
 		return this.#byId[id] ?? null;

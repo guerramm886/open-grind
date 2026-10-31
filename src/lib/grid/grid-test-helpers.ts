@@ -19,6 +19,7 @@ export function rendered({
 		seen: null,
 		isFavorite,
 		isVisiting: false,
+		isPopular: false,
 		hasChattedInLast24Hrs: false,
 	};
 }

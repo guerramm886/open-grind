@@ -31,6 +31,7 @@ export type RenderedGridProfile = {
 	seen: number | null;
 	isFavorite: boolean;
 	isVisiting: boolean;
+	isPopular: boolean;
 	hasChattedInLast24Hrs: boolean;
 };
 
@@ -81,6 +82,7 @@ function gridProfile({
 		seen: profile.lastOnline ?? null,
 		isFavorite: favorite,
 		isVisiting: profile.isVisiting ?? false,
+		isPopular: profile.isPopular ?? false,
 		hasChattedInLast24Hrs: chatted,
 	};
 }
@@ -178,6 +180,8 @@ export async function resolveLazyProfile(
 		seen: resolved.seen,
 		isFavorite: resolved.isFavorite,
 		isVisiting: profile.isVisiting,
+		// getProfiles does not carry the cascade's popularity flag.
+		isPopular: false,
 		hasChattedInLast24Hrs:
 			resolved.lastChatTimestamp !== null &&
 			now() - resolved.lastChatTimestamp < 24 * 60 * 60 * 1000,

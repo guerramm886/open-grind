@@ -4,7 +4,9 @@
 	import ApiErrorDisplay from "$lib/components/feedback/ApiErrorDisplay.svelte";
 	import DataRefreshControl from "$lib/components/feedback/DataRefreshControl.svelte";
 	import ScrollToTopButton from "$lib/components/shared/ScrollToTopButton.svelte";
+	import { Button } from "$lib/components/ui/button";
 	import { Skeleton } from "$lib/components/ui/skeleton";
+	import { swipeDecisions } from "$lib/grid/swipe-decisions.svelte";
 	import { observeIntersection } from "$lib/util/observe-intersection";
 	import { restoreScrollOnce } from "$lib/util/scroll-restore.svelte";
 	import EmptyViewsGrid from "./EmptyViewsGrid.svelte";
@@ -22,6 +24,20 @@
 	});
 
 	let container: HTMLDivElement | null = $state(null);
+	let heartedOnly = $state(false);
+
+	// Only viewers the user gave a heart to; hidden/anonymous previews can't be
+	// matched to a decision, so they drop out while this is on.
+	const shownViews = $derived(
+		heartedOnly
+			? views.views.filter(
+					(entry) =>
+						entry.type === "profile" &&
+						swipeDecisions.decision(entry.profile.profileId) ===
+							"like",
+				)
+			: views.views,
+	);
 
 	restoreScrollOnce({ container: () => container, state: views });
 </script>
@@ -67,16 +83,36 @@
 			{:else if views.views.length === 0}
 				<EmptyViewsGrid />
 			{:else}
-				<div class="photo-grid">
-					{#each views.views as entry (entry.key)}
-						{#if entry.type === "profile"}
-							<ViewedProfile view={entry.profile} />
-						{:else}
-							<ViewedPreview preview={entry.preview} />
-						{/if}
-					{/each}
+				<div class="flex items-center justify-between gap-2">
+					<Button
+						variant="secondary"
+						size="sm"
+						aria-pressed={heartedOnly}
+						class={{
+							"bg-primary text-primary-foreground hover:bg-primary/90":
+								heartedOnly,
+						}}
+						onclick={() => (heartedOnly = !heartedOnly)}
+					>
+						Solo ❤
+					</Button>
 				</div>
-				{#if views.hasMore}
+				{#if shownViews.length === 0}
+					<p class="py-8 text-center text-sm text-muted-foreground">
+						Todavía no te vio nadie a quien le hayas dado ❤.
+					</p>
+				{:else}
+					<div class="photo-grid">
+						{#each shownViews as entry (entry.key)}
+							{#if entry.type === "profile"}
+								<ViewedProfile view={entry.profile} />
+							{:else}
+								<ViewedPreview preview={entry.preview} />
+							{/if}
+						{/each}
+					</div>
+				{/if}
+				{#if !heartedOnly && views.hasMore}
 					<div
 						class="h-0"
 						use:observeIntersection={{

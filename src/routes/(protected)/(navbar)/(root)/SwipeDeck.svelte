@@ -20,7 +20,13 @@
 
 	const undecided = $derived(
 		gridState.profiles.filter(
-			(profile) => swipeDecisions.decision(profile.id) === null,
+			(profile) =>
+				swipeDecisions.decision(profile.id) === null &&
+				(profile.type !== "rendered" ||
+					swipeDecisions.passesFilters({
+						age: profile.age,
+						distanceMeters: profile.distance,
+					})),
 		),
 	);
 	// Profiles left for later go behind the ones not seen yet.
@@ -57,6 +63,12 @@
 
 	let dragStartX: number | null = $state(null);
 	let dragX = $state(0);
+	let showFilters = $state(false);
+
+	function clampNumber(raw: string): number | null {
+		const value = Number.parseInt(raw, 10);
+		return Number.isFinite(value) && value > 0 ? value : null;
+	}
 
 	function decide(decision: SwipeDecision) {
 		if (current) swipeDecisions.decide(current.id, decision);
@@ -95,10 +107,75 @@
 			<h2 class="text-lg font-semibold">
 				Elegir <span class="neon-text">❤</span>
 			</h2>
-			<Button variant="secondary" size="icon" aria-label="Cerrar" onclick={close}>
-				<XIcon />
-			</Button>
+			<div class="flex items-center gap-2">
+				<Button
+					variant="secondary"
+					size="sm"
+					aria-pressed={showFilters}
+					onclick={() => (showFilters = !showFilters)}
+				>
+					Filtros
+				</Button>
+				<Button
+					variant="secondary"
+					size="icon"
+					aria-label="Cerrar"
+					onclick={close}
+				>
+					<XIcon />
+				</Button>
+			</div>
 		</div>
+
+		{#if showFilters}
+			<div class="flex flex-wrap items-end gap-3 rounded-2xl bg-card p-3">
+				<label class="flex flex-col gap-1 text-xs text-muted-foreground">
+					Edad mín.
+					<input
+						type="number"
+						inputmode="numeric"
+						min="18"
+						placeholder="18"
+						value={swipeDecisions.minAge ?? ""}
+						oninput={(event) =>
+							(swipeDecisions.minAge = clampNumber(
+								event.currentTarget.value,
+							))}
+						class="w-20 rounded-lg bg-secondary px-2 py-1.5 text-base text-foreground"
+					/>
+				</label>
+				<label class="flex flex-col gap-1 text-xs text-muted-foreground">
+					Edad máx.
+					<input
+						type="number"
+						inputmode="numeric"
+						min="18"
+						placeholder="99"
+						value={swipeDecisions.maxAge ?? ""}
+						oninput={(event) =>
+							(swipeDecisions.maxAge = clampNumber(
+								event.currentTarget.value,
+							))}
+						class="w-20 rounded-lg bg-secondary px-2 py-1.5 text-base text-foreground"
+					/>
+				</label>
+				<label class="flex flex-col gap-1 text-xs text-muted-foreground">
+					Hasta (km)
+					<input
+						type="number"
+						inputmode="numeric"
+						min="1"
+						placeholder="∞"
+						value={swipeDecisions.maxDistanceKm ?? ""}
+						oninput={(event) =>
+							(swipeDecisions.maxDistanceKm = clampNumber(
+								event.currentTarget.value,
+							))}
+						class="w-24 rounded-lg bg-secondary px-2 py-1.5 text-base text-foreground"
+					/>
+				</label>
+			</div>
+		{/if}
 
 		{#if current}
 			{@const mediaHash = current.profilePhotosHashes?.[0] ?? null}

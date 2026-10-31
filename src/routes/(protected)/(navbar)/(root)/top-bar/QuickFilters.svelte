@@ -90,6 +90,12 @@
 	Elegir
 </QuickFilterButton>
 <QuickFilterButton
+	active={gridState.popularOnly}
+	onclick={() => gridState.togglePopularOnly()}
+>
+	Populares
+</QuickFilterButton>
+<QuickFilterButton
 	active={gridState.hiddenDistanceOnly}
 	onclick={() => gridState.toggleHiddenDistanceOnly()}
 >
