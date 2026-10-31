@@ -1,0 +1,87 @@
+name: android-apk
+
+# Personal build: arm64 APK only, signed with a throwaway key kept in the
+# Actions cache. Mirrors build-android in .forgejo/workflows/build.yml.
+on:
+  push:
+    branches: [orden-por-distancia]
+  workflow_dispatch:
+
+concurrency:
+  group: android-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      OPEN_GRIND_ANDROID_ABI: aarch64
+      KEYSTORE_DIR: ${{ github.workspace }}/../keystore
+      TZ: UTC
+      LC_ALL: C
+    steps:
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc \
+            /usr/local/.ghcup /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          sudo docker image prune --all --force || true
+          df -h /
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: Restore the signing key
+        id: keystore
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.KEYSTORE_DIR }}
+          key: open-grind-debug-keystore-v1
+
+      - name: Create the signing key
+        if: steps.keystore.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p "$KEYSTORE_DIR"
+          keytool -genkeypair -noprompt \
+            -keystore "$KEYSTORE_DIR/debug.jks" \
+            -alias open-grind \
+            -keyalg EC -groupname secp256r1 -sigalg SHA256withECDSA \
+            -validity 20000 \
+            -storepass open-grind-debug -keypass open-grind-debug \
+            -dname "CN=Open Grind personal build"
+
+      - name: Write keystore.properties
+        run: |
+          {
+            echo "storeFile=$KEYSTORE_DIR/debug.jks"
+            echo "keyAlias=open-grind"
+            echo "password=open-grind-debug"
+          } > "$RUNNER_TEMP/keystore.properties"
+          echo "OPEN_GRIND_KEYSTORE_PROPERTIES=$RUNNER_TEMP/keystore.properties" >> "$GITHUB_ENV"
+
+      - name: Build
+        run: nix run .#build-android
+
+      - name: Collect APK
+        run: |
+          shopt -s nullglob
+          apks=(src-tauri/gen/android/app/build/outputs/apk/*/release/*.apk)
+          [ ${#apks[@]} -gt 0 ]
+          mkdir -p out
+          cp "${apks[@]}" out/
+          ls -l out
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: open-grind-apk
+          path: out/
+          retention-days: 30

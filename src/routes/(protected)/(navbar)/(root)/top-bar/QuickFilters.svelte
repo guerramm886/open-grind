@@ -79,6 +79,12 @@
 		Fresh
 	</ToggleGroup.Item>
 </ToggleGroup.Root>
+<QuickFilterButton
+	active={gridState.hiddenDistanceOnly}
+	onclick={() => gridState.toggleHiddenDistanceOnly()}
+>
+	Sin distancia
+</QuickFilterButton>
 
 <AgeQuickFilter bind:open={openFilters.age} />
 <PositionQuickFilter bind:open={openFilters.position} />

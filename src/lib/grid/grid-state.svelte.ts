@@ -31,7 +31,11 @@ import {
 	resolveLazyProfile,
 	setCachedProfile,
 } from "./grid";
-import { dedupeGridProfiles, indexProfilesById } from "./grid-profiles";
+import {
+	dedupeGridProfiles,
+	distanceView,
+	indexProfilesById,
+} from "./grid-profiles";
 import { buildCascadeQuery } from "./grid-query";
 import { GridSearchFiltersState } from "./grid-search-filters-state.svelte";
 
@@ -40,7 +44,13 @@ const PUSH_DEEPLINK_WAIT_MS = 5000;
 class GridState {
 	filters = new GridSearchFiltersState({ onQueryChange: () => this.retry() });
 	items: GridProfile[] = $state.raw([]);
-	readonly profiles: GridProfile[] = $derived(dedupeGridProfiles(this.items));
+	hiddenDistanceOnly = $state(false);
+	readonly profiles: GridProfile[] = $derived(
+		distanceView({
+			profiles: dedupeGridProfiles(this.items),
+			hiddenDistanceOnly: this.hiddenDistanceOnly,
+		}),
+	);
 	nextPage: number | null = $state(0);
 	readonly paging = new SentinelPaging({
 		loadPage: (page) => this.#loadPage(page),
@@ -100,6 +110,14 @@ class GridState {
 	removeProfile(profileId: number): void {
 		if (this.indexInProfiles(profileId) === -1) return;
 		this.items = this.items.filter((item) => item.id !== profileId);
+	}
+
+	toggleHiddenDistanceOnly(): void {
+		this.hiddenDistanceOnly = !this.hiddenDistanceOnly;
+		this.scrollY = 0;
+		untrack(() => {
+			for (const listener of this.#startOverListeners) listener();
+		});
 	}
 
 	onStartOver(listener: () => void): () => void {
