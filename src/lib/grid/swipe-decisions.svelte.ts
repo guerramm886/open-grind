@@ -60,17 +60,39 @@ class SwipeDecisions {
 		this.#persist();
 	}
 
+	#isUndecided(profile: GridProfile): boolean {
+		return (
+			profile.type === "rendered" &&
+			!this.isNope(profile.id) &&
+			!profile.isFavorite
+		);
+	}
+
 	// The nearest profile still to decide (grid is already distance-sorted):
-	// not crossed and not already a Grindr favorite.
+	// not crossed and not already a Grindr favorite. Used to enter the chooser.
 	nextNearestUndecided(
 		profiles: readonly GridProfile[],
 		excludeId?: number,
 	): number | null {
 		for (const profile of profiles) {
-			if (profile.type !== "rendered") continue;
 			if (profile.id === excludeId) continue;
-			if (this.isNope(profile.id) || profile.isFavorite) continue;
-			return profile.id;
+			if (this.#isUndecided(profile)) return profile.id;
+		}
+		return null;
+	}
+
+	// The next profile to decide AFTER the current one, so marking one always
+	// moves forward (toward farther profiles), never back to one already seen.
+	// Call it before crossing, since a cross removes the current from the list.
+	nextUndecidedAfter(
+		profiles: readonly GridProfile[],
+		currentId: number,
+	): number | null {
+		const index = profiles.findIndex((profile) => profile.id === currentId);
+		const start = index === -1 ? 0 : index + 1;
+		for (let i = start; i < profiles.length; i++) {
+			const profile = profiles[i];
+			if (profile && this.#isUndecided(profile)) return profile.id;
 		}
 		return null;
 	}

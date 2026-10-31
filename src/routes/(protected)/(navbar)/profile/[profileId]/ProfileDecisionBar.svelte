@@ -33,8 +33,10 @@
 		});
 	}
 
-	function advance() {
-		const next = swipeDecisions.nextNearestUndecided(
+	// The next profile to decide, worked out BEFORE we change anything (a cross
+	// removes the current one from the list, which would lose our place).
+	function goNext() {
+		const next = swipeDecisions.nextUndecidedAfter(
 			gridState.profiles,
 			profileId,
 		);
@@ -43,9 +45,13 @@
 	}
 
 	// The heart is Grindr's real favorite, so it also shows as a star in the
-	// official app. Marking it moves on to the next nearest profile.
+	// official app. Marking it moves on to the next profile.
 	async function favorite() {
 		if (busy) return;
+		const next = swipeDecisions.nextUndecidedAfter(
+			gridState.profiles,
+			profileId,
+		);
 		if (!isFavorite) {
 			busy = true;
 			try {
@@ -63,16 +69,21 @@
 			}
 			busy = false;
 		}
-		advance();
+		if (next !== null) goToProfile(next);
+		else void goto("/");
 	}
 
 	async function cross() {
 		if (busy) return;
 		if (crossed) {
 			swipeDecisions.uncross(profileId);
-			if (!isFavorite) advance();
+			if (!isFavorite) goNext();
 			return;
 		}
+		const next = swipeDecisions.nextUndecidedAfter(
+			gridState.profiles,
+			profileId,
+		);
 		if (isFavorite) {
 			busy = true;
 			try {
@@ -85,7 +96,8 @@
 		}
 		swipeDecisions.cross(profileId);
 		swipeDecisions.record({ id: profileId, action: "cross" });
-		advance();
+		if (next !== null) goToProfile(next);
+		else void goto("/");
 	}
 
 	// Go back to the last profile acted on and undo that action, so it can be
