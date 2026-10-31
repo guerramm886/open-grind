@@ -123,6 +123,7 @@
 
 	let indicatorY = $state(PADDING_VERTICAL_PX);
 	let indicatorHeight = $state(BULLET_SIZE_PX);
+	let currentPhoto = $state(0);
 </script>
 
 <div
@@ -130,6 +131,14 @@
 	{@attach devicePixelHeight}
 >
 	{#if medias.length}
+		{#if medias.length > 1}
+			<div
+				class="pointer-events-none absolute top-2 left-2 z-10 flex items-center gap-1 rounded-full bg-background/45 scrim px-2 py-1 text-xs font-semibold text-white backdrop-filter-(--bd-veil)"
+			>
+				{currentPhoto + 1}/{medias.length}
+				<span class="opacity-80">fotos</span>
+			</div>
+		{/if}
 		<div
 			class="carousel relative flex size-full max-h-(--device-pixel-height) snap-y snap-mandatory flex-col overflow-auto *:snap-center"
 			bind:this={gallery}
@@ -152,6 +161,10 @@
 					(item > 0 && item < medias.length - 1
 						? indicatorStretch
 						: 0);
+				currentPhoto = Math.min(
+					medias.length - 1,
+					Math.max(0, Math.round(item)),
+				);
 				const lastVisible = Math.ceil(
 					(gallery.scrollTop - SUBPIXEL_SNAP_PX) / photoHeight,
 				);

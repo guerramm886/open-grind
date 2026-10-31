@@ -2,6 +2,9 @@
 	import HeartIcon from "phosphor-svelte/lib/HeartIcon";
 	import SlidersHorizontalIcon from "phosphor-svelte/lib/SlidersHorizontalIcon";
 
+	import { goto } from "$app/navigation";
+	import { toast } from "svelte-sonner";
+
 	import { genderFilterFlag } from "$lib/api/feature-flags-state.svelte";
 	import QuickFilterButton from "$lib/components/filters/QuickFilterButton.svelte";
 	import { buttonVariants } from "$lib/components/ui/button";
@@ -84,7 +87,16 @@
 <QuickFilterButton
 	active={false}
 	label="Elegir perfiles"
-	onclick={() => (swipeDecisions.open = true)}
+	onclick={() => {
+		const next = swipeDecisions.nextNearestUndecided(gridState.profiles);
+		if (next !== null) {
+			void goto(`/profile/${next}`, {
+				state: { profileOrigin: "browse" },
+			});
+		} else {
+			toast.info("No quedan perfiles por decidir");
+		}
+	}}
 >
 	<HeartIcon weight="fill" class="text-primary" />
 	Elegir

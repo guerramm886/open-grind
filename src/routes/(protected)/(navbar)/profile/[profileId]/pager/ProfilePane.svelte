@@ -15,6 +15,7 @@
 	import type { RenderedGridProfile } from "$lib/grid/grid";
 	import BlockedProfile from "../BlockedProfile.svelte";
 	import ProfileBottomNavBar from "../bottom-nav/ProfileBottomNavBar.svelte";
+	import ProfileDecisionBar from "../ProfileDecisionBar.svelte";
 	import FavoriteNoteButton from "../favorite-note/FavoriteNoteButton.svelte";
 	import HiddenProfile from "../HiddenProfile.svelte";
 	import ImageCarousel from "../ImageCarousel.svelte";
@@ -187,6 +188,9 @@
 				{active}
 				onTap={(tapType) => profileState.setTap(tapType)}
 			/>
+			{#if active && !ourProfile}
+				<ProfileDecisionBar profileId={profile.profileId} />
+			{/if}
 		{/if}
 	{/if}
 </section>
