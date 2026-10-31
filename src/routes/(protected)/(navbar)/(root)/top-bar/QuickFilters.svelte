@@ -1,4 +1,5 @@
 <script lang="ts">
+	import HeartIcon from "phosphor-svelte/lib/HeartIcon";
 	import SlidersHorizontalIcon from "phosphor-svelte/lib/SlidersHorizontalIcon";
 
 	import { genderFilterFlag } from "$lib/api/feature-flags-state.svelte";
@@ -6,6 +7,7 @@
 	import { buttonVariants } from "$lib/components/ui/button";
 	import * as ToggleGroup from "$lib/components/ui/toggle-group";
 	import { gridState } from "$lib/grid/grid-state.svelte";
+	import { swipeDecisions } from "$lib/grid/swipe-decisions.svelte";
 	import { defaultFilters } from "$lib/model/browse/grid/filters";
 	import AgeQuickFilter from "./AgeQuickFilter.svelte";
 	import PositionQuickFilter from "./PositionQuickFilter.svelte";
@@ -79,6 +81,14 @@
 		Fresh
 	</ToggleGroup.Item>
 </ToggleGroup.Root>
+<QuickFilterButton
+	active={false}
+	label="Elegir perfiles"
+	onclick={() => (swipeDecisions.open = true)}
+>
+	<HeartIcon weight="fill" class="text-primary" />
+	Elegir
+</QuickFilterButton>
 <QuickFilterButton
 	active={gridState.hiddenDistanceOnly}
 	onclick={() => gridState.toggleHiddenDistanceOnly()}

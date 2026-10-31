@@ -8,10 +8,10 @@
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
 
-    <color name="brand_primary">#FFFFCC02</color>
-    <color name="brand_on_primary">#FF733E0A</color>
-    <color name="brand_surface">#FF171717</color>
+    <color name="brand_primary">#FF4FE3B4</color>
+    <color name="brand_on_primary">#FF0B3537</color>
+    <color name="brand_surface">#FF151E2E</color>
     <color name="brand_on_surface">#FFFAFAFA</color>
     <color name="brand_on_surface_variant">#FFA1A1A1</color>
-    <color name="brand_background">#FF0A0A0A</color>
+    <color name="brand_background">#FF0C1422</color>
 </resources>

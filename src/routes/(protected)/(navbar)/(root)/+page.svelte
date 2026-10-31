@@ -10,6 +10,7 @@
 	import { revealedGridScrollTop } from "./grid-reveal";
 	import Grid from "./Grid.svelte";
 	import LocationChooser from "./LocationEmpty.svelte";
+	import SwipeDeck from "./SwipeDeck.svelte";
 	import TopBar from "./top-bar/TopBar.svelte";
 
 	const preferencesHydrated = hydratePreferences();
@@ -39,7 +40,7 @@
 </script>
 
 <svelte:head>
-	<title>Open Grind</title>
+	<title>Martin's Grindr</title>
 </svelte:head>
 {#await preferencesHydrated then}
 	{#if geohash === null}
@@ -76,6 +77,7 @@
 				container={gridContainer}
 				class="bottom-nav-clear"
 			/>
+			<SwipeDeck />
 		</main>
 	{/if}
 {/await}

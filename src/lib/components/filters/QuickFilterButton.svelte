@@ -18,7 +18,9 @@
 	variant="secondary"
 	aria-label={label}
 	{onclick}
-	class={{ "bg-white text-popover hover:bg-neutral-200": active }}
+	class={{
+		"neon-glow bg-primary text-primary-foreground hover:bg-primary/90": active,
+	}}
 >
 	{@render children()}
 </Button>

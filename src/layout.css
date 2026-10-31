@@ -8,39 +8,41 @@
 
 :root {
 	--radius: 1rem;
-	--background: oklch(0.145 0 0);
-	--foreground: oklch(0.985 0 0);
-	--card: oklch(0.205 0 0);
-	--card-foreground: oklch(0.985 0 0);
-	--popover: oklch(0.205 0 0);
-	--popover-foreground: oklch(0.985 0 0);
-	--primary: oklch(86.521% 0.17664 90.372);
-	--primary-foreground: oklch(0.421 0.095 57.708);
-	--secondary: oklch(0.274 0.006 286.033);
-	--secondary-foreground: oklch(0.985 0 0);
-	--muted: oklch(0.269 0 0);
-	--muted-foreground: oklch(0.708 0 0);
-	--accent: oklch(86.521% 0.17664 90.372);
-	--accent-foreground: oklch(0.421 0.095 57.708);
-	--destructive: oklch(0.704 0.191 22.216);
-	--border: oklch(1 0 0 / 10%);
-	--input: oklch(1 0 0 / 15%);
-	--ring: oklch(0.556 0 0);
-	--chart-1: oklch(0.905 0.182 98.111);
-	--chart-2: oklch(86.521% 0.17664 90.372);
-	--chart-3: oklch(0.681 0.162 75.834);
-	--chart-4: oklch(0.554 0.135 66.442);
-	--chart-5: oklch(0.476 0.114 61.907);
-	--sidebar: oklch(0.205 0 0);
-	--sidebar-foreground: oklch(0.985 0 0);
-	--sidebar-primary: oklch(86.521% 0.17664 90.372);
-	--sidebar-primary-foreground: oklch(0.987 0.026 102.212);
-	--sidebar-accent: oklch(0.269 0 0);
-	--sidebar-accent-foreground: oklch(0.985 0 0);
-	--sidebar-border: oklch(1 0 0 / 10%);
-	--sidebar-ring: oklch(0.556 0 0);
-	--message-bubble-in: oklch(0.7882 0.1455 228.36);
-	--message-bubble-out: oklch(0.8618 0.1973 89.76);
+	/* "Medianoche neón": deep navy surfaces, a mint neon accent. */
+	--background: oklch(0.17 0.03 258);
+	--foreground: oklch(0.97 0.01 250);
+	--card: oklch(0.22 0.035 258);
+	--card-foreground: oklch(0.97 0.01 250);
+	--popover: oklch(0.22 0.035 258);
+	--popover-foreground: oklch(0.97 0.01 250);
+	--primary: oklch(0.85 0.15 168);
+	--primary-foreground: oklch(0.26 0.06 200);
+	--secondary: oklch(0.29 0.04 258);
+	--secondary-foreground: oklch(0.97 0.01 250);
+	--muted: oklch(0.27 0.03 258);
+	--muted-foreground: oklch(0.72 0.03 250);
+	--accent: oklch(0.85 0.15 168);
+	--accent-foreground: oklch(0.26 0.06 200);
+	--destructive: oklch(0.7 0.17 12);
+	--border: oklch(0.85 0.1 220 / 12%);
+	--input: oklch(0.85 0.1 220 / 16%);
+	--ring: oklch(0.85 0.15 168 / 60%);
+	--chart-1: oklch(0.9 0.13 168);
+	--chart-2: oklch(0.85 0.15 168);
+	--chart-3: oklch(0.72 0.13 190);
+	--chart-4: oklch(0.6 0.12 220);
+	--chart-5: oklch(0.5 0.1 250);
+	--sidebar: oklch(0.22 0.035 258);
+	--sidebar-foreground: oklch(0.97 0.01 250);
+	--sidebar-primary: oklch(0.85 0.15 168);
+	--sidebar-primary-foreground: oklch(0.26 0.06 200);
+	--sidebar-accent: oklch(0.27 0.03 258);
+	--sidebar-accent-foreground: oklch(0.97 0.01 250);
+	--sidebar-border: oklch(0.85 0.1 220 / 12%);
+	--sidebar-ring: oklch(0.85 0.15 168 / 60%);
+	--message-bubble-in: oklch(0.8 0.1 235);
+	--message-bubble-out: oklch(0.86 0.14 168);
+	--neon: oklch(0.85 0.15 168);
 	--stack-scrim: 0.8;
 	--stack-edge: -1px 0 0 oklch(1 0 0 / 10%);
 	--list-rail: 117px;
@@ -333,6 +335,19 @@ a {
 /* Safe-area / inset layout vocabulary — see --nav-height / --screen-* tokens above */
 :root {
 	--nav-clear: calc(0.75rem + var(--nav-height) + var(--bar-content-gap));
+}
+@utility neon-glow {
+	box-shadow:
+		0 0 0.5rem color-mix(in oklch, var(--neon) 55%, transparent),
+		0 0 1.5rem color-mix(in oklch, var(--neon) 25%, transparent);
+}
+@utility neon-ring {
+	box-shadow:
+		0 0 0 1px color-mix(in oklch, var(--neon) 45%, transparent),
+		0 0 2rem color-mix(in oklch, var(--neon) 18%, transparent);
+}
+@utility neon-text {
+	text-shadow: 0 0 0.6rem color-mix(in oklch, var(--neon) 70%, transparent);
 }
 @utility h-screen-safe {
 	height: var(--screen-safe);

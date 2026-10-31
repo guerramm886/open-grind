@@ -14,7 +14,7 @@
 		"windows": [
 			{
 				"label": "main",
-				"title": "Open Grind",
+				"title": "Martin's Grindr",
 				"width": 1056,
 				"height": 800,
 				"minWidth": 320,
@@ -22,7 +22,7 @@
 				"theme": "Dark",
 				"create": false,
 				"titleBarStyle": "Visible",
-				"backgroundColor": "#0a0a0a",
+				"backgroundColor": "#0c1422",
 				"generalAutofillEnabled": false
 			}
 		],

@@ -38,6 +38,7 @@ import {
 } from "./grid-profiles";
 import { buildCascadeQuery } from "./grid-query";
 import { GridSearchFiltersState } from "./grid-search-filters-state.svelte";
+import { swipeDecisions } from "./swipe-decisions.svelte";
 
 const PUSH_DEEPLINK_WAIT_MS = 5000;
 
@@ -47,7 +48,9 @@ class GridState {
 	hiddenDistanceOnly = $state(false);
 	readonly profiles: GridProfile[] = $derived(
 		distanceView({
-			profiles: dedupeGridProfiles(this.items),
+			profiles: dedupeGridProfiles(this.items).filter(
+				(profile) => !swipeDecisions.isNope(profile.id),
+			),
 			hiddenDistanceOnly: this.hiddenDistanceOnly,
 		}),
 	);
