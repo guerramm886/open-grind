@@ -53,6 +53,7 @@ export function virtualWindow({
 
 		const resize = new ResizeObserver(remeasure);
 		resize.observe(scroller);
+		if (node !== scroller) resize.observe(node);
 		scroller.addEventListener("scroll", sample, { passive: true });
 
 		return () => {

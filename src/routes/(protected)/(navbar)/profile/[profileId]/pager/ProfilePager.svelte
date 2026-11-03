@@ -38,6 +38,24 @@
 
 	let pendingPathname: string | null = null;
 
+	function navigateToProfile(profileId: number) {
+		const position = pager.track.indexOf(profileId);
+		if (position >= 0) {
+			pager.commit({ position });
+			snap.place(position);
+		}
+		const pathname = `/profile/${profileId}`;
+		pendingPathname = pathname;
+		void goto(pathname, {
+			replaceState: true,
+			noScroll: true,
+			keepFocus: true,
+			state: { profileOrigin: "browse" },
+		}).finally(() => {
+			if (pendingPathname === pathname) pendingPathname = null;
+		});
+	}
+
 	const snap = new SnapPager({
 		count: () => pager.track.length,
 		onVisible: (positions) => pager.setVisiblePositions(positions),
@@ -46,9 +64,7 @@
 			if (
 				position === pager.activePosition ||
 				isPhotoSwipeBusy() ||
-				navigationPending({
-					owns: (pathname) => pathname === pendingPathname,
-				})
+				navigationPending({ owns: (pathname) => pathname === pendingPathname })
 			)
 				return;
 			const profileId = pager.commit({ position });
@@ -94,10 +110,7 @@
 		event: KeyboardEvent;
 		offset: number;
 	}) {
-		const action = arrowKeyAction({
-			event,
-			lightboxBusy: isPhotoSwipeBusy(),
-		});
+		const action = arrowKeyAction({ event, lightboxBusy: isPhotoSwipeBusy() });
 		if (action === "ignore") return;
 		event.preventDefault();
 		if (action === "page") snap.step(offset);
@@ -141,6 +154,7 @@
 			leaving={pager.leaving({ position })}
 			row={pager.row(profileId)}
 			heroHash={pager.heroHash(profileId)}
+			onDecisionNavigate={navigateToProfile}
 		/>
 	{/each}
 </div>

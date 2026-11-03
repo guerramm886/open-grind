@@ -27,7 +27,8 @@ fun expandHome(path: String): String =
 val keystorePropertiesFile = rootProject.file("keystore.properties")
 val hasKeystore = keystorePropertiesFile.exists()
 
-val baseVersionCode = tauriProperties.getProperty("tauri.android.versionCode", "1").toInt()
+val baseVersionCode = providers.environmentVariable("OPEN_GRIND_VERSION_CODE").orNull?.toInt()
+    ?: tauriProperties.getProperty("tauri.android.versionCode", "1").toInt()
 val abiVersionCodeOffsets = prop("opengrind.android.abiVersionCodeOffsets")
 	.split(",")
 	.associate { entry -> entry.substringBefore(":") to entry.substringAfter(":").toInt() }

@@ -1,3 +1,4 @@
+import { filterPositionSchema } from "$lib/model/browse/grid/filters";
 import {
 	type ConversationFilterValues,
 	defaultConversationFilters,
@@ -23,6 +24,36 @@ export function inboxFilterRequest(
 
 export class ConversationFilters {
 	value = $state<ConversationFilterValues>({ ...defaultConversationFilters });
+	#storageKey: string | null;
+
+	constructor(profileId?: number) {
+		this.#storageKey =
+			profileId === undefined ? null : `conversation-filters-${profileId}`;
+		if (!this.#storageKey) return;
+		try {
+			const stored = JSON.parse(
+				localStorage.getItem(this.#storageKey) ?? "null",
+			) as Record<string, unknown> | null;
+			if (stored && typeof stored === "object") {
+				const defaults = defaultConversationFilters;
+				this.value = {
+					favorites: stored.favorites === true,
+					unread: stored.unread === true,
+					online: stored.online === true,
+					rightNow: stored.rightNow === true,
+					distanceMetres:
+						typeof stored.distanceMetres === "number" &&
+						Number.isFinite(stored.distanceMetres)
+							? stored.distanceMetres
+							: defaults.distanceMetres,
+					positions:
+						filterPositionSchema.safeParse(stored.positions).data ?? [],
+				};
+			}
+		} catch {
+			// Storage can be unavailable or contain invalid data.
+		}
+	}
 
 	get request(): InboxFilterRequest | null {
 		return inboxFilterRequest(this.value);
@@ -43,6 +74,13 @@ export class ConversationFilters {
 		const merged = { ...this.value, ...values };
 		if (deepEqual(this.value, merged)) return false;
 		this.value = merged;
+		if (this.#storageKey) {
+			try {
+				localStorage.setItem(this.#storageKey, JSON.stringify(merged));
+			} catch {
+				// Filters remain active for this session if storage is unavailable.
+			}
+		}
 		return true;
 	}
 }

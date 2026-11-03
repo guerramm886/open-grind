@@ -344,9 +344,7 @@ describe("ProfilePane profile actions", () => {
 		const actions = within(
 			screen.getByRole("navigation", { name: "Profile actions" }),
 		);
-		expect(
-			actions.getByRole("switch", { name: "Add to favorites" }),
-		).not.toBeNull();
+		expect(screen.getByRole("button", { name: "Agregar a favoritos" })).not.toBeNull();
 		expect(
 			actions.getByRole("button", { name: "Profile menu" }),
 		).not.toBeNull();

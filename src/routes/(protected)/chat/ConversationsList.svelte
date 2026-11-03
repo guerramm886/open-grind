@@ -32,6 +32,29 @@
 	const EAGER_COUNT = 10;
 
 	const conversations: ConversationsState = getConversations();
+	const sortKey = `conversation-sort-${conversations.ourProfileId}`;
+	let sortOrder = $state<"recent" | "distance">("recent");
+	try {
+		if (localStorage.getItem(sortKey) === "distance") sortOrder = "distance";
+	} catch {
+		/* Storage may be unavailable. */
+	}
+	const orderedEntries = $derived.by(() => {
+		if (sortOrder === "recent") return conversations.entries;
+		return conversations.entries.toSorted(
+			(a, b) =>
+				(a.data.participants[0]?.distanceMetres ?? Infinity) -
+				(b.data.participants[0]?.distanceMetres ?? Infinity),
+		);
+	});
+	function setSortOrder(value: string) {
+		sortOrder = value === "distance" ? "distance" : "recent";
+		try {
+			localStorage.setItem(sortKey, sortOrder);
+		} catch {
+			/* Keep it for this session. */
+		}
+	}
 	const mobile = below("split");
 	const mountQueue = new MountQueue();
 
@@ -52,9 +75,7 @@
 
 	async function compensateScroll() {
 		if (!container) return;
-		const paddingBefore = parseFloat(
-			getComputedStyle(container).paddingTop,
-		);
+		const paddingBefore = parseFloat(getComputedStyle(container).paddingTop);
 		const scrollBefore = container.scrollTop;
 		await tick();
 		if (!container) return;
@@ -215,9 +236,8 @@
 					data-refresh-content
 					class="min-h-overscrollable flex shrink-0 flex-col gap-1 pb-nav-clear"
 				>
-					{#each conversations.entries as conversation, i (conversation.data.conversationId)}
-						{@const conversationId =
-							conversation.data.conversationId}
+					{#each orderedEntries as conversation, i (conversation.data.conversationId)}
+						{@const conversationId = conversation.data.conversationId}
 						<LazyConversation
 							{conversation}
 							eager={i < EAGER_COUNT}
@@ -226,8 +246,7 @@
 							onEnterSelection={mobile.current
 								? () => enterSelection(conversationId)
 								: undefined}
-							onRequestDelete={() =>
-								requestDelete([conversationId])}
+							onRequestDelete={() => requestDelete([conversationId])}
 						/>
 					{/each}
 					<ConversationsPagingTail
@@ -242,6 +261,8 @@
 		<ScrollToTopButton {container} class="bottom-(--nav-clear)" />
 		<ConversationsFilters
 			filters={conversations.filters}
+			{sortOrder}
+			onSortChange={setSortOrder}
 			onchange={(values) => conversations.setFilters(values)}
 			inert={selecting}
 			locked={filtersLocked}

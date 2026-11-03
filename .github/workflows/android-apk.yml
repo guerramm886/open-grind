@@ -1,7 +1,7 @@
 name: android-apk
 
-# Personal build: arm64 APK only, signed with a throwaway key kept in the
-# Actions cache. Mirrors build-android in .forgejo/workflows/build.yml.
+# Personal build: arm64 APK only, signed with the existing key in the
+# Actions cache. The same key is needed for Android to accept updates.
 on:
   push:
     branches: [orden-por-distancia]
@@ -46,17 +46,23 @@ jobs:
           path: ${{ env.KEYSTORE_DIR }}
           key: open-grind-debug-keystore-v1
 
-      - name: Create the signing key
+      - name: Require the existing signing key
         if: steps.keystore.outputs.cache-hit != 'true'
         run: |
-          mkdir -p "$KEYSTORE_DIR"
-          keytool -genkeypair -noprompt \
-            -keystore "$KEYSTORE_DIR/debug.jks" \
-            -alias open-grind \
-            -keyalg EC -groupname secp256r1 -sigalg SHA256withECDSA \
-            -validity 20000 \
-            -storepass open-grind-debug -keypass open-grind-debug \
-            -dname "CN=Open Grind personal build"
+          echo "Signing key cache missing; restore the original key before building an update."
+          exit 1
+
+      - name: Verify the signing key matches the installed APK
+        run: |
+          actual=$(keytool -exportcert -keystore "$KEYSTORE_DIR/debug.jks" -alias open-grind -storepass open-grind-debug | sha256sum | cut -d' ' -f1)
+          expected=dbb0a3502a1d8b570c4fdad4648fd53d870e3868d3d6a05c6b89b16b76dae836
+          if [ "$actual" != "$expected" ]; then
+            echo "The signing key does not match the APK already installed."
+            exit 1
+          fi
+
+      - name: Set increasing Android version code
+        run: echo "OPEN_GRIND_VERSION_CODE=$((11000 + 10 * GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
 
       - name: Write keystore.properties
         run: |

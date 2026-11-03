@@ -49,8 +49,15 @@ class GridState {
 	hiddenDistanceOnly = $state(false);
 	popularOnly = $state(false);
 	crossedOnly = $state(false);
+	searchText = $state("");
 	readonly profiles: GridProfile[] = $derived.by(() => {
-		const deduped = dedupeGridProfiles(this.items);
+		const query = this.searchText.trim().toLocaleLowerCase();
+		const deduped = dedupeGridProfiles(this.items).filter(
+			(profile) =>
+				!query ||
+				profile.type === "lazy" ||
+				(profile.displayName ?? "").toLocaleLowerCase().includes(query),
+		);
 		// The crossed list shows exactly the profiles hidden by a cross.
 		if (this.crossedOnly) {
 			return sortByDistance(
@@ -270,8 +277,7 @@ class GridState {
 		const query = this.currentQuery;
 		if (query === null) return;
 		const isCurrent = () =>
-			!this.#generation.isStale(generation) &&
-			query === this.currentQuery;
+			!this.#generation.isStale(generation) && query === this.currentQuery;
 		const result = await getGrid({ ...query, pageNumber: page }).catch(
 			(error: unknown) => {
 				if (isCurrent()) throw error;
@@ -325,9 +331,7 @@ class GridState {
 		generation: number,
 		background: boolean,
 	): Promise<string> {
-		const resolved = await autoLocation.resolveGeohash(geohash, {
-			background,
-		});
+		const resolved = await autoLocation.resolveGeohash(geohash, { background });
 		if (this.#generation.isStale(generation) || resolved === geohash)
 			return geohash;
 		this.#geohash = resolved;
@@ -379,8 +383,7 @@ class GridState {
 				opts?.keepLoadedPages && geohash === requestedGeohash
 					? this.items.filter(
 							(item) =>
-								!this.#firstPageIds.has(item.id) &&
-								!firstPageIds.has(item.id),
+								!this.#firstPageIds.has(item.id) && !firstPageIds.has(item.id),
 						)
 					: [];
 			this.#firstPageIds = firstPageIds;
@@ -399,9 +402,7 @@ class GridState {
 					label: "Failed to refresh profiles",
 					error: err,
 					onRetry: () =>
-						void this.refresh({
-							keepLoadedPages: opts.keepLoadedPages,
-						}),
+						void this.refresh({ keepLoadedPages: opts.keepLoadedPages }),
 				});
 				return;
 			}

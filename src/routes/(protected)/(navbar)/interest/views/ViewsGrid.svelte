@@ -6,7 +6,6 @@
 	import ScrollToTopButton from "$lib/components/shared/ScrollToTopButton.svelte";
 	import { Button } from "$lib/components/ui/button";
 	import { Skeleton } from "$lib/components/ui/skeleton";
-	import { swipeDecisions } from "$lib/grid/swipe-decisions.svelte";
 	import { observeIntersection } from "$lib/util/observe-intersection";
 	import { restoreScrollOnce } from "$lib/util/scroll-restore.svelte";
 	import EmptyViewsGrid from "./EmptyViewsGrid.svelte";
@@ -31,10 +30,7 @@
 	const shownViews = $derived(
 		heartedOnly
 			? views.views.filter(
-					(entry) =>
-						entry.type === "profile" &&
-						swipeDecisions.decision(entry.profile.profileId) ===
-							"like",
+					(entry) => entry.type === "profile" && entry.profile.isFavorite,
 				)
 			: views.views,
 	);

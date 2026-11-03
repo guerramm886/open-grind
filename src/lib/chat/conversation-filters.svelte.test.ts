@@ -18,6 +18,25 @@ const UNFILTERED = {
 };
 
 describe("ConversationFilters", () => {
+	it("restores filters separately for each account", () => {
+		localStorage.removeItem("conversation-filters-101");
+		localStorage.removeItem("conversation-filters-202");
+		const first = new ConversationFilters(101);
+		first.set({
+			favorites: true,
+			distanceMetres: 3000,
+			positions: [SexualPosition.Top],
+		});
+		expect(new ConversationFilters(101).value).toMatchObject({
+			favorites: true,
+			distanceMetres: 3000,
+			positions: [SexualPosition.Top],
+		});
+		expect(new ConversationFilters(202).value).toEqual(
+			defaultConversationFilters,
+		);
+		localStorage.removeItem("conversation-filters-101");
+	});
 	it("starts unfiltered", () => {
 		const filters = new ConversationFilters();
 
@@ -88,10 +107,7 @@ describe("inboxFilterRequest", () => {
 
 	it("asks the server for favorites only", () => {
 		expect(
-			inboxFilterRequest({
-				...defaultConversationFilters,
-				favorites: true,
-			}),
+			inboxFilterRequest({ ...defaultConversationFilters, favorites: true }),
 		).toEqual({ ...UNFILTERED, favoritesOnly: true });
 	});
 

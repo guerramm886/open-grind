@@ -16,10 +16,12 @@
 		profileId,
 		isFavorite,
 		onFavorite,
+		onNavigate,
 	}: {
 		profileId: number;
 		isFavorite: boolean;
 		onFavorite: (isFavorite: boolean) => void;
+		onNavigate: (profileId: number) => void;
 	} = $props();
 
 	let busy = $state(false);
@@ -27,10 +29,7 @@
 	const crossed = $derived(swipeDecisions.isNope(profileId));
 
 	function goToProfile(id: number) {
-		void goto(`/profile/${id}`, {
-			state: { profileOrigin: "browse" },
-			replaceState: true,
-		});
+		onNavigate(id);
 	}
 
 	// The next profile to decide, worked out BEFORE we change anything (a cross
@@ -60,10 +59,7 @@
 				swipeDecisions.record({ id: profileId, action: "favorite" });
 			} catch (error) {
 				console.error(error);
-				showErrorToast({
-					label: "No se pudo marcar como favorito",
-					error,
-				});
+				showErrorToast({ label: "No se pudo marcar como favorito", error });
 				busy = false;
 				return;
 			}
@@ -91,6 +87,9 @@
 				onFavorite(false);
 			} catch (error) {
 				console.error(error);
+				showErrorToast({ label: "No se pudo quitar de favoritos", error });
+				busy = false;
+				return;
 			}
 			busy = false;
 		}
@@ -110,10 +109,7 @@
 		} else {
 			try {
 				await removeFavoriteUser({ profileId: last.id });
-				gridState.setFavorite({
-					profileId: last.id,
-					isFavorite: false,
-				});
+				gridState.setFavorite({ profileId: last.id, isFavorite: false });
 			} catch (error) {
 				console.error(error);
 			}
@@ -122,9 +118,7 @@
 	}
 </script>
 
-<div
-	class="pointer-events-none absolute right-3 bottom-[calc(var(--nav-height)+var(--safe-area-bottom)+1.25rem)] z-20 flex flex-col items-center gap-3"
->
+<div class="flex items-center justify-center gap-4 bg-background px-4 py-3">
 	<button
 		type="button"
 		aria-label={isFavorite ? "Favorito" : "Agregar a favoritos"}
@@ -132,7 +126,7 @@
 		class={[
 			"pointer-events-auto flex size-13 items-center justify-center rounded-full backdrop-blur-sm transition active:scale-90",
 			isFavorite
-				? "neon-glow bg-primary text-primary-foreground"
+				? "bg-primary text-primary-foreground neon-glow"
 				: "border-2 border-primary/70 bg-card/70 text-primary",
 		]}
 		onclick={favorite}
@@ -158,6 +152,6 @@
 		]}
 		onclick={cross}
 	>
-		<XIcon weight="bold" class="size-6" />
+		<XIcon weight={crossed ? "fill" : "bold"} class="size-6" />
 	</button>
 </div>

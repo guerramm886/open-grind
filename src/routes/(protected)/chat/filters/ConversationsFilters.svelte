@@ -16,11 +16,15 @@
 		onchange,
 		inert = false,
 		locked = false,
+		sortOrder = "recent",
+		onSortChange = () => {},
 	}: {
 		filters: ConversationFilters;
 		onchange: (values: Partial<ConversationFilterValues>) => void;
 		inert?: boolean;
 		locked?: boolean;
+		sortOrder?: "recent" | "distance";
+		onSortChange?: (value: string) => void;
 	} = $props();
 
 	const LABELLED_TOGGLES = [
@@ -45,6 +49,15 @@
 	{@attach !inert && topChrome}
 >
 	<div class="contents" inert={locked}>
+		<select
+			aria-label="Ordenar chats"
+			value={sortOrder}
+			onchange={(event) => onSortChange(event.currentTarget.value)}
+			class="h-9 rounded-full bg-secondary px-3 text-sm"
+		>
+			<option value="recent">Más recientes</option>
+			<option value="distance">Más cercanos</option>
+		</select>
 		<ToggleGroup.Root
 			type="multiple"
 			variant="default"

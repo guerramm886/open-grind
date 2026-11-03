@@ -74,7 +74,7 @@ class ConversationsState {
 
 	readonly ourProfileId: number;
 	readonly drafts = new Drafts();
-	readonly filters = new ConversationFilters();
+	readonly filters: ConversationFilters;
 	readonly inboxViewed: InboxViewedMarker;
 	readonly paging: SentinelPaging;
 	#onIncomingMessage: IncomingMessageHandler;
@@ -117,13 +117,13 @@ class ConversationsState {
 		onFetchedReads?: FetchedReadsHandler;
 	}) {
 		this.ourProfileId = ourProfileId;
+		this.filters = new ConversationFilters(ourProfileId);
 		this.#onIncomingMessage = onIncomingMessage;
 		this.#onConversationRead = onConversationRead;
 		this.#reads = new ConversationReads({
 			ourProfileId,
 			known: (id) => this.#find(id),
-			activeConversationId: () =>
-				this.#activeClaim?.conversationId ?? null,
+			activeConversationId: () => this.#activeClaim?.conversationId ?? null,
 			clearUnread: (conversation) => (conversation.data.unreadCount = 0),
 			markRead: (conversationId) => void this.markRead(conversationId),
 			onRead: onConversationRead,
@@ -141,14 +141,10 @@ class ConversationsState {
 		);
 
 		this.#wsPromises.push(
-			ws.on(
-				"chat.v1.message_sent",
-				chatV1MessageSentEventSchema,
-				(event) => {
-					if (this.#destroyed) return;
-					void this.#handleMessageSent(event.payload);
-				},
-			),
+			ws.on("chat.v1.message_sent", chatV1MessageSentEventSchema, (event) => {
+				if (this.#destroyed) return;
+				void this.#handleMessageSent(event.payload);
+			}),
 			ws.on(
 				"chat.v1.conversation.delete",
 				chatV1ConversationDeleteEventSchema,
@@ -230,8 +226,7 @@ class ConversationsState {
 		this.#onIncomingMessage({
 			message,
 			conversation: entry,
-			inView:
-				this.#isActive(conversationId) || isConversationsListVisible,
+			inView: this.#isActive(conversationId) || isConversationsListVisible,
 		});
 	}
 
@@ -296,18 +291,12 @@ class ConversationsState {
 				if (fetched.has(id)) continue;
 				if (
 					entry.data.lastActivityTimestamp >
-					(lastActivitiesAtFetchStart.get(id) ??
-						Number.NEGATIVE_INFINITY)
+					(lastActivitiesAtFetchStart.get(id) ?? Number.NEGATIVE_INFINITY)
 				) {
 					this.#refreshRequestedSinceFetchStart = true;
 					continue;
 				}
-				if (
-					this.#pendingDeletes.blocks({
-						conversationId: id,
-						fetchEpoch,
-					})
-				)
+				if (this.#pendingDeletes.blocks({ conversationId: id, fetchEpoch }))
 					continue;
 				if (entry.data.lastActivityTimestamp > windowFloor) {
 					this.remove(id);
@@ -359,9 +348,7 @@ class ConversationsState {
 		if (this.#destroyed) return false;
 		// Claiming would make an in-flight #load drop the nextPage it fetched.
 		const fetchEpoch = this.#fetches.current;
-		const lastActivitiesAtFetchStart = this.#reads.lastActivities(
-			this.entries,
-		);
+		const lastActivitiesAtFetchStart = this.#reads.lastActivities(this.entries);
 		try {
 			const result = await getConversations({
 				page: 1,
@@ -444,8 +431,7 @@ class ConversationsState {
 			await this.#initialLoad;
 		} catch (error) {
 			if (this.#destroyed || this.#fetches.isStale(fetchEpoch)) return;
-			this.error =
-				error instanceof Error ? error : new Error(String(error));
+			this.error = error instanceof Error ? error : new Error(String(error));
 		} finally {
 			if (!this.#fetches.isStale(fetchEpoch)) this.loading = false;
 		}
@@ -481,11 +467,7 @@ class ConversationsState {
 			const [removed] = this.entries.splice(index, 1);
 			revert = () => {
 				if (removed && !this.#find(conversationId)) {
-					this.entries.splice(
-						Math.min(index, this.entries.length),
-						0,
-						removed,
-					);
+					this.entries.splice(Math.min(index, this.entries.length), 0, removed);
 				}
 			};
 		}
@@ -629,9 +611,7 @@ class ConversationsState {
 	}
 
 	#find(conversationId: string): Conversation | undefined {
-		return this.entries.find(
-			(e) => e.data.conversationId === conversationId,
-		);
+		return this.entries.find((e) => e.data.conversationId === conversationId);
 	}
 
 	#mergeIncoming({

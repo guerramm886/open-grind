@@ -31,6 +31,7 @@
 		leaving,
 		row,
 		heroHash,
+		onDecisionNavigate = () => {},
 	}: {
 		profileState: ProfileState;
 		position: number;
@@ -38,6 +39,7 @@
 		leaving: boolean;
 		row: RenderedGridProfile | null;
 		heroHash: string | null;
+		onDecisionNavigate?: (profileId: number) => void;
 	} = $props();
 
 	let scroller = $state<HTMLElement | null>(null);
@@ -55,13 +57,7 @@
 		profile?.medias ??
 			(heroHash === null
 				? []
-				: [
-						{
-							mediaHash: heroHash,
-							takenOnGrindr: null,
-							createdAt: null,
-						},
-					]),
+				: [{ mediaHash: heroHash, takenOnGrindr: null, createdAt: null }]),
 	);
 </script>
 
@@ -121,9 +117,7 @@
 				{#if profile || medias.length > 0}
 					<ImageCarousel {medias} />
 				{:else}
-					<Skeleton
-						class="aspect-3/4 h-auto max-h-photo w-full rounded-none"
-					/>
+					<Skeleton class="aspect-3/4 h-auto max-h-photo w-full rounded-none" />
 				{/if}
 				{#if profile?.isFavorite && profileState.note && !ourProfile}
 					<FavoriteNoteButton
@@ -138,9 +132,16 @@
 					changingViewability={profileState.changingViewability}
 					markBlocked={() => profileState.markBlocked()}
 					markHidden={() => profileState.markHidden()}
-					onFavorite={(isFavorite) =>
-						profileState.setFavorite(isFavorite)}
+					onFavorite={(isFavorite) => profileState.setFavorite(isFavorite)}
 				/>
+				{#if profile && active && !ourProfile}
+					<ProfileDecisionBar
+						profileId={profile.profileId}
+						isFavorite={profile.isFavorite}
+						onFavorite={(isFavorite) => profileState.setFavorite(isFavorite)}
+						onNavigate={onDecisionNavigate}
+					/>
+				{/if}
 				{#if profile}
 					<ProfileBody {profileState} />
 				{:else if row}
@@ -188,14 +189,6 @@
 				{active}
 				onTap={(tapType) => profileState.setTap(tapType)}
 			/>
-			{#if active && !ourProfile}
-				<ProfileDecisionBar
-					profileId={profile.profileId}
-					isFavorite={profile.isFavorite}
-					onFavorite={(isFavorite) =>
-						profileState.setFavorite(isFavorite)}
-				/>
-			{/if}
 		{/if}
 	{/if}
 </section>

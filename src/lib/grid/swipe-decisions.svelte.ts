@@ -55,7 +55,8 @@ class SwipeDecisions {
 	}
 
 	uncross(id: number): void {
-		const { [id]: _removed, ...rest } = this.#crossed;
+		const rest = { ...this.#crossed };
+		delete rest[id];
 		this.#crossed = rest;
 		this.#persist();
 	}
@@ -89,10 +90,14 @@ class SwipeDecisions {
 		currentId: number,
 	): number | null {
 		const index = profiles.findIndex((profile) => profile.id === currentId);
-		const start = index === -1 ? 0 : index + 1;
+		// If the current profile is no longer in the grid, starting at zero
+		// would unexpectedly send the user back to an unrelated profile.
+		if (index === -1) return null;
+		const start = index + 1;
 		for (let i = start; i < profiles.length; i++) {
 			const profile = profiles[i];
-			if (profile && this.#isUndecided(profile)) return profile.id;
+			if (profile?.type === "rendered" && !this.isNope(profile.id))
+				return profile.id;
 		}
 		return null;
 	}
