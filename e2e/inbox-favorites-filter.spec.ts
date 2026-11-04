@@ -69,7 +69,7 @@ test("unstarring the last favorite leaves the filter with no results", async ({
 	expect(await listedConversations(page)).toEqual([]);
 });
 
-test("leaving the chat section clears the filter", async ({ page }) => {
+test("leaving the chat section preserves the filter", async ({ page }) => {
 	await installTauriShim(page);
 	await page.goto("/chat");
 	await page.locator(CONVERSATION_LINK).first().waitFor({ timeout: 60_000 });
@@ -86,13 +86,13 @@ test("leaving the chat section clears the filter", async ({ page }) => {
 
 	await expect(
 		page.getByRole("button", { name: "Favorites only" }),
-	).toHaveAttribute("aria-pressed", "false");
+	).toHaveAttribute("aria-pressed", "true");
 	await expect
-		.poll(async () => (await listedConversations(page)).length)
-		.toBeGreaterThan(1);
+		.poll(() => listedConversations(page))
+		.toEqual([DEMO_CONVERSATION]);
 });
 
-test("the filter is session-only and its bar stays pinned while scrolling", async ({
+test("the filter survives reload and its bar stays pinned while scrolling", async ({
 	page,
 }) => {
 	await installTauriShim(page);
@@ -115,7 +115,50 @@ test("the filter is session-only and its bar stays pinned while scrolling", asyn
 
 	await expect(
 		page.getByRole("button", { name: "Favorites only" }),
-	).toHaveAttribute("aria-pressed", "false");
+	).toHaveAttribute("aria-pressed", "true");
+});
+
+test("opening and closing a chat preserves the selected filters", async ({
+	page,
+}) => {
+	await installTauriShim(page);
+	await page.goto("/chat");
+	await page.locator(CONVERSATION_LINK).first().waitFor({ timeout: 60_000 });
+	const star = page.getByRole("button", { name: "Favorites only" });
+	await star.click();
+	await expect(star).toHaveAttribute("aria-pressed", "true");
+	await expect
+		.poll(() => listedConversations(page))
+		.toEqual([DEMO_CONVERSATION]);
+	await page.locator(`a[href="${DEMO_CONVERSATION}"]`).first().click();
+	await page.waitForURL(`**${DEMO_CONVERSATION}`);
+	await page.goBack();
+	await page.waitForURL("**/chat");
+	await expect(
+		page.getByRole("button", { name: "Favorites only" }),
+	).toHaveAttribute("aria-pressed", "true");
+	await expect
+		.poll(() => listedConversations(page))
+		.toEqual([DEMO_CONVERSATION]);
+});
+
+test("the online filter stays active after opening a conversation", async ({
+	page,
+}) => {
+	await installTauriShim(page);
+	await page.goto("/chat");
+	await page.locator(CONVERSATION_LINK).first().waitFor({ timeout: 60_000 });
+	const online = page.getByRole("button", { name: "Online", exact: true });
+	await online.click();
+	await expect(online).toHaveAttribute("aria-pressed", "true");
+	const link = page.locator(CONVERSATION_LINK).first();
+	await expect(link).toBeVisible();
+	await link.click();
+	await page.goBack();
+	await page.waitForURL("**/chat");
+	await expect(
+		page.getByRole("button", { name: "Online", exact: true }),
+	).toHaveAttribute("aria-pressed", "true");
 });
 
 test("the refresh control anchors below the filters bar, not under it", async ({
