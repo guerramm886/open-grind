@@ -188,6 +188,23 @@
 	});
 
 	$effect(() => gridState.attachView());
+
+	$effect(() => {
+		const query = gridState.searchText.trim();
+		const ids = gridState.items.map((item) => item.id);
+		if (!query) {
+			gridState.cancelDescriptionSearch();
+			return;
+		}
+		const timer = setTimeout(
+			() => void gridState.searchLoadedDescriptions(ids),
+			500,
+		);
+		return () => {
+			clearTimeout(timer);
+			gridState.cancelDescriptionSearch();
+		};
+	});
 </script>
 
 <div class="relative flex flex-1 flex-col">

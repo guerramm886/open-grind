@@ -1,3 +1,4 @@
+/* eslint max-lines: ["error", { "max": 630, "skipBlankLines": true, "skipComments": true }] -- Keep grid search coverage with the shared state fixtures. */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
@@ -59,6 +60,7 @@ import {
 	markProfileUnviewable,
 	markProfileViewable,
 } from "$lib/api/users/profile-viewability";
+import * as profileApi from "$lib/api/users/profiles";
 import { mergeProfileEditIntoCaches } from "$lib/api/users/profiles";
 import { defaultFilters } from "$lib/model/browse/grid/filters";
 import { gridState } from "./grid-state.svelte";
@@ -248,8 +250,27 @@ describe("grid favorites", () => {
 });
 
 describe("shared profile order", () => {
+	it("loads descriptions for visible search candidates", async () => {
+		const fetch = vi.spyOn(profileApi, "getProfile").mockResolvedValue({ aboutMe: "Un texto público" } as Awaited<ReturnType<typeof profileApi.getProfile>>);
+		try {
+			await gridState.searchLoadedDescriptions([12]);
+			expect(gridState.descriptions[12]).toBe("Un texto público");
+		} finally {
+			fetch.mockRestore();
+		}
+	});
 	it("matches public names regardless of accents", () => {
 		gridState.items = [{ ...rendered({ id: 12 }), displayName: "Martín" }];
+		gridState.searchText = "martin";
+		expect(gridState.profiles.map(({ id }) => id)).toEqual([12]);
+		gridState.searchText = "";
+	});
+
+	it("matches public descriptions while keeping the same grid filters", () => {
+		gridState.items = [
+			{ ...rendered({ id: 12 }), displayName: "Otra persona" },
+		];
+		gridState.descriptions = { 12: "Hola, soy Martín" };
 		gridState.searchText = "martin";
 		expect(gridState.profiles.map(({ id }) => id)).toEqual([12]);
 		gridState.searchText = "";

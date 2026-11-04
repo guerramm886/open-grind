@@ -31,7 +31,12 @@
 		<Empty.Media variant="icon">
 			<Icon weight={favorites ? "fill" : "regular"} />
 		</Empty.Media>
-		{#if gridState.searchText.trim()}
+		{#if gridState.searchText.trim() && gridState.searchingDescriptions}
+			<Empty.Title>Buscando perfiles…</Empty.Title>
+			<Empty.Description
+				>Estamos revisando las descripciones disponibles.</Empty.Description
+			>
+		{:else if gridState.searchText.trim()}
 			<Empty.Title>No se encontraron perfiles</Empty.Title>
 			<Empty.Description
 				>Probá otra búsqueda. Tus filtros siguen activos.</Empty.Description

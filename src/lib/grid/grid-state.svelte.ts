@@ -8,7 +8,7 @@ import {
 	refreshFeatureFlags,
 } from "$lib/api/feature-flags-state.svelte";
 import { onProfileViewabilityChange } from "$lib/api/users/profile-viewability";
-import { onProfileEdit } from "$lib/api/users/profiles";
+import { getProfile, onProfileEdit } from "$lib/api/users/profiles";
 import {
 	preferencesSnapshot,
 	setPreferences,
@@ -57,13 +57,18 @@ class GridState {
 	popularOnly = $state(false);
 	crossedOnly = $state(false);
 	searchText = $state("");
+	descriptions = $state.raw<Record<number, string>>({});
+	searchingDescriptions = $state(false);
+	descriptionSearchErrors = $state(false);
+	#descriptionSearchGeneration = 0;
 	readonly profiles: GridProfile[] = $derived.by(() => {
 		const query = searchKey(this.searchText.trim());
 		const deduped = dedupeGridProfiles(this.items).filter(
 			(profile) =>
 				!query ||
 				profile.type === "lazy" ||
-				searchKey(profile.displayName ?? "").includes(query),
+				searchKey(profile.displayName ?? "").includes(query) ||
+				searchKey(this.descriptions[profile.id] ?? "").includes(query),
 		);
 		// The crossed list shows exactly the profiles hidden by a cross.
 		if (this.crossedOnly) {
@@ -269,6 +274,9 @@ class GridState {
 
 	reset(): void {
 		this.#generation.next();
+		this.cancelDescriptionSearch();
+		this.descriptions = {};
+		this.descriptionSearchErrors = false;
 		this.#reset();
 		this.searchText = "";
 		this.hiddenDistanceOnly = false;
@@ -281,6 +289,42 @@ class GridState {
 		this.#geohash = null;
 		this.#retargeted = null;
 		this.filters.reset();
+	}
+
+	cancelDescriptionSearch(): void {
+		this.#descriptionSearchGeneration++;
+		this.searchingDescriptions = false;
+	}
+
+	async searchLoadedDescriptions(ids: readonly number[]): Promise<void> {
+		const generation = ++this.#descriptionSearchGeneration;
+		this.searchingDescriptions = true;
+		this.descriptionSearchErrors = false;
+		try {
+			for (const id of [...new Set(ids)].slice(0, 200)) {
+				if (generation !== this.#descriptionSearchGeneration) return;
+				if (Object.hasOwn(this.descriptions, id)) continue;
+				try {
+					const profile = await getProfile(id);
+					if (generation !== this.#descriptionSearchGeneration)
+						return;
+					this.descriptions = {
+						...this.descriptions,
+						[id]: profile.aboutMe ?? "",
+					};
+				} catch (error) {
+					console.error(
+						"Unable to search a profile description",
+						error,
+					);
+					if (generation === this.#descriptionSearchGeneration)
+						this.descriptionSearchErrors = true;
+				}
+			}
+		} finally {
+			if (generation === this.#descriptionSearchGeneration)
+				this.searchingDescriptions = false;
+		}
 	}
 
 	async #loadPage(page: number): Promise<void> {

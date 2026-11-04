@@ -45,13 +45,17 @@
 		<div class="px-4 pb-2">
 			<input
 				type="search"
-				aria-label="Buscar por nombre público"
-				placeholder="Buscar por nombre público"
+				aria-label="Buscar por nombre o descripción"
+				placeholder="Buscar por nombre o descripción"
 				bind:value={gridState.searchText}
 				class="w-full rounded-xl bg-card px-4 py-3 text-foreground"
 			/>
 			<p class="text-xs text-muted-foreground">
-				Busca entre los perfiles cargados.
+				{gridState.searchingDescriptions
+					? "Revisando descripciones…"
+					: gridState.descriptionSearchErrors
+						? "No se pudieron revisar todas las descripciones."
+						: "Busca entre los perfiles cargados; revisa hasta 200 descripciones."}
 			</p>
 		</div>
 	{/if}
