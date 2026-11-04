@@ -96,8 +96,7 @@ class SwipeDecisions {
 		const start = index + 1;
 		for (let i = start; i < profiles.length; i++) {
 			const profile = profiles[i];
-			if (profile?.type === "rendered" && !this.isNope(profile.id))
-				return profile.id;
+			if (profile && this.#isUndecided(profile)) return profile.id;
 		}
 		return null;
 	}
