@@ -25,12 +25,12 @@
 	let container: HTMLDivElement | null = $state(null);
 	let heartedOnly = $state(false);
 
-	// Only viewers the user gave a heart to; hidden/anonymous previews can't be
-	// matched to a decision, so they drop out while this is on.
 	const shownViews = $derived(
 		heartedOnly
-			? views.views.filter(
-					(entry) => entry.type === "profile" && entry.profile.isFavorite,
+			? views.views.filter((entry) =>
+					entry.type === "profile"
+						? entry.profile.isFavorite
+						: entry.preview.isFavorite,
 				)
 			: views.views,
 	);
@@ -38,7 +38,7 @@
 	restoreScrollOnce({ container: () => container, state: views });
 </script>
 
-<div class="screen-nav-host">
+<main class="screen-nav-host">
 	{#if !views.loading && (views.views.length > 0 || !views.error)}
 		<DataRefreshControl
 			{container}
@@ -90,7 +90,7 @@
 						}}
 						onclick={() => (heartedOnly = !heartedOnly)}
 					>
-						Solo ❤
+						Favoritos ❤
 					</Button>
 				</div>
 				{#if shownViews.length === 0}
@@ -108,7 +108,7 @@
 						{/each}
 					</div>
 				{/if}
-				{#if !heartedOnly && views.hasMore}
+				{#if views.hasMore}
 					<div
 						class="h-0"
 						use:observeIntersection={{
@@ -121,4 +121,4 @@
 		</div>
 	</div>
 	<ScrollToTopButton {container} class="bottom-nav-clear" />
-</div>
+</main>

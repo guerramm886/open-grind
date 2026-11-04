@@ -9,11 +9,9 @@ export function routeForDeeplink(deeplink: string): string | null {
 	const [path = "", ...queryParts] = deeplink.split("?");
 	const query = queryParts.join("?");
 	const target = path.toLowerCase().replace(/\/+$/, "");
-	if (target === TAPS_DEEPLINK) return "/interest/taps";
+	if (target === TAPS_DEEPLINK) return null;
 	if (target !== CONVERSATION) return null;
 
 	const conversationId = new URLSearchParams(query).get("id");
-	return conversationId
-		? `/chat/${encodeURIComponent(conversationId)}`
-		: null;
+	return conversationId ? `/chat/${encodeURIComponent(conversationId)}` : null;
 }

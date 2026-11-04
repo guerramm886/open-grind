@@ -345,9 +345,9 @@ describe("MessageComposer sheet triggers", () => {
 
 	afterEach(cleanup);
 
-	it("reaches the GIFs and stickers button before the text field, as it sits on screen", () => {
+	it("reaches the Mensajes guardados button before the text field, as it sits on screen", () => {
 		const { textarea, getByRole } = renderComposer();
-		const stickers = getByRole("button", { name: "GIFs and stickers" });
+		const stickers = getByRole("button", { name: "Mensajes guardados" });
 
 		expect(
 			stickers.compareDocumentPosition(textarea) &
@@ -355,11 +355,11 @@ describe("MessageComposer sheet triggers", () => {
 		).toBeTruthy();
 	});
 
-	it("opens the GIFs and stickers sheet for its own conversation", async () => {
+	it("opens the Mensajes guardados sheet for its own conversation", async () => {
 		const { getByRole } = renderComposer();
 
 		await fireEvent.click(
-			getByRole("button", { name: "GIFs and stickers" }),
+			getByRole("button", { name: "Mensajes guardados" }),
 		);
 
 		expect(sheets.isOpen({ conversationId: A, sheet: "stickers" })).toBe(
@@ -391,7 +391,7 @@ describe("MessageComposer sheet triggers", () => {
 
 		await rerender({ conversationId: B });
 		await fireEvent.click(
-			getByRole("button", { name: "GIFs and stickers" }),
+			getByRole("button", { name: "Mensajes guardados" }),
 		);
 
 		expect(sheets.isOpen({ conversationId: B, sheet: "stickers" })).toBe(
@@ -413,7 +413,7 @@ describe("MessageComposer sheet triggers", () => {
 				queryByRole("button", { name: "Add attachment" }),
 			).toBeNull(),
 		);
-		expect(getByRole("button", { name: "GIFs and stickers" })).toBeTruthy();
+		expect(getByRole("button", { name: "Mensajes guardados" })).toBeTruthy();
 	});
 
 	it("focuses the trigger of the sheet the sheets ask for", () => {
@@ -426,7 +426,7 @@ describe("MessageComposer sheet triggers", () => {
 
 		sheets.composer?.focusTrigger({ sheet: "stickers" });
 		expect(document.activeElement).toBe(
-			getByRole("button", { name: "GIFs and stickers" }),
+			getByRole("button", { name: "Mensajes guardados" }),
 		);
 	});
 
@@ -442,7 +442,7 @@ describe("MessageComposer sheet triggers", () => {
 		sheets.composer?.focusTrigger({ sheet: "attachments" });
 
 		expect(document.activeElement).toBe(
-			getByRole("button", { name: "GIFs and stickers" }),
+			getByRole("button", { name: "Mensajes guardados" }),
 		);
 	});
 

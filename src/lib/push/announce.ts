@@ -40,6 +40,7 @@ function typedText(message: ApiResponseMessage): string {
 }
 
 function announce(announcement: Announcement): void {
+	if (announcement.category === "taps") return;
 	if (!isDesktopPlatform()) return;
 	notify(announcement).catch((error: unknown) => {
 		console.error("Failed to show the notification", error);
@@ -58,9 +59,7 @@ export function announceMessage({
 		tag: message.conversationId,
 		messageId: message.messageId,
 		title: sender || SOMEONE,
-		body:
-			typedText(message) ||
-			(MESSAGE_BODIES[message.type] ?? MESSAGE_BODY),
+		body: typedText(message) || (MESSAGE_BODIES[message.type] ?? MESSAGE_BODY),
 		deeplink: conversationDeeplink(message.conversationId),
 	});
 }

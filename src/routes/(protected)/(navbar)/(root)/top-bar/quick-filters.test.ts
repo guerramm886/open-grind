@@ -32,6 +32,8 @@ describe("sentFilterKeysWithoutQuickFilter", () => {
 					isOnline: true,
 					isRightNow: true,
 					isFresh: true,
+					photosEnabled: true,
+					photos: ["has-photos"],
 					ageEnabled: true,
 					age: [25, 40],
 					positionEnabled: true,
@@ -98,7 +100,6 @@ describe("sentFilterKeysWithoutQuickFilter", () => {
 		).toEqual([
 			"favorites",
 			"genders",
-			"photoOnly",
 			"hasAlbum",
 			"faceOnly",
 			"tribes",

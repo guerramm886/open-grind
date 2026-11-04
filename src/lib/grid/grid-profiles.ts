@@ -16,7 +16,7 @@ export function dedupeGridProfiles(
 	return [...byId.values()];
 }
 
-// Nearest first; profiles hiding their distance only show when asked for.
+// Nearest first; profiles hiding their distance remain visible at the end.
 // Lazy profiles stay in both views until they resolve, since resolving
 // needs them on screen.
 export function distanceView({
@@ -29,7 +29,7 @@ export function distanceView({
 	const shown = profiles.filter(
 		(profile) =>
 			profile.type === "lazy" ||
-			(profile.distance === null) === hiddenDistanceOnly,
+			!hiddenDistanceOnly || profile.distance === null,
 	);
 	if (hiddenDistanceOnly) return shown;
 	const distanceOf = (profile: GridProfile) =>

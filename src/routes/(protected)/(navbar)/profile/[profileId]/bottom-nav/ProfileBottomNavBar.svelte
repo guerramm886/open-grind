@@ -1,22 +1,12 @@
 <script lang="ts">
 	import { bottomChrome } from "$lib/util/screen-chrome.svelte";
-	import type { TapType } from "$lib/model/interest/taps";
 	import OpenConversationButton from "./OpenConversationButton.svelte";
-	import TapProfileButton from "./TapProfileButton.svelte";
 
 	let {
 		ourProfileId,
 		profileId,
-		tapType,
 		active,
-		onTap,
-	}: {
-		ourProfileId: number;
-		profileId: number;
-		tapType: TapType | null;
-		active: boolean;
-		onTap: (tapType: TapType | null) => void;
-	} = $props();
+	}: { ourProfileId: number; profileId: number; active: boolean } = $props();
 
 	const isOurProfile = $derived(profileId === ourProfileId);
 </script>
@@ -28,11 +18,10 @@
 		{@attach active && bottomChrome}
 	>
 		<nav
-			aria-label="Chat and tap"
+			aria-label="Chat"
 			class="flex flex-row items-center gap-2 rounded-full bg-muted p-2 shadow-xl"
 		>
 			<OpenConversationButton {profileId} {ourProfileId} />
-			<TapProfileButton {profileId} {tapType} {onTap} />
 		</nav>
 	</div>
 {/if}

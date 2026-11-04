@@ -5,6 +5,7 @@ const QUICK_FILTER_KEYS = new Set<CascadeFilterKey>([
 	"onlineOnly",
 	"rightNow",
 	"fresh",
+	"photoOnly",
 	"ageMin",
 	"ageMax",
 	"sexualPositions",

@@ -130,14 +130,13 @@ export async function resetNotificationsPage(): Promise<void> {
 
 export async function opened(page: typeof NotificationsPage) {
 	render(page);
-	await screen.findByRole("switch", { name: "Received taps" });
+	await screen.findByRole("switch", { name: "New messages" });
 	return {
 		master: screen.getByRole("switch", { name: "Enable notifications" }),
 		delivery: screen.getByRole("radiogroup", { name: "Delivery mode" }),
 		fast: screen.getByRole("radio", { name: /^Fast mode/ }),
 		slow: screen.getByRole("radio", { name: /^Slow mode/ }),
 		messages: screen.getByRole("switch", { name: "New messages" }),
-		taps: screen.getByRole("switch", { name: "Received taps" }),
 	};
 }
 

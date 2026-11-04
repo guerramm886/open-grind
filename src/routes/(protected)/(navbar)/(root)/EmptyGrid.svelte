@@ -31,7 +31,12 @@
 		<Empty.Media variant="icon">
 			<Icon weight={favorites ? "fill" : "regular"} />
 		</Empty.Media>
-		{#if !favorites}
+		{#if gridState.searchText.trim()}
+			<Empty.Title>No se encontraron perfiles</Empty.Title>
+			<Empty.Description
+				>Probá otra búsqueda. Tus filtros siguen activos.</Empty.Description
+			>
+		{:else if !favorites}
 			<Empty.Title>No Profiles Found</Empty.Title>
 			<Empty.Description>
 				Try adjusting your filters or reset them to defaults.
@@ -48,14 +53,14 @@
 			</Empty.Description>
 		{/if}
 	</Empty.Header>
-	<Empty.Content>
-		<div class="flex gap-2">
-			<Button
-				variant="outline"
-				onclick={() => gridState.filters.resetFilters()}
-			>
-				Reset filters
-			</Button>
-		</div>
-	</Empty.Content>
+	{#if !gridState.searchText.trim()}<Empty.Content>
+			<div class="flex gap-2">
+				<Button
+					variant="outline"
+					onclick={() => gridState.filters.resetFilters()}
+				>
+					Reset filters
+				</Button>
+			</div>
+		</Empty.Content>{/if}
 </Empty.Root>

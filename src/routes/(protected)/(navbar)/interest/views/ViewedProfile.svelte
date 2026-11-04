@@ -21,14 +21,12 @@
 	href="/profile/{view.profileId}"
 >
 	{#snippet overlay()}
-		{#if totalCount > 1}
-			<div
-				class="absolute top-1 left-1.5 z-1 flex items-center gap-0.5 rounded-full bg-black/55 px-1.5 py-0.5 text-2xs font-semibold text-white"
-				title="Te vio {totalCount} veces"
-			>
-				<EyeIcon weight="bold" class="size-3" />
-				{viewedCountLabel}<span class="sr-only">veces que te vio</span>
-			</div>
-		{/if}
+		<div
+			class="absolute right-1.5 bottom-1.5 z-1 flex items-center gap-0.5 rounded-full bg-black/75 px-1.5 py-0.5 text-2xs font-semibold text-white"
+			title="Te vio {totalCount} veces"
+		>
+			<EyeIcon weight="bold" class="size-3" />
+			{viewedCountLabel}<span class="sr-only">veces que te vio</span>
+		</div>
 	{/snippet}
 </ProfileMiniCard>

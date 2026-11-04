@@ -118,7 +118,7 @@
 	}
 </script>
 
-<div class="flex items-center justify-center gap-4 bg-background px-4 py-3">
+<div class="flex flex-row-reverse items-center justify-center gap-4 bg-background px-4 py-3">
 	<button
 		type="button"
 		aria-label={isFavorite ? "Favorito" : "Agregar a favoritos"}

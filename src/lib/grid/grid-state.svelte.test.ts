@@ -248,6 +248,12 @@ describe("grid favorites", () => {
 });
 
 describe("shared profile order", () => {
+	it("matches public names regardless of accents", () => {
+		gridState.items = [{ ...rendered({ id: 12 }), displayName: "Martín" }];
+		gridState.searchText = "martin";
+		expect(gridState.profiles.map(({ id }) => id)).toEqual([12]);
+		gridState.searchText = "";
+	});
 	it("dedupes the items into the order the grid renders", () => {
 		gridState.items = [
 			{ type: "lazy", id: 1, unread: 0, isVisiting: false },

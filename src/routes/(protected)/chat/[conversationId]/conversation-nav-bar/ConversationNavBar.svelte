@@ -7,6 +7,7 @@
 	import { topChrome } from "$lib/util/screen-chrome.svelte";
 	import { getConversationState } from "../conversation-state.svelte";
 	import ConversationNavBarProfile from "./ConversationNavBarProfile.svelte";
+	import ReceivedMedia from "./ReceivedMedia.svelte";
 
 	const conversationState = $derived(getConversationState()());
 </script>
@@ -29,6 +30,7 @@
 	</BackLink>
 	{#if conversationState.profile !== null}
 		<ConversationNavBarProfile profile={conversationState.profile} />
+		<ReceivedMedia />
 	{:else if conversationState.error}
 		<span class="flex-1">Failed to load conversation</span>
 	{:else}

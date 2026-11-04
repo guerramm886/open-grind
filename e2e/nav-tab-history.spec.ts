@@ -7,32 +7,23 @@ import {
 	installTauriShim,
 } from "./support/app";
 
-const TAPS = "/interest/taps";
+const VIEWS = "/interest/views";
 const PROFILE_LINK = 'a[href^="/profile/"]';
 
 test.describe.configure({ timeout: 300_000 });
 
-test("switching interest tabs never grows history", async ({ page }) => {
+test("reselecting visits never grows history", async ({ page }) => {
 	await installTauriShim(page);
-	await page.goto(TAPS);
+	await page.goto(VIEWS);
 	await page
 		.locator(PROFILE_LINK)
 		.first()
 		.waitFor({ timeout: FIRST_ROUTE_COMPILE_MS });
-	const atTaps = await historyDepth(page);
-
-	await page.getByRole("link", { name: "Views" }).click();
-	await expect(page).toHaveURL(/\/interest\/views$/);
 	const atViews = await historyDepth(page);
-
-	await page.getByRole("link", { name: "Interest", exact: true }).click();
-	await expect(page).toHaveURL(new RegExp(`${TAPS}$`));
+	await page.getByRole("link", { name: "Visitas", exact: true }).click();
+	await expect(page).toHaveURL(new RegExp(`${VIEWS}$`));
 	const afterTab = await historyDepth(page);
-
-	expect(
-		[atViews, afterTab],
-		`history.length went ${atTaps} -> ${atViews} -> ${afterTab}; tabs are one screen and must replace`,
-	).toEqual([atTaps, atTaps]);
+	expect(afterTab).toBe(atViews);
 });
 
 test("the Browse tab returns to the grid instead of pushing a duplicate", async ({

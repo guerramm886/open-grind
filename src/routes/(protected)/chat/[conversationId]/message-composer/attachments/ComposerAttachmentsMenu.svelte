@@ -1,5 +1,4 @@
 <script lang="ts">
-	import FolderOpenIcon from "phosphor-svelte/lib/FolderOpenIcon";
 	import ImageIcon from "phosphor-svelte/lib/ImageIcon";
 	import NavigationArrowIcon from "phosphor-svelte/lib/NavigationArrowIcon";
 	import TimerIcon from "phosphor-svelte/lib/TimerIcon";
@@ -37,11 +36,33 @@
 	let expiring = $state(false);
 	let locationPin: Coordinates | undefined = $state();
 
-	const selection = $derived(selections[selectedTab]);
+	const selection = $derived(
+		selectedTab === "media"
+			? {
+					count:
+						(selections.media?.count ?? 0) +
+						(selections.albums?.count ?? 0),
+					label:
+						selections.albums?.label === "Unshare"
+							? "Unshare"
+							: "Send",
+				}
+			: selections[selectedTab],
+	);
+	const incompatibleSelection = $derived(
+		selectedTab === "media" &&
+			(selections.media?.count ?? 0) > 0 &&
+			selections.albums?.label === "Unshare" &&
+			(selections.albums?.count ?? 0) > 0,
+	);
 	const isFullsizeTab = $derived(FULLSIZE_TABS.includes(selectedTab));
 
 	function submitSelection() {
-		tabs[selectedTab]?.submitSelection();
+		if (incompatibleSelection) return;
+		if (selectedTab === "media") {
+			if (selections.albums?.count) tabs.albums?.submitSelection();
+			if (selections.media?.count) tabs.media?.submitSelection();
+		} else tabs[selectedTab]?.submitSelection();
 	}
 
 	$effect.pre(() => {
@@ -63,19 +84,19 @@
 	>
 		<MediaSheetBody fullsize={isFullsizeTab}>
 			<Tabs.Content value="media">
+				<h2 class="px-1 py-2 font-semibold">Álbumes</h2>
+				<ComposerAlbumsTab
+					bind:this={tabs.albums}
+					onSelectionChange={(albumSelection) =>
+						(selections.albums = albumSelection)}
+					onClose={() => (open = false)}
+				/>
+				<h2 class="px-1 py-2 font-semibold">Fotos y videos</h2>
 				<ComposerMediaTab
 					bind:this={tabs.media}
 					{expiring}
 					onSelectionChange={(mediaSelection) =>
 						(selections.media = mediaSelection)}
-					onClose={() => (open = false)}
-				/>
-			</Tabs.Content>
-			<Tabs.Content value="albums">
-				<ComposerAlbumsTab
-					bind:this={tabs.albums}
-					onSelectionChange={(albumSelection) =>
-						(selections.albums = albumSelection)}
 					onClose={() => (open = false)}
 				/>
 			</Tabs.Content>
@@ -95,8 +116,11 @@
 
 		<MediaSheetActions
 			aboveTabBar
-			label={selection?.label ?? ""}
+			label={incompatibleSelection
+				? "No se puede combinar quitar acceso con enviar"
+				: (selection?.label ?? "")}
 			count={selection?.count ?? 0}
+			busy={incompatibleSelection}
 			showCount={selectedTab !== "location"}
 			onSubmit={submitSelection}
 		>
@@ -131,10 +155,6 @@
 			<MediaSheetTab value="media">
 				<ImageIcon weight="fill" class="size-5" />
 				Media
-			</MediaSheetTab>
-			<MediaSheetTab value="albums">
-				<FolderOpenIcon weight="fill" class="size-5" />
-				Albums
 			</MediaSheetTab>
 			<MediaSheetTab value="location">
 				<NavigationArrowIcon weight="fill" class="size-5" />

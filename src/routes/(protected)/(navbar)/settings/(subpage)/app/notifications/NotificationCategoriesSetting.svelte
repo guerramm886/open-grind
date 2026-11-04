@@ -5,7 +5,6 @@
 	import { appLifecycle } from "$lib/api/app-lifecycle.svelte";
 	import { showErrorToast } from "$lib/api/error-toast";
 	import SwitchField from "$lib/components/ui/switch-field/SwitchField.svelte";
-	import { isAndroidPlatform } from "$lib/platform/os";
 	import {
 		loadNotificationCategories,
 		notificationCategories,
@@ -22,13 +21,8 @@
 
 	const saving = new SvelteSet<PushCategoryName>();
 
-	const inSlowMode = $derived(
-		isAndroidPlatform() && notificationSettings.mode === "slow",
-	);
-
 	$effect(() => {
-		if (appLifecycle.active)
-			untrack(() => void loadNotificationCategories());
+		if (appLifecycle.active) untrack(() => void loadNotificationCategories());
 	});
 
 	async function change({
@@ -50,23 +44,15 @@
 	}
 </script>
 
-{#each notificationCategories.list as { category, enabled, systemBlocked } (category)}
-	{@const unavailable = inSlowMode && category === "taps"}
+{#each notificationCategories.list.filter((entry) => entry.category !== "taps") as { category, enabled, systemBlocked } (category)}
 	<div class="flex flex-col gap-1.5">
 		<SwitchField
 			title={TITLES[category]}
-			disabled={!notificationSettings.enabled ||
-				unavailable ||
-				saving.has(category)}
+			disabled={!notificationSettings.enabled || saving.has(category)}
 			bind:checked={
-				() => enabled && !systemBlocked && !unavailable,
+				() => enabled && !systemBlocked,
 				(next: boolean) => void change({ category, enabled: next })
 			}
 		/>
-		{#if unavailable}
-			<p class="px-4 text-sm text-muted-foreground">
-				Not available in slow mode
-			</p>
-		{/if}
 	</div>
 {/each}

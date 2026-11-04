@@ -3,7 +3,7 @@ import { expect, type Page, test } from "@playwright/test";
 import { ensureGridLocation, installTauriShim } from "./support/app";
 
 const PROFILE_LINK = 'a[href^="/profile/"]';
-const TAPS_PANE = '[data-slot="interest-pane-taps"]';
+const VIEWS_SCROLLER = '[data-slot="views-scroller"]';
 const GRID_CONTENT = '[data-slot="grid-content"]';
 const SCROLLER = ".pull-scroller";
 const SCROLL_TARGET = 400;
@@ -23,9 +23,7 @@ function countSkeletonsFrom(page: Page) {
 				for (const node of record.addedNodes) {
 					if (!(node instanceof Element)) continue;
 					if (node.matches('[data-slot="skeleton"]')) seen.total += 1;
-					seen.total += node.querySelectorAll(
-						'[data-slot="skeleton"]',
-					).length;
+					seen.total += node.querySelectorAll('[data-slot="skeleton"]').length;
 				}
 			}
 		}).observe(document.body, { childList: true, subtree: true });
@@ -40,17 +38,17 @@ function skeletonsSeen(page: Page) {
 	);
 }
 
-test("reopening Interest keeps the taps list and its scroll offset, with no skeleton", async ({
+test("reopening visits keeps the list and its scroll offset, with no skeleton", async ({
 	page,
 }) => {
 	test.setTimeout(300_000);
 	await installTauriShim(page);
-	await page.goto("/interest/taps");
+	await page.goto("/interest/views");
 	await page.locator(PROFILE_LINK).first().waitFor({ timeout: 180_000 });
 
-	const taps = page.locator(TAPS_PANE).locator(SCROLLER);
-	const offsetOfTaps = () => taps.evaluate((el) => el.scrollTop);
-	await taps.evaluate((el, top) => el.scrollTo({ top }), SCROLL_TARGET);
+	const views = page.locator(VIEWS_SCROLLER);
+	const offsetOfTaps = () => views.evaluate((el) => el.scrollTop);
+	await views.evaluate((el, top) => el.scrollTo({ top }), SCROLL_TARGET);
 	await expect.poll(offsetOfTaps).toBe(SCROLL_TARGET);
 
 	await page.getByRole("link", { name: "Browse" }).click();
@@ -64,8 +62,8 @@ test("reopening Interest keeps the taps list and its scroll offset, with no skel
 
 	await countSkeletonsFrom(page);
 
-	await page.getByRole("link", { name: "Interest" }).click();
-	await expect(page).toHaveURL(/\/interest\/taps$/);
+	await page.getByRole("link", { name: "Visitas" }).click();
+	await expect(page).toHaveURL(/\/interest\/views$/);
 	await expect(page.locator(PROFILE_LINK).first()).toBeVisible();
 	await expect
 		.poll(offsetOfTaps, { timeout: RESTORE_TIMEOUT })
@@ -119,7 +117,7 @@ test("returning to the grid keeps its scroll offset", async ({ page }) => {
 	await scroller.evaluate((el, top) => el.scrollTo({ top }), SCROLL_TARGET);
 	await expect.poll(() => offsetOfMountedScreen(page)).toBe(SCROLL_TARGET);
 
-	await page.getByRole("link", { name: "Interest" }).click();
+	await page.getByRole("link", { name: "Visitas" }).click();
 	await expect(page).toHaveURL(/\/interest\//);
 	await page.locator(PROFILE_LINK).first().waitFor({ timeout: 60_000 });
 

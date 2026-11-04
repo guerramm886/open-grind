@@ -39,12 +39,6 @@
 					gridState.filters.set({ isRightNow: !filters.isRightNow }),
 			},
 			{
-				label: "Fresh",
-				active: filters.isFresh,
-				toggle: () =>
-					gridState.filters.set({ isFresh: !filters.isFresh }),
-			},
-			{
 				label: "Populares",
 				active: gridState.popularOnly,
 				toggle: () => gridState.togglePopularOnly(),
@@ -58,6 +52,33 @@
 				label: "Cruzados",
 				active: gridState.crossedOnly,
 				toggle: () => gridState.toggleCrossedOnly(),
+			},
+			{
+				label: "Con foto",
+				active:
+					filters.photosEnabled &&
+					filters.photos.includes("has-photos"),
+				toggle: () => {
+					const active =
+						filters.photosEnabled &&
+						filters.photos.includes("has-photos");
+					const photos = active
+						? filters.photos.filter(
+								(photo) => photo !== "has-photos",
+							)
+						: [
+								...(filters.photosEnabled
+									? filters.photos.filter(
+											(photo) => photo !== "has-photos",
+										)
+									: []),
+								"has-photos" as const,
+							];
+					gridState.filters.set({
+						photos,
+						photosEnabled: photos.length > 0,
+					});
+				},
 			},
 		].sort((a, b) => Number(b.active) - Number(a.active)),
 	);
@@ -84,6 +105,12 @@
 		{toggle.label}
 	</QuickFilterButton>
 {/each}
+<QuickFilterButton
+	active={filters.isFresh}
+	onclick={() => gridState.filters.set({ isFresh: !filters.isFresh })}
+>
+	Fresh
+</QuickFilterButton>
 
 <AgeQuickFilter bind:open={openFilters.age} />
 <PositionQuickFilter bind:open={openFilters.position} />

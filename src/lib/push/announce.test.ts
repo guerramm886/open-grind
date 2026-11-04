@@ -88,17 +88,9 @@ describe("announcing on desktop", () => {
 		expect(announced()?.title).toBe("Someone");
 	});
 
-	it("shows a tap under its sender and opens the taps list", () => {
+	it("does not announce incoming taps", () => {
 		announceTap({ senderId: 42, senderName: null });
-
-		expect(announced()).toEqual({
-			category: "taps",
-			tag: "tap:42",
-			messageId: null,
-			title: "Someone",
-			body: "Tapped you",
-			deeplink: "grindr://taps-inbox",
-		});
+		expect(push.notify).not.toHaveBeenCalled();
 	});
 });
 

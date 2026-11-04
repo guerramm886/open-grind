@@ -8,7 +8,7 @@
 		getComposerSheets,
 	} from "./composer-sheets-state.svelte";
 	import { setMessageComposerContext } from "./message-composer-context.svelte";
-	import ComposerStickersMenu from "./stickers/ComposerStickersMenu.svelte";
+	import SavedMessages from "./SavedMessages.svelte";
 
 	let { conversationId }: { conversationId: string } = $props();
 
@@ -39,7 +39,7 @@
 		onCloseAutoFocus={(event) =>
 			sheets.returnFocusOnClose({ sheet: "attachments", event })}
 	/>
-	<ComposerStickersMenu
+	<SavedMessages
 		bind:open={
 			() => sheets.isOpen({ conversationId, sheet: "stickers" }),
 			(open) =>

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import StickerIcon from "phosphor-svelte/lib/StickerIcon";
+	import BookmarkSimpleIcon from "phosphor-svelte/lib/BookmarkSimpleIcon";
 
 	import ComposerButton from "../ComposerButton.svelte";
 	import { getMessageComposerContext } from "../message-composer-context.svelte";
@@ -15,11 +15,11 @@
 <ComposerButton
 	bind:ref
 	class="left-0 rounded-s-composer ps-2.75 pe-1.5"
-	aria-label="GIFs and stickers"
+	aria-label="Mensajes guardados"
 	onclick={onClick}
 	{disabled}
 >
 	{#snippet icon({ ...props })}
-		<StickerIcon {...props} class="size-5.5" />
+		<BookmarkSimpleIcon {...props} class="size-5.5" />
 	{/snippet}
 </ComposerButton>

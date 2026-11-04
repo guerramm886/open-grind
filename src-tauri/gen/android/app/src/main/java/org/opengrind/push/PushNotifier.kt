@@ -116,6 +116,7 @@ object PushNotifier {
 		withdrawn: Set<String>,
 	): Posted? {
 		val decision = batch.maxBy(PushDecision.Notify::timestamp)
+		if (decision.kind == PushKind.Tap) return null
 		if (!PushSettings.notificationsEnabled(context)) return null
 		if (!notificationsPermitted(context)) return null
 		if (!PushSettings.categoryEnabled(context, decision.kind)) return null

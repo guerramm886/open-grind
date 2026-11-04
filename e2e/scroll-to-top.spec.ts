@@ -26,12 +26,6 @@ const SURFACES: Surface[] = [
 		prepare: ensureGridLocation,
 	},
 	{
-		name: "the taps list",
-		path: "/interest/taps",
-		scroller: ".pull-scroller",
-		content: PROFILE_LINK,
-	},
-	{
 		name: "the views grid",
 		path: "/interest/views",
 		scroller: ".pull-scroller",
@@ -82,8 +76,7 @@ function geometry(page: Page, scroller: string) {
 			const control = glass.getBoundingClientRect();
 			const listRect = list.getBoundingClientRect();
 			return {
-				gapAboveNavBar:
-					bar.getBoundingClientRect().top - control.bottom,
+				gapAboveNavBar: bar.getBoundingClientRect().top - control.bottom,
 				offCenter:
 					control.left +
 					control.width / 2 -
@@ -145,9 +138,7 @@ for (const surface of SURFACES) {
 		expect(Math.abs(offCenter)).toBeLessThanOrEqual(1);
 
 		await page.locator(BUTTON).click();
-		await expect
-			.poll(() => scroller.evaluate((el) => el.scrollTop))
-			.toBe(0);
+		await expect.poll(() => scroller.evaluate((el) => el.scrollTop)).toBe(0);
 		await expect(page.locator(BUTTON)).toHaveCount(0);
 	});
 }

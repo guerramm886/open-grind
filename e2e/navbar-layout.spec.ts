@@ -49,16 +49,14 @@ test("tab widths don't change when selecting a tab", async ({ page }) => {
 	await page.goto("/right-now");
 
 	const navbar = page.getByRole("navigation", { name: "Main" });
-	const tabs = ["Browse", "Right Now", "Interest", "Inbox"].map((name) =>
+	const tabs = ["Browse", "Right Now", "Visitas", "Inbox"].map((name) =>
 		navbar.getByRole("link", { name }),
 	);
 	for (const tab of tabs) await fontLoaded(tab);
 
 	const getWidths = () =>
 		Promise.all(
-			tabs.map((tab) =>
-				tab.evaluate((el) => el.getBoundingClientRect().width),
-			),
+			tabs.map((tab) => tab.evaluate((el) => el.getBoundingClientRect().width)),
 		);
 
 	const initialWidths = await getWidths();
@@ -84,8 +82,7 @@ test.describe("in a 308 × 404 pop-up window", () => {
 		const ends = await links.evaluate((linksElement) => {
 			const content = linksElement.parentElement;
 			const avatar = content?.querySelector('a[aria-label="Me"]');
-			if (!content || !avatar)
-				throw new Error("Navbar structure not found");
+			if (!content || !avatar) throw new Error("Navbar structure not found");
 
 			content.scrollLeft = 0;
 			const atStart = {
@@ -143,9 +140,7 @@ test.describe("on a 360 × 640 phone with 64 px system bars", () => {
 		await page.waitForLoadState("networkidle");
 
 		const gaps = await scroller.evaluate((scrollerElement) => {
-			const version = scrollerElement.querySelector(
-				'[data-slot="me-version"]',
-			);
+			const version = scrollerElement.querySelector('[data-slot="me-version"]');
 			const linkAbove = version?.previousElementSibling;
 			const meTab = document.querySelector(
 				'nav[aria-label="Main"] a[aria-label="Me"]',
@@ -165,8 +160,7 @@ test.describe("on a 360 × 640 phone with 64 px system bars", () => {
 				scrollRange:
 					scrollerElement.scrollHeight - scrollerElement.clientHeight,
 				aboveVersion: versionText.top - contentBounds(linkAbove).bottom,
-				belowVersion:
-					meTab.getBoundingClientRect().top - versionText.bottom,
+				belowVersion: meTab.getBoundingClientRect().top - versionText.bottom,
 			};
 		});
 

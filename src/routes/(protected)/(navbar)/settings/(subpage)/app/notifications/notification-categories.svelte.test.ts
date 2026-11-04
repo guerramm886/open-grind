@@ -12,7 +12,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type * as Os from "$lib/platform/os";
 import {
-	account,
 	appLifecycle,
 	categories,
 	checked,
@@ -41,8 +40,7 @@ vi.mock(
 );
 vi.mock(
 	"$lib/updates/addon.svelte",
-	async () =>
-		(await import("./notifications-page-test-helpers.svelte")).addon,
+	async () => (await import("./notifications-page-test-helpers.svelte")).addon,
 );
 vi.mock("$lib/api/error-toast", async () => ({
 	showErrorToast: (await import("./notifications-page-test-helpers.svelte"))
@@ -82,57 +80,24 @@ beforeEach(resetNotificationsPage);
 afterEach(cleanup);
 
 describe("the notification categories", () => {
-	it("titles both switches without a description and shows them on in Fast mode", async () => {
+	it("offers messages and hides taps in Fast mode", async () => {
 		await deliveredFast();
-		const { messages, taps } = await opened(NotificationsPage);
+		const { messages } = await opened(NotificationsPage);
 
-		expect(messages.closest("label")?.textContent.trim()).toBe(
-			"New messages",
-		);
-		expect(taps.closest("label")?.textContent.trim()).toBe("Received taps");
-		for (const control of [messages, taps])
-			expect(checked(control)).toBe("true");
-		expect(disabled(taps)).toBe(false);
-	});
-
-	it("turns Received taps off and locks it in Slow mode, with a caption under the switch", async () => {
-		const { messages, taps } = await opened(NotificationsPage);
-
-		expect(checked(taps)).toBe("false");
-		expect(disabled(taps)).toBe(true);
+		expect(messages.closest("label")?.textContent.trim()).toBe("New messages");
 		expect(checked(messages)).toBe("true");
-		expect(disabled(messages)).toBe(false);
-		const caption = screen.getByText("Not available in slow mode");
-		expect(caption.closest("label")).toBeNull();
-		expect(caption.previousElementSibling).toBe(taps.closest("label"));
-	});
-
-	it("brings the saved Received taps choice back once Fast mode is on", async () => {
-		const { taps } = await opened(NotificationsPage);
-		expect(checked(taps)).toBe("false");
-
-		inMode("fast");
-		await reconcileNotifications();
-
-		await waitFor(() => expect(checked(taps)).toBe("true"));
-		expect(disabled(taps)).toBe(false);
-		expect(screen.queryByText("Not available in slow mode")).toBeNull();
-		expect(push.setPushCategory).not.toHaveBeenCalled();
-		expect(account.setPushSettings).not.toHaveBeenCalled();
+		expect(screen.queryByRole("switch", { name: "Received taps" })).toBeNull();
 	});
 
 	it.each(["macos", "windows", "linux"] as const)(
-		"leaves Received taps usable on %s, which has no delivery modes",
+		"hides received taps on %s",
 		async (platform) => {
 			currentPlatform.mockReturnValue(platform);
 			render(NotificationsPage);
-			const taps = await screen.findByRole("switch", {
-				name: "Received taps",
-			});
-
-			expect(checked(taps)).toBe("true");
-			expect(disabled(taps)).toBe(false);
-			expect(screen.queryByText("Not available in slow mode")).toBeNull();
+			await screen.findByRole("switch", { name: "New messages" });
+			expect(
+				screen.queryByRole("switch", { name: "Received taps" }),
+			).toBeNull();
 		},
 	);
 
@@ -143,18 +108,14 @@ describe("the notification categories", () => {
 		await fireEvent.click(messages);
 
 		await waitFor(() =>
-			expect(push.openPushCategorySettings).toHaveBeenCalledWith(
-				"messages",
-			),
+			expect(push.openPushCategorySettings).toHaveBeenCalledWith("messages"),
 		);
 		expect(push.setPushCategory).not.toHaveBeenCalled();
 		expect(checked(messages)).toBe("true");
 	});
 
 	it("opens Android's settings when a blocked New messages is turned on", async () => {
-		push.pushCategories.mockResolvedValue(
-			categories({ systemBlocked: true }),
-		);
+		push.pushCategories.mockResolvedValue(categories({ systemBlocked: true }));
 		const { messages } = await opened(NotificationsPage);
 		expect(checked(messages)).toBe("false");
 		expect(disabled(messages)).toBe(false);
@@ -162,78 +123,33 @@ describe("the notification categories", () => {
 		await fireEvent.click(messages);
 
 		await waitFor(() =>
-			expect(push.openPushCategorySettings).toHaveBeenCalledWith(
-				"messages",
-			),
+			expect(push.openPushCategorySettings).toHaveBeenCalledWith("messages"),
 		);
 		expect(push.setPushCategory).not.toHaveBeenCalled();
 		expect(checked(messages)).toBe("false");
 	});
 
-	it("opens Android's settings and saves nothing when a blocked category is turned on", async () => {
-		await deliveredFast();
-		push.pushCategories.mockResolvedValue(
-			categories({}, { systemBlocked: true }),
-		);
-		const { messages, taps } = await opened(NotificationsPage);
-		expect(checked(taps)).toBe("false");
-
-		await fireEvent.click(taps);
-
-		await waitFor(() =>
-			expect(push.openPushCategorySettings).toHaveBeenCalledWith("taps"),
-		);
-		expect(push.setPushCategory).not.toHaveBeenCalled();
-		expect(account.setPushSettings).not.toHaveBeenCalled();
-		expect(push.setNotificationsEnabled).not.toHaveBeenCalled();
-		expect(checked(taps)).toBe("false");
-		expect(checked(messages)).toBe("true");
-		expect(stored.notificationsEnabled).toBe(true);
-	});
-
-	it("disables Received taps while it saves", async () => {
-		await deliveredFast();
-		const saving = Promise.withResolvers<void>();
-		push.setPushCategory.mockReturnValueOnce(saving.promise);
-		const { taps } = await opened(NotificationsPage);
-
-		await fireEvent.click(taps);
-
-		expect(disabled(taps)).toBe(true);
-		saving.resolve();
-		await waitFor(() => expect(disabled(taps)).toBe(false));
-		expect(account.setPushSettings).toHaveBeenCalledWith({
-			tapPushNotification: false,
-		});
-	});
-
 	it("disables every category while notifications are off", async () => {
 		await deliveredFast();
 		stored.notificationsEnabled = false;
-		push.pushCategories.mockResolvedValue(
-			categories({ systemBlocked: true }),
-		);
-		const { messages, taps } = await opened(NotificationsPage);
-
-		for (const control of [messages, taps])
-			expect(disabled(control)).toBe(true);
+		push.pushCategories.mockResolvedValue(categories({ systemBlocked: true }));
+		const { messages } = await opened(NotificationsPage);
+		expect(disabled(messages)).toBe(true);
 	});
 
 	it("reloads the categories only when the app resumes", async () => {
 		await deliveredFast();
-		const { taps } = await opened(NotificationsPage);
+		const { messages } = await opened(NotificationsPage);
 		expect(push.pushCategories).toHaveBeenCalledOnce();
 
-		push.pushCategories.mockResolvedValue(
-			categories({}, { systemBlocked: true }),
-		);
+		push.pushCategories.mockResolvedValue(categories({ systemBlocked: true }));
 		appLifecycle.active = false;
 		flushSync();
 		expect(push.pushCategories).toHaveBeenCalledOnce();
 		appLifecycle.active = true;
 		flushSync();
 
-		await waitFor(() => expect(checked(taps)).toBe("false"));
+		await waitFor(() => expect(checked(messages)).toBe("false"));
 		expect(push.pushCategories).toHaveBeenCalledTimes(2);
 	});
 });

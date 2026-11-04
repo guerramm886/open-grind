@@ -12,13 +12,11 @@ describe("routing a Grindr push deeplink", () => {
 	});
 
 	it("opens the conversation a desktop notification names", () => {
-		expect(routeForDeeplink(conversationDeeplink("1:2"))).toBe(
-			"/chat/1%3A2",
-		);
+		expect(routeForDeeplink(conversationDeeplink("1:2"))).toBe("/chat/1%3A2");
 	});
 
-	it("opens the taps tab", () => {
-		expect(routeForDeeplink("grindr://taps-inbox")).toBe("/interest/taps");
+	it("ignores tap notifications", () => {
+		expect(routeForDeeplink("grindr://taps-inbox")).toBeNull();
 	});
 
 	it("matches the target the way the notification side does", () => {
@@ -28,13 +26,9 @@ describe("routing a Grindr push deeplink", () => {
 		expect(routeForDeeplink("GRINDR://Conversation//?id=1%3A2")).toBe(
 			"/chat/1%3A2",
 		);
-		expect(routeForDeeplink("grindr://taps-inbox/")).toBe("/interest/taps");
-		expect(routeForDeeplink("grindr://Taps-Inbox//")).toBe(
-			"/interest/taps",
-		);
-		expect(routeForDeeplink("grindr://taps-inbox/?senderId=1")).toBe(
-			"/interest/taps",
-		);
+		expect(routeForDeeplink("grindr://taps-inbox/")).toBeNull();
+		expect(routeForDeeplink("grindr://Taps-Inbox//")).toBeNull();
+		expect(routeForDeeplink("grindr://taps-inbox/?senderId=1")).toBeNull();
 		expect(routeForDeeplink("grindr://conversation?id=a?b")).toBe(
 			"/chat/a%3Fb",
 		);
@@ -60,9 +54,9 @@ describe("routing a Grindr push deeplink", () => {
 	});
 
 	it("never lets a deeplink escape the chat route", () => {
-		expect(
-			routeForDeeplink("grindr://conversation?id=..%2F..%2Fadmin"),
-		).toBe("/chat/..%2F..%2Fadmin");
+		expect(routeForDeeplink("grindr://conversation?id=..%2F..%2Fadmin")).toBe(
+			"/chat/..%2F..%2Fadmin",
+		);
 		expect(routeForDeeplink("grindr://conversation?id=a/b")).toBe(
 			"/chat/a%2Fb",
 		);

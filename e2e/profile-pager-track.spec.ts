@@ -75,9 +75,9 @@ test("a profile opened from a chat stands alone", async ({ page }) => {
 	await expectSingleStop(page);
 });
 
-test("a profile opened from Taps stands alone", async ({ page }) => {
+test("a profile opened from visits stands alone", async ({ page }) => {
 	await installTauriShim(page);
-	await page.goto("/interest/taps");
+	await page.goto("/interest/views");
 	const tap = page.locator('a[href^="/profile/"]').first();
 	await tap.waitFor({ timeout: 180_000 });
 	await tap.click();

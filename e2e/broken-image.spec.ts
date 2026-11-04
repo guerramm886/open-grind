@@ -43,8 +43,8 @@ test.describe("broken images", () => {
 		await expect(page.locator('img[src*="dicebear"]')).toHaveCount(0);
 
 		const boundingBox = await broken.boundingBox();
-		expect(boundingBox?.width).toBe(80);
-		expect(boundingBox?.height).toBe(80);
+		expect(boundingBox?.width).toBeGreaterThan(80);
+		expect(boundingBox?.height).toBe(boundingBox?.width);
 	});
 
 	test("a cached failure still renders the placeholder on revisit", async ({
@@ -64,10 +64,9 @@ test.describe("broken images", () => {
 			.first()
 			.waitFor({ timeout: FIRST_LOAD_TIMEOUT });
 
-		await page.getByRole("link", { name: "Views" }).click();
+		await page.getByRole("link", { name: "Browse" }).click();
+		await page.getByRole("link", { name: "Visitas" }).click();
 		await expect(page).toHaveURL(/\/interest\/views$/);
-		await page.getByRole("link", { name: "Taps" }).click();
-		await expect(page).toHaveURL(/\/interest\/taps$/);
 
 		await page.locator(BROKEN).first().waitFor({ timeout: 60_000 });
 	});

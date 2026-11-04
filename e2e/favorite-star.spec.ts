@@ -3,8 +3,8 @@ import { expect, type Page, test } from "@playwright/test";
 import { DEMO_CONVERSATION, installTauriShim } from "./support/app";
 
 const CONVERSATION_LINK = 'a[href^="/chat/1"]';
-const FAVORITE_TAP = "/profile/100013";
-const PLAIN_TAP = "/profile/100009";
+const FAVORITE_VIEW = "/profile/100013";
+const PLAIN_VIEW = "/profile/100009";
 
 function starIn(page: Page, rowHref: string) {
 	return page.locator(`a[href="${rowHref}"] [data-slot="favorite-star"]`);
@@ -57,14 +57,20 @@ test("a muted favorite shows the star before the name and keeps its bell", async
 	expect(starFirst).toBe(true);
 });
 
-test("received taps star the favorited profiles only", async ({ page }) => {
-	await page.goto("/interest/taps");
+test("views mark the favorited profiles only", async ({ page }) => {
+	await page.goto("/interest/views");
 	await page
-		.locator(`a[href="${FAVORITE_TAP}"]`)
+		.locator(`a[href="${FAVORITE_VIEW}"]`)
 		.first()
 		.waitFor({ timeout: 120_000 });
 
-	await expect(starIn(page, FAVORITE_TAP).first()).toBeVisible();
-	await expect(page.locator(`a[href="${PLAIN_TAP}"]`).first()).toBeAttached();
-	await expect(starIn(page, PLAIN_TAP)).toHaveCount(0);
+	await expect(
+		page.locator(`a[href="${FAVORITE_VIEW}"] .sr-only`, {
+			hasText: "Favorite",
+		}),
+	).toBeAttached();
+	await expect(page.locator(`a[href="${PLAIN_VIEW}"]`).first()).toBeAttached();
+	await expect(
+		page.locator(`a[href="${PLAIN_VIEW}"] .sr-only`, { hasText: "Favorite" }),
+	).toHaveCount(0);
 });

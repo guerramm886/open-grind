@@ -59,6 +59,7 @@ internal class ConversationArgs {
 class PushPlugin(private val activity: Activity) : Plugin(activity) {
 	override fun load(webView: WebView) {
 		super.load(webView)
+		PushNotifier.cancelCategory(activity, PushKind.Tap)
 		offerDeeplink(activity.intent)
 		runCatching { PushSchedule.follow(activity, PushSettings.mode(activity)) }
 	}

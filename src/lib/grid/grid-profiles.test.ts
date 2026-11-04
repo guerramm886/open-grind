@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { LazyGridProfile } from "./grid";
-import { dedupeGridProfiles, indexProfilesById } from "./grid-profiles";
+import { dedupeGridProfiles, distanceView, indexProfilesById } from "./grid-profiles";
 import { rendered } from "./grid-test-helpers";
 
 function lazy(id: number): LazyGridProfile {
@@ -59,5 +59,28 @@ describe("indexProfilesById", () => {
 			[3, 1],
 			[5, 2],
 		]);
+	});
+});
+
+describe("distanceView", () => {
+	const nearby = { ...rendered({ id: 1 }), distance: 100 };
+	const hidden = rendered({ id: 2 });
+
+	it("keeps profiles without a visible distance after nearby profiles", () => {
+		expect(
+			distanceView({
+				profiles: [hidden, nearby],
+				hiddenDistanceOnly: false,
+			}),
+		).toEqual([nearby, hidden]);
+	});
+
+	it("can show only profiles with no visible distance", () => {
+		expect(
+			distanceView({
+				profiles: [nearby, hidden],
+				hiddenDistanceOnly: true,
+			}),
+		).toEqual([hidden]);
 	});
 });

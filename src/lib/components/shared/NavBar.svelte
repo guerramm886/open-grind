@@ -13,7 +13,6 @@
 	import ProgressiveBlur from "$lib/components/shared/ProgressiveBlur.svelte";
 	import { Badge } from "$lib/components/ui/badge";
 	import { tabsListVariants } from "$lib/components/ui/tabs";
-	import { getTapsState } from "$lib/interest/taps-state.svelte";
 	import { returnTo } from "$lib/util/history";
 	import { isWithin } from "$lib/util/pathname";
 	import { isPlainClick } from "$lib/util/plain-click";
@@ -22,15 +21,12 @@
 	let { ourProfileId }: { ourProfileId: number } = $props();
 
 	let myProfilePhotos = $state(
-		untrack(() =>
-			getProfile(ourProfileId).then((profile) => profile.medias),
-		),
+		untrack(() => getProfile(ourProfileId).then((profile) => profile.medias)),
 	);
 
 	$effect(() =>
 		onProfileEdit(({ profileId, patch }) => {
-			if (profileId !== ourProfileId || patch.medias === undefined)
-				return;
+			if (profileId !== ourProfileId || patch.medias === undefined) return;
 			myProfilePhotos = Promise.resolve(patch.medias);
 		}),
 	);
@@ -39,9 +35,6 @@
 		getOrCreateConversationsState(ourProfileId),
 	);
 	const hasUnread = $derived(conversations.hasUnread);
-
-	const taps = untrack(() => getTapsState(ourProfileId));
-	const hasUnseenTaps = $derived(taps.hasUnseen);
 
 	function tabNavigation({
 		href,
@@ -104,21 +97,11 @@
 		</a>
 		<a
 			href="/interest"
-			data-active={page.route.id?.startsWith(
-				"/(protected)/(navbar)/interest",
-			)}
-			onclick={tabNavigation({
-				href: "/interest",
-				landsOn: "/interest/taps",
-			})}
+			data-active={page.route.id?.startsWith("/(protected)/(navbar)/interest")}
+			onclick={tabNavigation({ href: "/interest", landsOn: "/interest/views" })}
 		>
 			<FireIcon weight="fill" />
-			{@render label("Interest")}
-			{#if hasUnseenTaps}
-				<Badge
-					class="absolute inset-e-2 top-1 size-2.5 rounded-full p-0"
-				/>
-			{/if}
+			{@render label("Visitas")}
 		</a>
 		<a
 			href="/chat"
@@ -128,9 +111,7 @@
 			<ChatCircleIcon weight="fill" />
 			{@render label("Inbox")}
 			{#if hasUnread}
-				<Badge
-					class="absolute inset-e-2 top-1 size-2.5 rounded-full p-0"
-				/>
+				<Badge class="inset-e-2 absolute top-1 size-2.5 rounded-full p-0" />
 			{/if}
 		</a>
 	</div>

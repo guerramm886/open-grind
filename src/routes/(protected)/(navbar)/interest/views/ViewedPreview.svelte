@@ -42,25 +42,21 @@
 				{/if}
 			</div>
 		</div>
-		{#if preview.lastViewed !== null || totalCount > 1}
-			<div
-				class="absolute inset-x-0 bottom-0 z-1 flex items-center justify-between gap-1 bg-linear-to-t from-black/65 to-transparent px-1.5 pt-6 pb-1 text-2xs font-medium text-white/90"
-			>
-				<span class="truncate">
-					{#if preview.lastViewed !== null}
-						<RelativeTimeDynamic date={preview.lastViewed} />
-					{/if}
-				</span>
-				{#if totalCount > 1}
-					<span
-						class="flex shrink-0 items-center gap-0.5"
-						title="{totalCount} views"
-					>
-						<EyeIcon weight="bold" class="size-3" />
-						{viewedCountLabel}<span class="sr-only">views</span>
-					</span>
+		<div
+			class="absolute inset-x-0 bottom-0 z-1 flex items-center justify-between gap-1 bg-linear-to-t from-black/65 to-transparent px-1.5 pt-6 pb-1 text-2xs font-medium text-white/90"
+		>
+			<span class="truncate">
+				{#if preview.lastViewed !== null}
+					<RelativeTimeDynamic date={preview.lastViewed} />
 				{/if}
-			</div>
-		{/if}
+			</span>
+			<span
+				class="flex shrink-0 items-center gap-0.5"
+				title="{totalCount} views"
+			>
+				<EyeIcon weight="bold" class="size-3" />
+				{viewedCountLabel}<span class="sr-only">views</span>
+			</span>
+		</div>
 	{/snippet}
 </ProfileMiniCard>

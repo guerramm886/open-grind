@@ -215,11 +215,11 @@ test.describe("in Low blur, a toast keeps the bar gap", () => {
 		await expectToastGap({ obstruction: backLink(page), edge: "top" });
 	});
 
-	test("below the Interest bar", async ({ page }) => {
-		await page.goto("/interest/taps");
+	test("below the visits bar", async ({ page }) => {
+		await page.goto("/interest/views");
 		await useLowBlur(page);
 		await expectToastGap({
-			obstruction: page.getByRole("navigation", { name: "Interest" }),
+			obstruction: page.getByRole("navigation", { name: "Visitas" }),
 			edge: "top",
 			expectedGap: LOW_BAR_GAP_PX,
 		});

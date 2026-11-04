@@ -48,8 +48,7 @@ vi.mock(
 );
 vi.mock(
 	"$lib/updates/addon.svelte",
-	async () =>
-		(await import("./notifications-page-test-helpers.svelte")).addon,
+	async () => (await import("./notifications-page-test-helpers.svelte")).addon,
 );
 vi.mock("$lib/updates/capability.svelte", async (importOriginal) => ({
 	...(await importOriginal<typeof Capability>()),
@@ -109,19 +108,20 @@ describe("the notifications page", () => {
 	);
 
 	it.each(["macos", "windows", "linux"] as const)(
-		"offers the switch and both categories on %s, with no delivery modes",
+		"offers message notifications on %s, with no delivery modes",
 		async (platform) => {
 			currentPlatform.mockReturnValue(platform);
 
 			render(NotificationsPage);
 
-			await screen.findByRole("switch", { name: "Received taps" });
+			await screen.findByRole("switch", { name: "New messages" });
+			expect(
+				screen.queryByRole("switch", { name: "Received taps" }),
+			).toBeNull();
 			expect(
 				screen.getByRole("switch", { name: "Enable notifications" }),
 			).toBeTruthy();
-			expect(
-				screen.getByRole("switch", { name: "New messages" }),
-			).toBeTruthy();
+			expect(screen.getByRole("switch", { name: "New messages" })).toBeTruthy();
 			expect(screen.queryByRole("radiogroup")).toBeNull();
 		},
 	);
@@ -141,8 +141,7 @@ describe("the notifications page", () => {
 
 	it("disables both delivery modes while notifications are off", async () => {
 		stored.notificationsEnabled = false;
-		const { master, delivery, fast, slow } =
-			await opened(NotificationsPage);
+		const { master, delivery, fast, slow } = await opened(NotificationsPage);
 
 		expect(checked(master)).toBe("false");
 		expect(delivery.hasAttribute("data-disabled")).toBe(true);
@@ -276,9 +275,7 @@ describe("a missing FCM service", () => {
 		);
 		expect(installNow).toHaveBeenCalledOnce();
 		expect(openExternalLink).not.toHaveBeenCalled();
-		await waitFor(() =>
-			expect(screen.queryByRole("alertdialog")).toBeNull(),
-		);
+		await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
 		expect(checked(slow)).toBe("true");
 		expect(screen.queryByRole("status", { hidden: true })).toBeNull();
 	});
@@ -349,10 +346,7 @@ describe("a missing FCM service", () => {
 	});
 
 	it.each([
-		[
-			"play",
-			"https://opengrind.org/guides/notifications#android-fast-mode",
-		],
+		["play", "https://opengrind.org/guides/notifications#android-fast-mode"],
 		["", "https://git.opengrind.org/open-grind/fcm-service/releases"],
 	])(
 		"opens %j's guide in the browser when this build can't install add-ons: %s",
@@ -371,9 +365,7 @@ describe("a missing FCM service", () => {
 			);
 			expect(openExternalLink).toHaveBeenCalledExactlyOnceWith(href);
 			expect(installNow).not.toHaveBeenCalled();
-			await waitFor(() =>
-				expect(screen.queryByRole("alertdialog")).toBeNull(),
-			);
+			await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
 			expect(checked(slow)).toBe("true");
 		},
 	);
