@@ -156,9 +156,9 @@ beforeEach(() => {
 });
 
 describe("ViewsState", () => {
-	it("loads profiles before previews and pages visible results", async () => {
+	it("paginates accessible profiles without showing locked previews", async () => {
 		getViewsMock.mockResolvedValue({
-			profiles: Array.from({ length: 24 }, (_, index) =>
+			profiles: Array.from({ length: 25 }, (_, index) =>
 				profile(index + 1),
 			),
 			previews: [preview()],
@@ -175,8 +175,18 @@ describe("ViewsState", () => {
 		state.loadMore();
 
 		expect(state.views).toHaveLength(25);
-		expect(state.views[24]).toMatchObject({ type: "preview" });
+		expect(state.views[24]).toMatchObject({ type: "profile" });
 		expect(state.hasMore).toBe(false);
+		expect(state.hasUnavailablePreviews).toBe(true);
+	});
+
+	it("does not show or paginate anonymous previews when no profiles are accessible", async () => {
+		getViewsMock.mockResolvedValue({ profiles: [], previews: [preview()] });
+		const state = new ViewsState();
+		await waitForLoaded(state);
+		expect(state.views).toEqual([]);
+		expect(state.hasMore).toBe(false);
+		expect(state.hasUnavailablePreviews).toBe(true);
 	});
 
 	it("records initial load errors and retries", async () => {

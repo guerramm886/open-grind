@@ -10,7 +10,6 @@
 	import { restoreScrollOnce } from "$lib/util/scroll-restore.svelte";
 	import EmptyViewsGrid from "./EmptyViewsGrid.svelte";
 	import UntrackedViewsGrid from "./UntrackedViewsGrid.svelte";
-	import ViewedPreview from "./ViewedPreview.svelte";
 	import ViewedProfile from "./ViewedProfile.svelte";
 	import { getViewsState } from "./views-state.svelte";
 
@@ -27,11 +26,7 @@
 
 	const shownViews = $derived(
 		heartedOnly
-			? views.views.filter((entry) =>
-					entry.type === "profile"
-						? entry.profile.isFavorite
-						: entry.preview.isFavorite,
-				)
+			? views.views.filter((entry) => entry.profile.isFavorite)
 			: views.views,
 	);
 
@@ -77,7 +72,13 @@
 					onEnable={() => void views.enableViewedMeTracking()}
 				/>
 			{:else if views.views.length === 0}
-				<EmptyViewsGrid />
+				{#if views.hasUnavailablePreviews}
+					<p class="py-8 text-center text-sm text-muted-foreground">
+						No hay visitas disponibles para abrir.
+					</p>
+				{:else}
+					<EmptyViewsGrid />
+				{/if}
 			{:else}
 				<div class="flex items-center justify-between gap-2">
 					<Button
@@ -100,11 +101,7 @@
 				{:else}
 					<div class="photo-grid">
 						{#each shownViews as entry (entry.key)}
-							{#if entry.type === "profile"}
-								<ViewedProfile view={entry.profile} />
-							{:else}
-								<ViewedPreview preview={entry.preview} />
-							{/if}
+							<ViewedProfile view={entry.profile} />
 						{/each}
 					</div>
 				{/if}
