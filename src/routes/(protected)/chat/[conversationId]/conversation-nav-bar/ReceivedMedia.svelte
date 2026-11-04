@@ -30,23 +30,27 @@
 		images = null;
 		albums = null;
 		failure = false;
-		try {
-			const [imageResponse, albumResponse] = await Promise.all([
-				fetchRest(
-					`/v5/chat/media/shared/images/with-me/${encodeURIComponent(conversation.conversationId)}`,
-				),
-				fetchRest(`/v2/albums/shares/${conversation.profile.profileId}`),
-			]);
-			images = imageResponse.jsonParsed(
-				z.object({ images: z.array(imageSchema) }),
-			).images;
-			albums = albumResponse.jsonParsed(
-				z.object({ albums: z.array(albumSchema) }),
-			).albums;
-		} catch (error) {
-			console.error(error);
-			failure = true;
-		}
+		const [imageResult, albumResult] = await Promise.allSettled([
+			fetchRest(
+				`/v5/chat/media/shared/images/with-me/${encodeURIComponent(conversation.conversationId)}`,
+			).then(
+				(res) =>
+					res.jsonParsed(z.object({ images: z.array(imageSchema) }))
+						.images,
+			),
+			fetchRest(
+				`/v2/albums/shares/${conversation.profile.profileId}`,
+			).then(
+				(res) =>
+					res.jsonParsed(z.object({ albums: z.array(albumSchema) }))
+						.albums,
+			),
+		]);
+		images = imageResult.status === "fulfilled" ? imageResult.value : [];
+		albums = albumResult.status === "fulfilled" ? albumResult.value : [];
+		failure =
+			imageResult.status === "rejected" ||
+			albumResult.status === "rejected";
 	}
 	$effect(() => {
 		if (open) void load();
@@ -64,9 +68,10 @@
 			>Fotos y álbumes que esta persona compartió con vos.</Dialog.Description
 		>
 		{#if failure}
-			<p role="alert">No se pudo cargar la media.</p>
+			<p role="alert">No se pudo cargar toda la media.</p>
 			<button type="button" onclick={load}>Reintentar</button>
-		{:else if images === null || albums === null}
+		{/if}
+		{#if images === null || albums === null}
 			<p>Cargando…</p>
 		{:else if activeImage}
 			<button type="button" onclick={() => (activeImage = null)}
@@ -78,7 +83,7 @@
 				class="max-h-[70vh] w-full object-contain"
 			/>
 		{:else}
-			{#if !images.length && !albums.length}<p>
+			{#if !failure && !images.length && !albums.length}<p>
 					No hay media compartida disponible.
 				</p>{/if}
 			<div class="grid grid-cols-3 gap-2">
