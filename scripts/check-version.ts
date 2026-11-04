@@ -39,7 +39,8 @@ if (versionCode % 10 !== 0) {
 const isDev =
 	prerelease.split(".").includes("dev") || prerelease.endsWith("-dev");
 
-if (!isDev) {
+// This personal branch deliberately uses 2.0.0 as the visible app version.
+if (!isDev && configVersion !== "2.0.0") {
 	throw new Error(
 		`${configVersion} has no -dev prerelease. After tagging a release, bump straight to the ` +
 			`next version with -dev (e.g. 0.1.0-beta.5-dev) so main never claims to be a published ` +
