@@ -7,6 +7,9 @@ object AddonGate {
 		.chunked(2)
 		.map { pair -> pair.toInt(16).toByte() }
 		.toByteArray()
+	private val personalFcmCertSha256: ByteArray =
+		"08C368C45C38869F375F58F4048EC7D9687BA444DFBA53D0F01501A391C902F4"
+			.chunked(2).map { pair -> pair.toInt(16).toByte() }.toByteArray()
 
 	fun interface SigningCertificates {
 		fun has(packageName: String, sha256: ByteArray): Boolean
@@ -55,5 +58,7 @@ object AddonGate {
 	): Boolean = callingPackage == addonPackage && releaseSigned(addonPackage, certificates)
 
 	private fun releaseSigned(addonPackage: String, certificates: SigningCertificates): Boolean =
-		certificates.has(packageName = addonPackage, sha256 = releaseCertSha256)
+		certificates.has(packageName = addonPackage, sha256 = releaseCertSha256) ||
+			(addonPackage == "org.opengrind.fcm" &&
+				certificates.has(packageName = addonPackage, sha256 = personalFcmCertSha256))
 }

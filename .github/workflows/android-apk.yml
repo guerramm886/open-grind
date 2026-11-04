@@ -11,6 +11,31 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  personal-fcm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+      - name: Install Android SDK
+        run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+      - name: Build personal FCM companion
+        run: |
+          git clone https://git.opengrind.org/open-grind/fcm-service.git fcm-source
+          cd fcm-source
+          git checkout d1e049101104fd2ad3cd421668e3c56be53b3daa
+          sed -i '/90F4BB85C1F2FA2A7810A1076A60D20E791720C0EE88FDB88F9E4BA32CA8702E/a\        "08C368C45C38869F375F58F4048EC7D9687BA444DFBA53D0F01501A391C902F4",' app/src/main/java/org/opengrind/fcm/OpenGrindTrust.kt
+          ./gradlew :app:assembleRelease --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: personal-fcm-unsigned-apk
+          path: fcm-source/app/build/outputs/apk/release/*-unsigned.apk
+          if-no-files-found: error
+          retention-days: 30
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 180

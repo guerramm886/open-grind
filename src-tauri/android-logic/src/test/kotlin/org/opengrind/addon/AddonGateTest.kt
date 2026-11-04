@@ -7,6 +7,15 @@ import org.junit.Test
 import org.opengrind.update.InstallGate
 
 class AddonGateTest {
+	@Test
+	fun `personal signature is trusted only for the personal FCM addon`() {
+		val personal = "08C368C45C38869F375F58F4048EC7D9687BA444DFBA53D0F01501A391C902F4"
+		val certificates = AddonGate.SigningCertificates { _, sha256 ->
+			sha256.joinToString("") { byte -> "%02X".format(byte) } == personal
+		}
+		assertTrue(AddonGate.acceptsCaller("org.opengrind.fcm", "org.opengrind.fcm", certificates))
+		assertFalse(AddonGate.acceptsCaller("org.opengrind.google_oauth", "org.opengrind.google_oauth", certificates))
+	}
 	private val releaseCert = InstallGate.RELEASE_CERT_SHA256
 	private val playAppSigningCert = "5A".repeat(32)
 	private val someoneElsesCert = "0F".repeat(32)
