@@ -1,6 +1,9 @@
 name: android-apk
 
-# Build an unsigned APK. Sign it locally with the retained personal key.
+# Builds the APK and SIGNS it in CI with a FIXED key committed to the repo
+# (ci/personal/keystore.jks.b64), so every build has the same signature and
+# installs over the previous one without uninstalling. The first run generates
+# the key and commits it; later runs reuse it.
 on:
   push:
     branches: [orden-por-distancia]
@@ -9,6 +12,9 @@ on:
 concurrency:
   group: android-apk-${{ github.ref }}
   cancel-in-progress: true
+
+permissions:
+  contents: write
 
 jobs:
   personal-fcm:
@@ -43,20 +49,57 @@ jobs:
     timeout-minutes: 180
     env:
       OPEN_GRIND_ANDROID_ABI: aarch64
+      KEYSTORE_DIR: ${{ github.workspace }}/../keystore
+      KEY_B64: ci/personal/keystore.jks.b64
       TZ: UTC
       LC_ALL: C
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # Runs first so the fixed key is committed quickly, even if a later push
+      # cancels this run.
+      - name: Ensure a stable signing key
+        run: |
+          mkdir -p "$KEYSTORE_DIR"
+          if [ -f "$KEY_B64" ]; then
+            base64 -d "$KEY_B64" > "$KEYSTORE_DIR/debug.jks"
+            echo "Using the committed signing key."
+          else
+            keytool -genkeypair -noprompt \
+              -keystore "$KEYSTORE_DIR/debug.jks" \
+              -alias open-grind \
+              -keyalg EC -groupname secp256r1 -sigalg SHA256withECDSA \
+              -validity 20000 \
+              -storepass open-grind-debug -keypass open-grind-debug \
+              -dname "CN=Martin's Grindr personal build"
+            mkdir -p ci/personal
+            base64 -w0 "$KEYSTORE_DIR/debug.jks" > "$KEY_B64"
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add "$KEY_B64"
+            git commit -m "Add fixed personal signing key [skip ci]"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+            echo "Generated and committed a fixed signing key."
+          fi
+
+      - name: Write keystore.properties
+        run: |
+          {
+            echo "storeFile=$KEYSTORE_DIR/debug.jks"
+            echo "keyAlias=open-grind"
+            echo "password=open-grind-debug"
+          } > "$RUNNER_TEMP/keystore.properties"
+          echo "OPEN_GRIND_KEYSTORE_PROPERTIES=$RUNNER_TEMP/keystore.properties" >> "$GITHUB_ENV"
+
       - name: Free disk space
         run: |
           sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc \
             /usr/local/.ghcup /opt/hostedtoolcache/CodeQL /usr/local/share/boost
           sudo docker image prune --all --force || true
           df -h /
-
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
       - name: Install Nix
         uses: cachix/install-nix-action@v31
@@ -82,6 +125,6 @@ jobs:
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: open-grind-unsigned-apk
+          name: open-grind-apk
           path: out/
           retention-days: 30
