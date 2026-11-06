@@ -23,7 +23,7 @@
 	import { setMessageComposerContext } from "./message-composer-context.svelte";
 	import MessageTextInput from "./MessageTextInput.svelte";
 	import ComposerSendMedia from "./send-media/ComposerSendMedia.svelte";
-	import ComposerStickersTrigger from "./stickers/ComposerStickersTrigger.svelte";
+	import GreetingComposerButton from "./GreetingComposerButton.svelte";
 	import ComposerVoiceMessage from "./voice-message/ComposerVoiceMessage.svelte";
 
 	let {
@@ -146,15 +146,7 @@
 		<ComposerReplyPreview message={replyTo} onCancel={onCancelReply} />
 	{/if}
 	<div class="relative h-full w-full rounded-composer bg-popover">
-		<ComposerStickersTrigger
-			bind:ref={stickersTrigger}
-			onClick={() =>
-				sheets.setOpen({
-					conversationId,
-					sheet: "stickers",
-					open: true,
-				})}
-		/>
+		<GreetingComposerButton bind:ref={stickersTrigger} />
 		<MessageTextInput
 			bind:value={textContent}
 			bind:ref={textInput}
