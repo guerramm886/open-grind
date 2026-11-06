@@ -24,11 +24,9 @@ type ViewsSnapshot = {
 	viewedMeHidden: boolean;
 };
 
-export type ViewGridEntry = {
-	type: "profile";
-	key: string;
-	profile: ViewerProfile;
-};
+export type ViewGridEntry =
+	| { type: "profile"; key: string; profile: ViewerProfile }
+	| { type: "preview"; key: string; preview: ViewPreview };
 
 export class ViewsState extends ReconcilingListState<
 	ViewerProfile,
@@ -37,6 +35,7 @@ export class ViewsState extends ReconcilingListState<
 	enablingViewedMe = $state(false);
 
 	#profiles: ViewerProfile[] = $state([]);
+	#previews: ViewPreview[] = $state([]);
 	hasUnavailablePreviews = $state(false);
 	#viewedMeHidden = $state(false);
 	#unsubscribeProfileEdits = onProfileEdit(({ profileId, patch }) => {
@@ -108,12 +107,21 @@ export class ViewsState extends ReconcilingListState<
 					profile,
 				}),
 			),
+			// Gated viewers Grindr won't identify (Xtra paywall): shown locked,
+			// but keeping their blurred photo and the view count.
+			...this.#previews.map(
+				(preview, index): ViewGridEntry => ({
+					type: "preview",
+					key: `preview:${index}`,
+					preview,
+				}),
+			),
 		];
 		return entries.slice(0, this.visibleCount);
 	}
 
 	protected get length(): number {
-		return this.#profiles.length;
+		return this.#profiles.length + this.#previews.length;
 	}
 
 	protected async fetch(): Promise<ViewsSnapshot> {
@@ -146,6 +154,7 @@ export class ViewsState extends ReconcilingListState<
 		this.#profiles = snapshot.profiles.filter((view) =>
 			isProfileViewable(view.profileId),
 		);
+		this.#previews = snapshot.previews;
 		this.hasUnavailablePreviews = snapshot.previews.length > 0;
 		this.#viewedMeHidden = snapshot.viewedMeHidden;
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- caller only reads .has() then drops it

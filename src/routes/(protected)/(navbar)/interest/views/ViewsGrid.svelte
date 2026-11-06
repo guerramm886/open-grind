@@ -10,6 +10,7 @@
 	import { restoreScrollOnce } from "$lib/util/scroll-restore.svelte";
 	import EmptyViewsGrid from "./EmptyViewsGrid.svelte";
 	import UntrackedViewsGrid from "./UntrackedViewsGrid.svelte";
+	import ViewedPreview from "./ViewedPreview.svelte";
 	import ViewedProfile from "./ViewedProfile.svelte";
 	import { getViewsState } from "./views-state.svelte";
 
@@ -26,7 +27,11 @@
 
 	const shownViews = $derived(
 		heartedOnly
-			? views.views.filter((entry) => entry.profile.isFavorite)
+			? views.views.filter((entry) =>
+					entry.type === "profile"
+						? entry.profile.isFavorite
+						: entry.preview.isFavorite,
+				)
 			: views.views,
 	);
 
@@ -101,7 +106,11 @@
 				{:else}
 					<div class="photo-grid">
 						{#each shownViews as entry (entry.key)}
-							<ViewedProfile view={entry.profile} />
+							{#if entry.type === "profile"}
+								<ViewedProfile view={entry.profile} />
+							{:else}
+								<ViewedPreview preview={entry.preview} />
+							{/if}
 						{/each}
 					</div>
 				{/if}
