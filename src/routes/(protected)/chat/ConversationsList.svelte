@@ -2,6 +2,7 @@
 	import { onDestroy, tick } from "svelte";
 
 	import { getConversations } from "$lib/chat/conversations-context.svelte";
+	import { swipeDecisions } from "$lib/grid/swipe-decisions.svelte";
 	import ApiErrorDisplay from "$lib/components/feedback/ApiErrorDisplay.svelte";
 	import DataRefreshControl from "$lib/components/feedback/DataRefreshControl.svelte";
 	import ScrollToTopButton from "$lib/components/shared/ScrollToTopButton.svelte";
@@ -39,13 +40,36 @@
 	} catch {
 		/* Storage may be unavailable. */
 	}
+	const crossedKey = `conversation-hide-crossed-${conversations.ourProfileId}`;
+	let hideCrossed = $state(false);
+	try {
+		if (localStorage.getItem(crossedKey) === "1") hideCrossed = true;
+	} catch {
+		/* Storage may be unavailable. */
+	}
+	function toggleHideCrossed() {
+		hideCrossed = !hideCrossed;
+		try {
+			localStorage.setItem(crossedKey, hideCrossed ? "1" : "0");
+		} catch {
+			/* Keep it for this session. */
+		}
+	}
+
 	const orderedEntries = $derived.by(() => {
-		if (sortOrder === "recent") return conversations.entries;
-		return conversations.entries.toSorted(
-			(a, b) =>
-				(a.data.participants[0]?.distanceMetres ?? Infinity) -
-				(b.data.participants[0]?.distanceMetres ?? Infinity),
-		);
+		const base =
+			sortOrder === "recent"
+				? conversations.entries
+				: conversations.entries.toSorted(
+						(a, b) =>
+							(a.data.participants[0]?.distanceMetres ?? Infinity) -
+							(b.data.participants[0]?.distanceMetres ?? Infinity),
+					);
+		if (!hideCrossed) return base;
+		return base.filter((entry) => {
+			const profileId = entry.data.participants[0]?.profileId;
+			return profileId === undefined || !swipeDecisions.isNope(profileId);
+		});
 	});
 	function setSortOrder(value: string) {
 		sortOrder = value === "distance" ? "distance" : "recent";
@@ -264,6 +288,8 @@
 			{sortOrder}
 			onSortChange={setSortOrder}
 			onchange={(values) => conversations.setFilters(values)}
+			{hideCrossed}
+			onToggleCrossed={toggleHideCrossed}
 			inert={selecting}
 			locked={filtersLocked}
 		/>

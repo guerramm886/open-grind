@@ -18,6 +18,8 @@
 		locked = false,
 		sortOrder = "recent",
 		onSortChange = () => {},
+		hideCrossed = false,
+		onToggleCrossed = () => {},
 	}: {
 		filters: ConversationFilters;
 		onchange: (values: Partial<ConversationFilterValues>) => void;
@@ -25,6 +27,8 @@
 		locked?: boolean;
 		sortOrder?: "recent" | "distance";
 		onSortChange?: (value: string) => void;
+		hideCrossed?: boolean;
+		onToggleCrossed?: () => void;
 	} = $props();
 
 	const LABELLED_TOGGLES = [
@@ -115,6 +119,9 @@
 			onclick={() => (open.position = true)}
 		>
 			Position
+		</QuickFilterButton>
+		<QuickFilterButton active={hideCrossed} onclick={onToggleCrossed}>
+			Ocultar cruzados
 		</QuickFilterButton>
 	</div>
 </ProgressiveBlur>
