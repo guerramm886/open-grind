@@ -7,6 +7,7 @@ mod appimage;
 mod context_menu;
 mod desktop_entry;
 mod error;
+mod gallery;
 mod haptics;
 mod hex;
 #[cfg(target_os = "android")]
@@ -263,6 +264,7 @@ pub fn run() {
             app_data::read_app_data,
             app_data::write_app_data,
             app_data::remove_app_data,
+            gallery::save_media_to_gallery,
         ])
         .setup(|app| {
             scroll_phase::install_scroll_gesture_bridge(app.handle());

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { invoke, isTauri } from "@tauri-apps/api/core";
 	import CaretLeftIcon from "phosphor-svelte/lib/CaretLeftIcon";
 	import CaretRightIcon from "phosphor-svelte/lib/CaretRightIcon";
 	import DownloadSimpleIcon from "phosphor-svelte/lib/DownloadSimpleIcon";
@@ -25,6 +26,7 @@
 	const current = $derived(items[index]);
 	let src = $state<string | null>(null);
 	let downloading = $state(false);
+	let saveNote = $state<string | null>(null);
 
 	$effect(() => {
 		const item = current;
@@ -73,28 +75,44 @@
 		const item = current;
 		if (!item || downloading) return;
 		downloading = true;
+		saveNote = null;
 		try {
-			// Keep a persistent in-app copy regardless.
-			await receivedArchive.save(archivableFromItem(item));
-			let href = await receivedArchive.objectUrl(item.id);
-			let revoke = false;
-			if (!href) {
-				const res = await fetch(item.url);
-				href = URL.createObjectURL(await res.blob());
-				revoke = true;
-			}
+			const res = await fetch(item.url);
+			const bytes = new Uint8Array(await res.arrayBuffer());
 			const ext = item.kind === "video" ? "mp4" : "jpg";
-			const a = document.createElement("a");
-			a.href = href;
-			a.download = `recibido-${item.id.replace(/[^a-z0-9]/gi, "_")}.${ext}`;
-			document.body.appendChild(a);
-			a.click();
-			a.remove();
-			if (revoke) setTimeout(() => URL.revokeObjectURL(href), 10000);
+			const base = item.id.replace(/[^a-z0-9]/gi, "_");
+			const filename = `${base}.${ext}`;
+			const mime =
+				item.contentType ||
+				(item.kind === "video" ? "video/mp4" : "image/jpeg");
+			// Always keep an in-app copy too.
+			void receivedArchive.save(archivableFromItem(item));
+			if (isTauri()) {
+				// Native: write into the phone's gallery (Pictures / Movies).
+				await invoke("save_media_to_gallery", {
+					data: Array.from(bytes),
+					filename,
+					mime,
+					isVideo: item.kind === "video",
+				});
+				saveNote = "Guardado en la galería ✓";
+			} else {
+				const url = URL.createObjectURL(new Blob([bytes], { type: mime }));
+				const a = document.createElement("a");
+				a.href = url;
+				a.download = filename;
+				document.body.appendChild(a);
+				a.click();
+				a.remove();
+				setTimeout(() => URL.revokeObjectURL(url), 10000);
+				saveNote = "Descargado ✓";
+			}
 		} catch (error) {
 			console.error("[received] download failed", error);
+			saveNote = "No se pudo guardar";
 		} finally {
 			downloading = false;
+			window.setTimeout(() => (saveNote = null), 3000);
 		}
 	}
 </script>
@@ -187,4 +205,11 @@
 	>
 		{index + 1} / {items.length}
 	</div>
+	{#if saveNote}
+		<div
+			class="absolute bottom-16 left-1/2 -translate-x-1/2 rounded-full bg-black/85 px-4 py-1.5 text-sm font-medium text-white"
+		>
+			{saveNote}
+		</div>
+	{/if}
 </div>

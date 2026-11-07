@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from "$app/navigation";
 	import ArrowCounterClockwiseIcon from "phosphor-svelte/lib/ArrowCounterClockwiseIcon";
-	import HeartIcon from "phosphor-svelte/lib/HeartIcon";
+	import StarIcon from "phosphor-svelte/lib/StarIcon";
 	import XIcon from "phosphor-svelte/lib/XIcon";
 
 	import { showErrorToast } from "$lib/api/error-toast";
@@ -131,7 +131,7 @@
 		]}
 		onclick={favorite}
 	>
-		<HeartIcon weight={isFavorite ? "fill" : "bold"} class="size-6" />
+		<StarIcon weight={isFavorite ? "fill" : "bold"} class="size-6" />
 	</button>
 	<button
 		type="button"
