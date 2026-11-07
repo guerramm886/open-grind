@@ -110,23 +110,37 @@
 		>
 			<ArrowLeftIcon class="size-5" />
 		</a>
-		<div class="size-9 shrink-0 overflow-hidden rounded-full">
-			<UserAvatar
-				mediaHash={result?.profile?.mediaHash ?? null}
-				class="size-full"
-				size="md"
-			/>
-		</div>
-		<div class="min-w-0 flex-1">
-			<p class="truncate text-sm font-semibold">
-				{result?.profile?.name ?? "Perfil"}
-			</p>
-			{#if result?.profile?.distance != null}
-				<p class="text-2xs text-muted-foreground">
-					<DistanceFormatted distance={result.profile.distance} />
+		{#snippet identity()}
+			<div class="size-9 shrink-0 overflow-hidden rounded-full">
+				<UserAvatar
+					mediaHash={result?.profile?.mediaHash ?? null}
+					class="size-full"
+					size="md"
+				/>
+			</div>
+			<div class="min-w-0 flex-1 text-start">
+				<p class="truncate text-sm font-semibold">
+					{result?.profile?.name ?? "Perfil"}
 				</p>
-			{/if}
-		</div>
+				{#if result?.profile?.distance != null}
+					<p class="text-2xs text-muted-foreground">
+						<DistanceFormatted distance={result.profile.distance} />
+					</p>
+				{/if}
+			</div>
+		{/snippet}
+		{#if result?.profile}
+			<a
+				href="/profile/{result.profile.profileId}"
+				class="flex min-w-0 flex-1 items-center gap-2"
+			>
+				{@render identity()}
+			</a>
+		{:else}
+			<div class="flex min-w-0 flex-1 items-center gap-2">
+				{@render identity()}
+			</div>
+		{/if}
 		{#if savedCount > 0}
 			<span class="text-2xs text-green-400">{savedCount} guardados</span>
 		{/if}

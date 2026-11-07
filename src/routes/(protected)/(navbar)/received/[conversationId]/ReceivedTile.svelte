@@ -8,6 +8,7 @@
 		archivableFromItem,
 		type ReceivedItem,
 	} from "$lib/received/received-media";
+	import { firstFrameSrc } from "$lib/util/media";
 
 	let { item, onOpen }: { item: ReceivedItem; onOpen: () => void } = $props();
 
@@ -51,7 +52,7 @@
 		{#if item.kind === "video"}
 			<!-- svelte-ignore a11y_media_has_caption -->
 			<video
-				{src}
+				src={firstFrameSrc(src)}
 				class="size-full object-cover"
 				muted
 				playsinline
