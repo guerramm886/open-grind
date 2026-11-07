@@ -1,14 +1,16 @@
 <script lang="ts">
+	import { goto } from "$app/navigation";
 	import { page } from "$app/state";
 	import ArrowLeftIcon from "phosphor-svelte/lib/ArrowLeftIcon";
 	import DownloadSimpleIcon from "phosphor-svelte/lib/DownloadSimpleIcon";
+	import XIcon from "phosphor-svelte/lib/XIcon";
 	import { untrack } from "svelte";
 
 	import DistanceFormatted from "$lib/components/profile/DistanceFormatted.svelte";
 	import UserAvatar from "$lib/components/profile/UserAvatar.svelte";
 	import ProgressiveBlur from "$lib/components/shared/ProgressiveBlur.svelte";
-	import { Button } from "$lib/components/ui/button";
 	import { Skeleton } from "$lib/components/ui/skeleton";
+	import { swipeDecisions } from "$lib/grid/swipe-decisions.svelte";
 	import { receivedArchive } from "$lib/received/archive.svelte";
 	import {
 		getCachedReceived,
@@ -19,6 +21,10 @@
 		loadReceivedMedia,
 		type ReceivedMediaResult,
 	} from "$lib/received/received-media";
+	import {
+		GALLERY_FOLDER,
+		saveItemToDevice,
+	} from "$lib/received/save-to-device";
 	import { topChrome } from "$lib/util/screen-chrome.svelte";
 	import ReceivedTile from "./ReceivedTile.svelte";
 	import ReceivedViewer from "./ReceivedViewer.svelte";
@@ -30,7 +36,10 @@
 	let result = $state<ReceivedMediaResult | null>(null);
 	let loading = $state(true);
 	let loadError = $state(false);
-	let archivingAll = $state(false);
+	let savingAll = $state(false);
+	let savedDone = $state(0);
+	let savedTotal = $state(0);
+	let saveResult = $state<string | null>(null);
 
 	$effect(() => {
 		const id = conversationId;
@@ -77,16 +86,39 @@
 		});
 	});
 
-	async function archiveAll() {
-		if (!result || archivingAll) return;
-		archivingAll = true;
-		try {
-			await receivedArchive.saveMany(
-				result.items.filter((i) => i.available).map(archivableFromItem),
-			);
-		} finally {
-			archivingAll = false;
+	async function saveAllToGallery() {
+		if (!result || savingAll) return;
+		const items = result.items.filter((i) => i.available);
+		if (items.length === 0) return;
+		savingAll = true;
+		savedDone = 0;
+		savedTotal = items.length;
+		saveResult = null;
+		let failed = 0;
+		for (const item of items) {
+			try {
+				await saveItemToDevice(item);
+			} catch (error) {
+				failed += 1;
+				console.error("[received] save failed", error);
+			}
+			savedDone += 1;
 		}
+		savingAll = false;
+		saveResult =
+			failed === 0
+				? `✓ ${savedTotal} guardados en Galería › ${GALLERY_FOLDER}`
+				: `Guardados ${savedTotal - failed}/${savedTotal} (fallaron ${failed})`;
+		window.setTimeout(() => (saveResult = null), 6000);
+	}
+
+	// Cross this person out (hidden everywhere, like a block) and go back to the
+	// Recibidos grid, where they'll no longer appear.
+	function crossUser() {
+		const profileId = result?.profile?.profileId;
+		if (profileId === undefined) return;
+		swipeDecisions.cross(profileId);
+		void goto("/received");
 	}
 
 	let viewIndex = $state(-1);
@@ -144,18 +176,45 @@
 		{#if savedCount > 0}
 			<span class="text-2xs text-green-400">{savedCount} guardados</span>
 		{/if}
+		<button
+			type="button"
+			aria-label="Cruzar y volver"
+			disabled={!result?.profile}
+			class="flex size-9 shrink-0 items-center justify-center rounded-full border-2 border-destructive/70 bg-card/70 text-destructive transition active:scale-90 disabled:opacity-40"
+			onclick={crossUser}
+		>
+			<XIcon weight="bold" class="size-5" />
+		</button>
 	</div>
 	<div class="flex flex-wrap items-center gap-2">
-		<Button
-			variant="secondary"
-			size="sm"
-			disabled={archivingAll || !result || result.items.length === 0}
-			onclick={() => void archiveAll()}
+		<button
+			type="button"
+			disabled={savingAll || !result || result.items.length === 0}
+			class="flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow transition active:scale-95 active:brightness-90 disabled:opacity-50"
+			onclick={() => void saveAllToGallery()}
 		>
-			<DownloadSimpleIcon weight="bold" class="size-3.5" />
-			{archivingAll ? "Guardando…" : "Archivar todo"}
-		</Button>
+			<DownloadSimpleIcon weight="bold" class="size-4" />
+			{#if savingAll}
+				Guardando {savedDone}/{savedTotal}…
+			{:else}
+				Guardar todo en galería
+			{/if}
+		</button>
+		<span class="text-2xs text-muted-foreground">
+			Se guardan en Galería › {GALLERY_FOLDER}
+		</span>
 	</div>
+	{#if savingAll || saveResult}
+		<div
+			class="rounded-lg bg-black/80 px-3 py-1.5 text-xs font-medium text-white"
+		>
+			{#if savingAll}
+				Guardando en Galería › {GALLERY_FOLDER}… {savedDone}/{savedTotal}
+			{:else}
+				{saveResult}
+			{/if}
+		</div>
+	{/if}
 </ProgressiveBlur>
 
 <main class="screen-nav-host">

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { invoke, isTauri } from "@tauri-apps/api/core";
+	import { isTauri } from "@tauri-apps/api/core";
 	import CaretLeftIcon from "phosphor-svelte/lib/CaretLeftIcon";
 	import CaretRightIcon from "phosphor-svelte/lib/CaretRightIcon";
 	import DownloadSimpleIcon from "phosphor-svelte/lib/DownloadSimpleIcon";
@@ -7,10 +7,8 @@
 
 	import { dismissOnBackGesture } from "$lib/platform/back-gesture-event.svelte";
 	import { receivedArchive } from "$lib/received/archive.svelte";
-	import {
-		archivableFromItem,
-		type ReceivedItem,
-	} from "$lib/received/received-media";
+	import type { ReceivedItem } from "$lib/received/received-media";
+	import { saveItemToDevice } from "$lib/received/save-to-device";
 
 	let {
 		items,
@@ -77,36 +75,8 @@
 		downloading = true;
 		saveNote = null;
 		try {
-			const res = await fetch(item.url);
-			const bytes = new Uint8Array(await res.arrayBuffer());
-			const ext = item.kind === "video" ? "mp4" : "jpg";
-			const base = item.id.replace(/[^a-z0-9]/gi, "_");
-			const filename = `${base}.${ext}`;
-			const mime =
-				item.contentType ||
-				(item.kind === "video" ? "video/mp4" : "image/jpeg");
-			// Always keep an in-app copy too.
-			void receivedArchive.save(archivableFromItem(item));
-			if (isTauri()) {
-				// Native: write into the phone's gallery (Pictures / Movies).
-				await invoke("save_media_to_gallery", {
-					data: Array.from(bytes),
-					filename,
-					mime,
-					isVideo: item.kind === "video",
-				});
-				saveNote = "Guardado en la galería ✓";
-			} else {
-				const url = URL.createObjectURL(new Blob([bytes], { type: mime }));
-				const a = document.createElement("a");
-				a.href = url;
-				a.download = filename;
-				document.body.appendChild(a);
-				a.click();
-				a.remove();
-				setTimeout(() => URL.revokeObjectURL(url), 10000);
-				saveNote = "Descargado ✓";
-			}
+			await saveItemToDevice(item);
+			saveNote = isTauri() ? "Guardado en la galería ✓" : "Descargado ✓";
 		} catch (error) {
 			console.error("[received] download failed", error);
 			saveNote = "No se pudo guardar";
