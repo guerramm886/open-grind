@@ -1,4 +1,5 @@
 <script lang="ts">
+	import BookmarksSimpleIcon from "phosphor-svelte/lib/BookmarksSimpleIcon";
 	import HeartIcon from "phosphor-svelte/lib/HeartIcon";
 	import ImagesIcon from "phosphor-svelte/lib/ImagesIcon";
 
@@ -41,6 +42,13 @@
 				title="Buscando quién te envió contenido"
 			></span>
 		{/if}
+		<a
+			href="/received/guardados"
+			class="ms-auto inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium hover:bg-input/30"
+		>
+			<BookmarksSimpleIcon weight="fill" class="size-4 text-accent" />
+			Guardados
+		</a>
 	</div>
 	<div class="flex flex-wrap items-center gap-2">
 		<div class="inline-flex overflow-hidden rounded-full border">

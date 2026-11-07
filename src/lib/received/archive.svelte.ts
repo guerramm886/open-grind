@@ -6,7 +6,14 @@
 
 const MANIFEST_KEY = "received-archive-manifest-v1";
 const AUTOSAVE_KEY = "received-autosave-v1";
+const PEOPLE_KEY = "received-people-v1";
 const ARCHIVE_DIR = "received-archive";
+
+export type ArchivedPerson = {
+	conversationId: string;
+	name: string | null;
+	mediaHash: string | null;
+};
 
 export type ArchivedKind = "image" | "video";
 
@@ -61,6 +68,25 @@ function readAutoSave(): Record<string, true> {
 	}
 }
 
+function readPeople(): Record<
+	string,
+	{ name: string | null; mediaHash: string | null }
+> {
+	try {
+		const raw = localStorage.getItem(PEOPLE_KEY);
+		if (!raw) return {};
+		const parsed: unknown = JSON.parse(raw);
+		return typeof parsed === "object" && parsed !== null
+			? (parsed as Record<
+					string,
+					{ name: string | null; mediaHash: string | null }
+				>)
+			: {};
+	} catch {
+		return {};
+	}
+}
+
 function fileNameFor(id: string): string {
 	return id.replace(/[^a-zA-Z0-9._-]/g, "_");
 }
@@ -88,10 +114,15 @@ class ReceivedArchive {
 	#urls = new Map<string, string>();
 	#supported = $state(true);
 
+	#people = $state<
+		Record<string, { name: string | null; mediaHash: string | null }>
+	>({});
+
 	constructor() {
 		if (typeof localStorage !== "undefined") {
 			this.#entries = readManifest();
 			this.#autoSave = readAutoSave();
+			this.#people = readPeople();
 		}
 		this.#supported =
 			typeof navigator !== "undefined" &&
@@ -151,6 +182,55 @@ class ReceivedArchive {
 
 	archivedCount(conversationId: string): number {
 		return this.entriesFor(conversationId).length;
+	}
+
+	/** Every archived item, newest first. */
+	get all(): ArchivedEntry[] {
+		return Object.values(this.#entries).sort(
+			(a, b) => b.savedAt - a.savedAt,
+		);
+	}
+
+	/** People who have archived media, newest-saved first, with their details. */
+	savedPeople(): (ArchivedPerson & { count: number; lastSavedAt: number })[] {
+		const byConv = new Map<
+			string,
+			{ count: number; lastSavedAt: number }
+		>();
+		for (const entry of Object.values(this.#entries)) {
+			const prev = byConv.get(entry.conversationId);
+			byConv.set(entry.conversationId, {
+				count: (prev?.count ?? 0) + 1,
+				lastSavedAt: Math.max(prev?.lastSavedAt ?? 0, entry.savedAt),
+			});
+		}
+		return [...byConv.entries()]
+			.map(([conversationId, stats]) => ({
+				conversationId,
+				name: this.#people[conversationId]?.name ?? null,
+				mediaHash: this.#people[conversationId]?.mediaHash ?? null,
+				...stats,
+			}))
+			.sort((a, b) => b.lastSavedAt - a.lastSavedAt);
+	}
+
+	notePerson(
+		conversationId: string,
+		person: { name: string | null; mediaHash: string | null },
+	): void {
+		const prev = this.#people[conversationId];
+		if (
+			prev &&
+			prev.name === person.name &&
+			prev.mediaHash === person.mediaHash
+		)
+			return;
+		this.#people = { ...this.#people, [conversationId]: person };
+		try {
+			localStorage.setItem(PEOPLE_KEY, JSON.stringify(this.#people));
+		} catch {
+			/* storage unavailable */
+		}
 	}
 
 	isAutoSave(conversationId: string): boolean {

@@ -11,6 +11,7 @@
 	import { Button } from "$lib/components/ui/button";
 	import * as Dialog from "$lib/components/ui/dialog";
 	import { mediaUrlSchema } from "$lib/model/media";
+	import { receivedArchive } from "$lib/received/archive.svelte";
 	import {
 		GALLERY_FOLDER,
 		saveUrlToDevice,
@@ -85,7 +86,12 @@
 		let name = "perfil";
 		if (pid !== undefined) {
 			try {
-				name = (await getProfile(pid)).displayName || `perfil-${pid}`;
+				const profile = await getProfile(pid);
+				name = profile.displayName || `perfil-${pid}`;
+				receivedArchive.notePerson(conversation.conversationId, {
+					name: profile.displayName,
+					mediaHash: profile.medias[0]?.mediaHash ?? null,
+				});
 			} catch {
 				name = `perfil-${pid}`;
 			}

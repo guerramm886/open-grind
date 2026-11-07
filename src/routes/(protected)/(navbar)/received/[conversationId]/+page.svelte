@@ -59,6 +59,10 @@
 				if (!alive) return;
 				setCachedReceived(id, loaded);
 				result = loaded;
+				receivedArchive.notePerson(id, {
+					name: loaded.profile?.name ?? null,
+					mediaHash: loaded.profile?.mediaHash ?? null,
+				});
 			})
 			.catch((error: unknown) => {
 				console.error(error);
