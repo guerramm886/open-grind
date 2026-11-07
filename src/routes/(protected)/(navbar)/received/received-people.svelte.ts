@@ -3,6 +3,7 @@
 // cheap detector; senders are revealed as they're confirmed. Sort and filters
 // (favorites, age) apply on top.
 
+import { accountScoped } from "$lib/api/account-caches";
 import { getConversations } from "$lib/api/messaging/conversations";
 import { getProfile } from "$lib/api/users/profiles";
 import { detectIncomingMedia } from "$lib/received/received-media";
@@ -55,6 +56,7 @@ export class ReceivedPeople {
 	ages = $state<Record<number, number | null>>({});
 
 	readonly #ourProfileId: number;
+	readonly #prefsKey: string;
 	#page = 1;
 	// eslint-disable-next-line svelte/prefer-svelte-reactivity -- membership check, not reactive
 	#seen = new Set<string>();
@@ -63,7 +65,55 @@ export class ReceivedPeople {
 
 	constructor(ourProfileId: number) {
 		this.#ourProfileId = ourProfileId;
+		this.#prefsKey = `received-prefs-${ourProfileId}`;
+		this.#loadPrefs();
 		void this.scanMore();
+	}
+
+	// The instance is account-scoped (survives navigation), and prefs are also
+	// mirrored to localStorage so the chosen sort/filters outlast a restart.
+	#loadPrefs(): void {
+		try {
+			const raw = localStorage.getItem(this.#prefsKey);
+			if (!raw) return;
+			const p = JSON.parse(raw) as Partial<{
+				sort: ReceivedSort;
+				favoritesOnly: boolean;
+				ageFilterOn: boolean;
+				ageMin: number;
+				ageMax: number;
+			}>;
+			if (p.sort === "recent" || p.sort === "distance") this.sort = p.sort;
+			if (typeof p.favoritesOnly === "boolean")
+				this.favoritesOnly = p.favoritesOnly;
+			if (typeof p.ageFilterOn === "boolean")
+				this.ageFilterOn = p.ageFilterOn;
+			if (typeof p.ageMin === "number") this.ageMin = p.ageMin;
+			if (typeof p.ageMax === "number") this.ageMax = p.ageMax;
+		} catch {
+			/* ignore unreadable prefs */
+		}
+	}
+
+	savePrefs(): void {
+		try {
+			localStorage.setItem(
+				this.#prefsKey,
+				JSON.stringify({
+					sort: this.sort,
+					favoritesOnly: this.favoritesOnly,
+					ageFilterOn: this.ageFilterOn,
+					ageMin: this.ageMin,
+					ageMax: this.ageMax,
+				}),
+			);
+		} catch {
+			/* storage unavailable */
+		}
+	}
+
+	destroy(): void {
+		/* nothing to tear down; kept for accountScoped */
 	}
 
 	/** Load and probe pages until enough senders are found or the inbox ends. */
@@ -168,3 +218,9 @@ export class ReceivedPeople {
 		return sorted;
 	}
 }
+
+// Account-scoped so the scanned senders and the chosen sort/filters survive
+// navigating into a profile and back.
+export const getReceivedPeople = accountScoped(
+	(profileId) => new ReceivedPeople(profileId),
+);

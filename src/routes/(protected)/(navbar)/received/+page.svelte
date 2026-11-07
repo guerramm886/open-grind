@@ -6,15 +6,20 @@
 	import ProgressiveBlur from "$lib/components/shared/ProgressiveBlur.svelte";
 	import { Button } from "$lib/components/ui/button";
 	import { Skeleton } from "$lib/components/ui/skeleton";
+	import { untrack } from "svelte";
+
 	import { receivedArchive } from "$lib/received/archive.svelte";
 	import { observeIntersection } from "$lib/util/observe-intersection";
 	import { topChrome } from "$lib/util/screen-chrome.svelte";
-	import { ReceivedPeople } from "./received-people.svelte";
+	import { getReceivedPeople } from "./received-people.svelte";
 
 	let { data }: import("./$types").PageProps = $props();
 
-	const people = new ReceivedPeople(data.ourProfileId);
+	const people = untrack(() => getReceivedPeople(data.ourProfileId));
 	const shown = $derived(people.visible);
+
+	// Remember the chosen sort/filters whenever they change.
+	$effect(() => people.savePrefs());
 </script>
 
 <ProgressiveBlur
