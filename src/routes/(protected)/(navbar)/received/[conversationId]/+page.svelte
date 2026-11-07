@@ -2,7 +2,6 @@
 	import { page } from "$app/state";
 	import ArrowLeftIcon from "phosphor-svelte/lib/ArrowLeftIcon";
 	import DownloadSimpleIcon from "phosphor-svelte/lib/DownloadSimpleIcon";
-	import XIcon from "phosphor-svelte/lib/XIcon";
 	import { untrack } from "svelte";
 
 	import DistanceFormatted from "$lib/components/profile/DistanceFormatted.svelte";
@@ -12,13 +11,17 @@
 	import { Skeleton } from "$lib/components/ui/skeleton";
 	import { receivedArchive } from "$lib/received/archive.svelte";
 	import {
+		getCachedReceived,
+		setCachedReceived,
+	} from "$lib/received/received-cache";
+	import {
 		archivableFromItem,
 		loadReceivedMedia,
-		type ReceivedItem,
 		type ReceivedMediaResult,
 	} from "$lib/received/received-media";
 	import { topChrome } from "$lib/util/screen-chrome.svelte";
 	import ReceivedTile from "./ReceivedTile.svelte";
+	import ReceivedViewer from "./ReceivedViewer.svelte";
 
 	let { data }: import("./$types").PageProps = $props();
 
@@ -32,18 +35,25 @@
 	$effect(() => {
 		const id = conversationId;
 		const ourId = data.ourProfileId;
-		loading = true;
+		const cached = getCachedReceived(id);
+		if (cached) {
+			result = cached;
+			loading = false;
+		} else {
+			loading = true;
+			result = null;
+		}
 		loadError = false;
-		result = null;
 		let alive = true;
 		void loadReceivedMedia({ conversationId: id, ourProfileId: ourId })
 			.then((loaded) => {
 				if (!alive) return;
+				setCachedReceived(id, loaded);
 				result = loaded;
 			})
 			.catch((error: unknown) => {
 				console.error(error);
-				if (alive) loadError = true;
+				if (alive && !cached) loadError = true;
 			})
 			.finally(() => {
 				if (alive) loading = false;
@@ -53,28 +63,19 @@
 		};
 	});
 
-	const autoSave = $derived(receivedArchive.isAutoSave(conversationId));
+	const savedCount = $derived(receivedArchive.archivedCount(conversationId));
 
-	// When auto-save is on for this person, keep a local copy of everything
-	// they sent (including album contents) as soon as it's loaded.
+	// Entering a person keeps a local copy of everything they sent (incl. album
+	// contents), so it stays even if they delete it later.
 	$effect(() => {
 		const items = result?.items;
-		if (!autoSave || !items || items.length === 0) return;
+		if (!items || items.length === 0) return;
 		untrack(() => {
 			void receivedArchive.saveMany(
 				items.filter((i) => i.available).map(archivableFromItem),
 			);
 		});
 	});
-
-	async function toggleAutoSave() {
-		const next = !autoSave;
-		receivedArchive.setAutoSave(conversationId, next);
-		if (next && result)
-			await receivedArchive.saveMany(
-				result.items.filter((i) => i.available).map(archivableFromItem),
-			);
-	}
 
 	async function archiveAll() {
 		if (!result || archivingAll) return;
@@ -88,26 +89,7 @@
 		}
 	}
 
-	let viewing = $state<ReceivedItem | null>(null);
-	let viewerSrc = $state<string | null>(null);
-	$effect(() => {
-		const item = viewing;
-		if (!item) {
-			viewerSrc = null;
-			return;
-		}
-		let alive = true;
-		if (receivedArchive.isArchived(item.id)) {
-			void receivedArchive.objectUrl(item.id).then((url) => {
-				if (alive) viewerSrc = url ?? item.url;
-			});
-		} else {
-			viewerSrc = item.url;
-		}
-		return () => {
-			alive = false;
-		};
-	});
+	let viewIndex = $state(-1);
 </script>
 
 <ProgressiveBlur
@@ -145,19 +127,11 @@
 				</p>
 			{/if}
 		</div>
+		{#if savedCount > 0}
+			<span class="text-2xs text-green-400">{savedCount} guardados</span>
+		{/if}
 	</div>
 	<div class="flex flex-wrap items-center gap-2">
-		<Button
-			variant="secondary"
-			size="sm"
-			aria-pressed={autoSave}
-			class={{
-				"bg-primary text-primary-foreground hover:bg-primary/90": autoSave,
-			}}
-			onclick={() => void toggleAutoSave()}
-		>
-			{autoSave ? "Guardando ✓" : "Guardar este perfil"}
-		</Button>
 		<Button
 			variant="secondary"
 			size="sm"
@@ -165,7 +139,7 @@
 			onclick={() => void archiveAll()}
 		>
 			<DownloadSimpleIcon weight="bold" class="size-3.5" />
-			{archivingAll ? "Archivando…" : "Archivar todo"}
+			{archivingAll ? "Guardando…" : "Archivar todo"}
 		</Button>
 	</div>
 </ProgressiveBlur>
@@ -183,7 +157,7 @@
 					el contenido en vivo.
 				</p>
 			{/if}
-			{#if loading}
+			{#if loading && !result}
 				<div class="grid grid-cols-3 gap-1">
 					{#each Array(9)}
 						<Skeleton class="aspect-square rounded-none" />
@@ -200,54 +174,24 @@
 				</p>
 			{:else}
 				<div class="grid grid-cols-3 gap-1">
-					{#each result.items as item (item.id)}
-						<ReceivedTile {item} onOpen={() => (viewing = item)} />
+					{#each result.items as item, i (item.id)}
+						<ReceivedTile {item} onOpen={() => (viewIndex = i)} />
 					{/each}
 				</div>
+				{#if loading}
+					<p class="py-3 text-center text-2xs text-muted-foreground">
+						Buscando más…
+					</p>
+				{/if}
 			{/if}
 		</div>
 	</div>
 </main>
 
-{#if viewing}
-	{@const current = viewing}
-	<div
-		class="fixed inset-0 z-50 flex items-center justify-center bg-black/95"
-		role="dialog"
-		aria-modal="true"
-		tabindex="-1"
-		onclick={() => (viewing = null)}
-		onkeydown={(e) => e.key === "Escape" && (viewing = null)}
-	>
-		<button
-			type="button"
-			aria-label="Cerrar"
-			class="absolute top-4 right-4 z-10 flex size-10 items-center justify-center rounded-full bg-white/15 text-white"
-			onclick={() => (viewing = null)}
-		>
-			<XIcon class="size-6" />
-		</button>
-		{#if viewerSrc}
-			{#if current.kind === "video"}
-				<!-- svelte-ignore a11y_media_has_caption -->
-				<video
-					src={viewerSrc}
-					class="max-h-full max-w-full"
-					controls
-					autoplay
-					playsinline
-				></video>
-			{:else}
-				<img
-					src={viewerSrc}
-					alt=""
-					class="max-h-full max-w-full object-contain"
-				/>
-			{/if}
-		{:else}
-			<span
-				class="size-10 animate-spin rounded-full border-4 border-white/30 border-t-white"
-			></span>
-		{/if}
-	</div>
+{#if viewIndex >= 0 && result && result.items.length > 0}
+	<ReceivedViewer
+		items={result.items}
+		start={viewIndex}
+		onClose={() => (viewIndex = -1)}
+	/>
 {/if}

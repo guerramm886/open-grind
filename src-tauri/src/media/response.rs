@@ -77,6 +77,7 @@ pub fn bounded_range(range: &str) -> String {
 pub fn refused(status: StatusCode) -> Response<Vec<u8>> {
 	Response::builder()
 		.status(status)
+		.header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*")
 		.header(header::CACHE_CONTROL, Freshness::Uncacheable.directive())
 		.body(Vec::new())
 		.unwrap_or_default()
@@ -90,6 +91,7 @@ pub fn deliver(
 ) -> Response<Vec<u8>> {
 	Response::builder()
 		.status(status)
+		.header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*")
 		.header(
 			header::CONTENT_TYPE,
 			media

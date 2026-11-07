@@ -11,7 +11,9 @@
 	import { topChrome } from "$lib/util/screen-chrome.svelte";
 	import { ReceivedPeople } from "./received-people.svelte";
 
-	const people = new ReceivedPeople();
+	let { data }: import("./$types").PageProps = $props();
+
+	const people = new ReceivedPeople(data.ourProfileId);
 	const shown = $derived(people.visible);
 </script>
 
@@ -28,6 +30,12 @@
 	<div class="flex h-10 items-center gap-2">
 		<ImagesIcon weight="fill" class="size-5 text-accent" />
 		<h1 class="text-base font-semibold">Recibidos</h1>
+		{#if people.scanning}
+			<span
+				class="size-4 animate-spin rounded-full border-2 border-muted-foreground/40 border-t-accent"
+				title="Buscando quién te envió contenido"
+			></span>
+		{/if}
 	</div>
 	<div class="flex flex-wrap items-center gap-2">
 		<div class="inline-flex overflow-hidden rounded-full border">
@@ -107,7 +115,7 @@
 		<div
 			class="@container/photo-grid mx-auto mt-14 min-h-overscrollable flex w-full max-w-120 flex-col gap-3 px-4 pt-header-clear-16 pb-nav-clear"
 		>
-			{#if people.loading && shown.length === 0}
+			{#if people.scanning && shown.length === 0}
 				<div class="photo-grid">
 					{#each Array(12)}
 						<Skeleton class="aspect-square rounded-none" />
@@ -117,14 +125,14 @@
 				<p class="py-8 text-center text-sm text-muted-foreground">
 					No se pudo cargar. <button
 						class="underline"
-						onclick={() => void people.loadMore()}>Reintentar</button
+						onclick={() => void people.scanMore()}>Reintentar</button
 					>
 				</p>
 			{:else if shown.length === 0}
 				<p class="py-8 text-center text-sm text-muted-foreground">
 					{people.ageFilterOn || people.favoritesOnly
 						? "Nadie coincide con el filtro."
-						: "Todavía no hay conversaciones."}
+						: "Todavía nadie te envió fotos, videos ni álbumes."}
 				</p>
 			{:else}
 				<div class="photo-grid">
@@ -158,8 +166,8 @@
 					<div
 						class="h-0"
 						use:observeIntersection={{
-							handle: () => void people.loadMore(),
-							rootMargin: "400px",
+							handle: () => void people.scanMore(),
+							rootMargin: "600px",
 						}}
 					></div>
 				{/if}

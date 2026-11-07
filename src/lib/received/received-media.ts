@@ -90,6 +90,37 @@ async function expandAlbum({
 	}
 }
 
+const INCOMING_MEDIA_TYPES = new Set([
+	"Image",
+	"ExpiringImage",
+	"Video",
+	"PrivateVideo",
+	"Album",
+	"ExpiringAlbum",
+	"ExpiringAlbumV2",
+]);
+
+/**
+ * Cheap check (one messages fetch, no album expansion) of whether the OTHER
+ * person sent any photo, video or album in the recent window. Used to keep the
+ * grid to people who actually sent you content.
+ */
+export async function detectIncomingMedia({
+	conversationId,
+	ourProfileId,
+}: {
+	conversationId: string;
+	ourProfileId: number;
+}): Promise<boolean> {
+	const page = await getConversationMessages({ conversationId });
+	return page.messages.some(
+		(message) =>
+			message.senderId !== ourProfileId &&
+			!message.unsent &&
+			INCOMING_MEDIA_TYPES.has(message.type),
+	);
+}
+
 export async function loadReceivedMedia({
 	conversationId,
 	ourProfileId,

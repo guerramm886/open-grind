@@ -1,9 +1,11 @@
-// Loads the inbox as a list of people for the "Recibidos" grid, with its own
-// paging (independent of the chat inbox state) plus sort and filters. Ages are
-// fetched lazily and only while the age filter is active.
+// Loads the inbox and keeps ONLY the people who sent you photos, videos or
+// albums (incoming, not what you sent them). Each conversation is probed with a
+// cheap detector; senders are revealed as they're confirmed. Sort and filters
+// (favorites, age) apply on top.
 
 import { getConversations } from "$lib/api/messaging/conversations";
 import { getProfile } from "$lib/api/users/profiles";
+import { detectIncomingMedia } from "$lib/received/received-media";
 import type { Conversation } from "$lib/model/messaging/conversations";
 
 export type ReceivedSort = "recent" | "distance";
@@ -33,9 +35,14 @@ function personFromConversation(entry: Conversation): Person | null {
 	};
 }
 
+const SCAN_CONCURRENCY = 4;
+const TARGET_SENDERS = 18;
+const MAX_PAGES = 10;
+
 export class ReceivedPeople {
-	people = $state<Person[]>([]);
-	loading = $state(false);
+	/** Only confirmed senders. */
+	senders = $state<Person[]>([]);
+	scanning = $state(false);
 	error = $state<Error | null>(null);
 	hasMore = $state(true);
 
@@ -47,44 +54,81 @@ export class ReceivedPeople {
 
 	ages = $state<Record<number, number | null>>({});
 
+	readonly #ourProfileId: number;
 	#page = 1;
 	// eslint-disable-next-line svelte/prefer-svelte-reactivity -- membership check, not reactive
 	#seen = new Set<string>();
 	// eslint-disable-next-line svelte/prefer-svelte-reactivity -- in-flight guard, not reactive
 	#ageInFlight = new Set<number>();
 
-	constructor() {
-		void this.loadMore();
+	constructor(ourProfileId: number) {
+		this.#ourProfileId = ourProfileId;
+		void this.scanMore();
 	}
 
-	async loadMore(): Promise<void> {
-		if (this.loading || !this.hasMore) return;
-		this.loading = true;
+	/** Load and probe pages until enough senders are found or the inbox ends. */
+	async scanMore(): Promise<void> {
+		if (this.scanning || !this.hasMore) return;
+		this.scanning = true;
 		try {
-			const result = await getConversations({ page: this.#page });
-			for (const entry of result.entries) {
-				const person = personFromConversation(entry);
-				if (!person || this.#seen.has(person.conversationId)) continue;
-				this.#seen.add(person.conversationId);
-				this.people.push(person);
+			let pages = 0;
+			const start = this.senders.length;
+			while (
+				this.hasMore &&
+				pages < MAX_PAGES &&
+				this.senders.length - start < TARGET_SENDERS
+			) {
+				await this.#loadAndProbePage();
+				pages += 1;
 			}
-			this.hasMore = result.nextPage !== null;
-			this.#page = result.nextPage ?? this.#page;
-			this.error = null;
 		} catch (error) {
 			this.error =
 				error instanceof Error ? error : new Error(String(error));
 		} finally {
-			this.loading = false;
+			this.scanning = false;
 		}
 	}
 
+	async #loadAndProbePage(): Promise<void> {
+		const result = await getConversations({ page: this.#page });
+		this.hasMore = result.nextPage !== null;
+		this.#page = result.nextPage ?? this.#page;
+
+		const candidates: Person[] = [];
+		for (const entry of result.entries) {
+			const person = personFromConversation(entry);
+			if (!person || this.#seen.has(person.conversationId)) continue;
+			this.#seen.add(person.conversationId);
+			candidates.push(person);
+		}
+		await this.#probe(candidates);
+		this.error = null;
+	}
+
+	async #probe(candidates: Person[]): Promise<void> {
+		const queue = [...candidates];
+		const worker = async () => {
+			for (;;) {
+				const person = queue.shift();
+				if (!person) return;
+				try {
+					const hasMedia = await detectIncomingMedia({
+						conversationId: person.conversationId,
+						ourProfileId: this.#ourProfileId,
+					});
+					if (hasMedia) this.senders.push(person);
+				} catch {
+					/* skip unreadable conversations */
+				}
+			}
+		};
+		await Promise.all(
+			Array.from({ length: SCAN_CONCURRENCY }, () => worker()),
+		);
+	}
+
 	ensureAge(profileId: number): void {
-		if (
-			profileId in this.ages ||
-			this.#ageInFlight.has(profileId)
-		)
-			return;
+		if (profileId in this.ages || this.#ageInFlight.has(profileId)) return;
 		this.#ageInFlight.add(profileId);
 		void getProfile(profileId)
 			.then((profile) => {
@@ -97,7 +141,7 @@ export class ReceivedPeople {
 	}
 
 	get visible(): Person[] {
-		let list = this.people;
+		let list = this.senders;
 		if (this.favoritesOnly) list = list.filter((p) => p.favorite);
 		if (this.ageFilterOn) {
 			for (const p of list) this.ensureAge(p.profileId);

@@ -31,7 +31,9 @@
 		};
 	});
 
-	const src = $derived(localSrc ?? item.thumbUrl);
+	// Full-resolution source so thumbnails look sharp (the album thumbUrl is a
+	// tiny, blurry preview); the saved copy is preferred when archived.
+	const src = $derived(localSrc ?? item.url);
 
 	async function toggleArchive() {
 		if (archived) await receivedArchive.remove(item.id);
