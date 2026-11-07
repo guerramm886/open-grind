@@ -16,7 +16,7 @@
 		GALLERY_FOLDER,
 		saveUrlToDevice,
 	} from "$lib/received/save-to-device";
-	import { profileMediaUrl, proxyMediaUrl } from "$lib/util/media";
+	import { proxyMediaUrl } from "$lib/util/media";
 	import { getConversationState } from "../conversation-state.svelte";
 
 	const imageSchema = z.object({ mediaId: z.number(), url: mediaUrlSchema });
@@ -102,12 +102,11 @@
 	// Everything this person shared with you: sent photos, album contents, and
 	// their profile photos.
 	async function collectTargets(): Promise<
-		{ url: string; isVideo: boolean }[]
+		{ rawUrl: string; isVideo: boolean }[]
 	> {
-		const targets: { url: string; isVideo: boolean }[] = [];
+		const targets: { rawUrl: string; isVideo: boolean }[] = [];
 		for (const img of images ?? []) {
-			const u = proxyMediaUrl(img.url, { as: "image" });
-			if (u) targets.push({ url: u, isVideo: false });
+			targets.push({ rawUrl: img.url, isVideo: false });
 		}
 		for (const album of albums ?? []) {
 			if (!album.albumViewable) continue;
@@ -117,10 +116,7 @@
 					if (c.processing) continue;
 					const isVid = isVideoContent(c.contentType);
 					const src = c.url || c.coverUrl || c.thumbUrl;
-					const u = proxyMediaUrl(src, {
-						as: isVid ? "video" : "image",
-					});
-					if (u) targets.push({ url: u, isVideo: isVid });
+					if (src) targets.push({ rawUrl: src, isVideo: isVid });
 				}
 			} catch (error) {
 				console.error("[received-media] album expand failed", error);
@@ -132,10 +128,7 @@
 				const profile = await getProfile(pid);
 				for (const media of profile.medias) {
 					targets.push({
-						url: profileMediaUrl({
-							mediaHash: media.mediaHash,
-							size: "full",
-						}),
+						rawUrl: `https://cdns.grindr.com/images/profile/1024x1024/${media.mediaHash}`,
 						isVideo: false,
 					});
 				}
@@ -171,11 +164,10 @@
 		for (let i = 0; i < targets.length; i++) {
 			const target = targets[i];
 			if (!target) continue;
-			const ext = target.isVideo ? "mp4" : "jpg";
 			try {
 				await saveUrlToDevice({
-					url: target.url,
-					filename: `${prefix}-${i + 1}.${ext}`,
+					rawUrl: target.rawUrl,
+					baseName: `${prefix}-${i + 1}`,
 					isVideo: target.isVideo,
 				});
 			} catch (error) {

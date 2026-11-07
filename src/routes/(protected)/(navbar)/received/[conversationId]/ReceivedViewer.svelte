@@ -105,7 +105,7 @@
 	<button
 		type="button"
 		aria-label="Cerrar"
-		class="absolute top-4 left-4 z-10 flex size-10 items-center justify-center rounded-full bg-white/15 text-white"
+		class="absolute top-[calc(var(--safe-area-top)+0.75rem)] left-4 z-10 flex size-10 items-center justify-center rounded-full bg-white/15 text-white"
 		onclick={onClose}
 	>
 		<XIcon class="size-6" />
@@ -113,7 +113,7 @@
 	<button
 		type="button"
 		aria-label="Descargar"
-		class="absolute top-4 right-4 z-10 flex size-10 items-center justify-center rounded-full bg-white/15 text-white disabled:opacity-50"
+		class="absolute top-[calc(var(--safe-area-top)+0.75rem)] right-4 z-10 flex size-10 items-center justify-center rounded-full bg-white/15 text-white disabled:opacity-50"
 		disabled={downloading}
 		onclick={() => void download()}
 	>

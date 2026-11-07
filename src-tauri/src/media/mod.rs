@@ -144,6 +144,33 @@ pub async fn media_failure(
 	app.state::<MediaProxy>().failure_of(&src).await
 }
 
+/// Fetches a media URL fully into memory for saving to the gallery (never
+/// streamed), reusing the authenticated media path. Returns (bytes, content
+/// type). The webview can't fetch the proxied media itself (http scheme vs the
+/// https app = mixed content), so saving goes through here.
+pub async fn fetch_media_bytes<R: Runtime>(
+	app: &AppHandle<R>,
+	url: &str,
+	video: bool,
+) -> Result<(Vec<u8>, Option<String>), String> {
+	let fetcher = if video {
+		grindr::MediaFetcher::MediaPlayer
+	} else {
+		grindr::MediaFetcher::ImageLoader
+	};
+	let response =
+		serve_by(Delivery::Buffered, app, url, fetcher, None, false).await;
+	if response.status() != StatusCode::OK {
+		return Err(format!("status {}", response.status().as_u16()));
+	}
+	let content_type = response
+		.headers()
+		.get(header::CONTENT_TYPE)
+		.and_then(|value| value.to_str().ok())
+		.map(str::to_owned);
+	Ok((response.body().clone(), content_type))
+}
+
 pub fn handle<R: Runtime>(
 	context: UriSchemeContext<'_, R>,
 	request: Request<Vec<u8>>,

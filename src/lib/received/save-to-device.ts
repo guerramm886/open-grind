@@ -1,5 +1,7 @@
-// Saves a received item to the phone's gallery (native, into a visible folder)
-// and keeps an in-app copy. On non-Android it falls back to a browser download.
+// Saves a received item to the phone's gallery (native, into a visible folder).
+// On Android the native command fetches the bytes itself (the webview can't
+// fetch the proxied media: http scheme vs the https app). On the web it falls
+// back to a normal browser download through the proxy.
 
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { receivedArchive } from "$lib/received/archive.svelte";
@@ -7,39 +9,41 @@ import {
 	archivableFromItem,
 	type ReceivedItem,
 } from "$lib/received/received-media";
+import { proxyMediaUrl } from "$lib/util/media";
 
 /** The album folder the native command writes into (Pictures/ and Movies/). */
 export const GALLERY_FOLDER = "Martins Grindr";
 
-/** Fetches a media URL and writes it to the phone gallery under `filename`. */
+/** Saves a raw media URL to the gallery under `baseName` (extension chosen by
+ *  the real content type on the native side). */
 export async function saveUrlToDevice({
-	url,
-	filename,
+	rawUrl,
+	baseName,
 	isVideo,
 }: {
-	url: string;
-	filename: string;
+	rawUrl: string;
+	baseName: string;
 	isVideo: boolean;
 }): Promise<void> {
-	const res = await fetch(url);
-	if (!res.ok) throw new Error(`descarga ${res.status}`);
-	const bytes = new Uint8Array(await res.arrayBuffer());
-	const mime = isVideo ? "video/mp4" : "image/jpeg";
-
 	if (isTauri()) {
 		await invoke("save_media_to_gallery", {
-			data: Array.from(bytes),
-			filename,
-			mime,
+			url: rawUrl,
+			baseName,
 			isVideo,
 		});
 		return;
 	}
 
-	const blobUrl = URL.createObjectURL(new Blob([bytes], { type: mime }));
+	const proxied =
+		proxyMediaUrl(rawUrl, { as: isVideo ? "video" : "image" }) ?? rawUrl;
+	const res = await fetch(proxied);
+	if (!res.ok) throw new Error(`descarga ${res.status}`);
+	const blob = await res.blob();
+	const ext = isVideo ? "mp4" : "jpg";
+	const blobUrl = URL.createObjectURL(blob);
 	const a = document.createElement("a");
 	a.href = blobUrl;
-	a.download = filename;
+	a.download = `${baseName}.${ext}`;
 	document.body.appendChild(a);
 	a.click();
 	a.remove();
@@ -47,13 +51,12 @@ export async function saveUrlToDevice({
 }
 
 export async function saveItemToDevice(item: ReceivedItem): Promise<void> {
-	const ext = item.kind === "video" ? "mp4" : "jpg";
-	const filename = `${item.id.replace(/[^a-z0-9]/gi, "_")}.${ext}`;
-	// Always keep a persistent in-app copy too (survives the sender deleting it).
+	// Best-effort in-app copy (may be unavailable on device); the gallery save
+	// below is the reliable one.
 	void receivedArchive.save(archivableFromItem(item));
 	await saveUrlToDevice({
-		url: item.url,
-		filename,
+		rawUrl: item.rawUrl,
+		baseName: item.id.replace(/[^a-z0-9]/gi, "_"),
 		isVideo: item.kind === "video",
 	});
 }

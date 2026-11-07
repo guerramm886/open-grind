@@ -1,53 +1,78 @@
 //! Saves received media into the phone's public gallery (Pictures / Movies).
 //!
-//! The write runs here in Rust through the android-fs plugin, so it needs no
-//! `android-fs:` capability grant — those gate the JS-to-plugin bridge, not
-//! Rust-side calls, which keeps the capability surface unchanged.
+//! The bytes are fetched here in Rust through the authenticated media path
+//! (the webview can't fetch the proxied media: its http scheme vs the https app
+//! is mixed content), then written through the android-fs plugin. Writing in
+//! Rust needs no `android-fs:` capability grant — those gate the JS bridge.
 
-/// Write bytes into the device gallery. `is_video` picks Movies vs Pictures.
+/// Fetch a media URL and write it to the gallery under `base_name` (the
+/// extension is chosen from the real content type).
 #[tauri::command]
-pub fn save_media_to_gallery(
+pub async fn save_media_to_gallery(
 	app: tauri::AppHandle,
-	data: Vec<u8>,
-	filename: String,
-	mime: String,
+	url: String,
+	base_name: String,
 	is_video: bool,
 ) -> Result<(), String> {
-	save(&app, &data, &filename, &mime, is_video)
+	let (bytes, content_type) =
+		crate::media::fetch_media_bytes(&app, &url, is_video).await?;
+	save(&app, &bytes, &base_name, content_type.as_deref(), is_video)
+}
+
+fn ext_and_mime(content_type: Option<&str>, is_video: bool) -> (&'static str, String) {
+	let ct = content_type.unwrap_or("").to_ascii_lowercase();
+	if is_video || ct.starts_with("video/") {
+		let ext = if ct.contains("webm") { "webm" } else { "mp4" };
+		let mime = if ct.is_empty() { "video/mp4".to_owned() } else { ct };
+		return (ext, mime);
+	}
+	let ext = if ct.contains("webp") {
+		"webp"
+	} else if ct.contains("png") {
+		"png"
+	} else if ct.contains("gif") {
+		"gif"
+	} else {
+		"jpg"
+	};
+	let mime = if ct.is_empty() { "image/jpeg".to_owned() } else { ct };
+	(ext, mime)
 }
 
 #[cfg(target_os = "android")]
 fn save(
 	app: &tauri::AppHandle,
-	data: &[u8],
-	filename: &str,
-	mime: &str,
+	bytes: &[u8],
+	base_name: &str,
+	content_type: Option<&str>,
 	is_video: bool,
 ) -> Result<(), String> {
 	use tauri_plugin_android_fs::{AndroidFsExt, PublicImageDir, PublicVideoDir};
 
+	let (ext, mime) = ext_and_mime(content_type, is_video);
 	let fs = app.android_fs();
 	let storage = fs.public_storage();
-	let relative = format!("Martins Grindr/{filename}");
-	let uri = if is_video {
+	// Ask once; modern Android grants MediaStore writes without a prompt.
+	let _ = storage.request_permission();
+	let relative = format!("Martins Grindr/{base_name}.{ext}");
+	let uri = if is_video || mime.starts_with("video/") {
 		storage.write_new(
 			None,
 			PublicVideoDir::Movies,
 			&relative,
-			Some(mime),
-			data,
+			Some(mime.as_str()),
+			bytes,
 		)
 	} else {
 		storage.write_new(
 			None,
 			PublicImageDir::Pictures,
 			&relative,
-			Some(mime),
-			data,
+			Some(mime.as_str()),
+			bytes,
 		)
 	}
 	.map_err(|error| error.to_string())?;
-	// Best effort: make the new file show up in the gallery immediately.
 	let _ = storage.scan(&uri);
 	Ok(())
 }
@@ -55,10 +80,11 @@ fn save(
 #[cfg(not(target_os = "android"))]
 fn save(
 	_app: &tauri::AppHandle,
-	_data: &[u8],
-	_filename: &str,
-	_mime: &str,
+	_bytes: &[u8],
+	_base_name: &str,
+	_content_type: Option<&str>,
 	_is_video: bool,
 ) -> Result<(), String> {
+	let _ = ext_and_mime(_content_type, _is_video);
 	Err("Guardar en la galería solo está disponible en Android".to_owned())
 }

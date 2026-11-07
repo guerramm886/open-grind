@@ -15,6 +15,8 @@ export type ReceivedItem = {
 	kind: "image" | "video";
 	/** Proxied URL for display/playback (and for archiving). */
 	url: string;
+	/** Raw (un-proxied) https URL, for the native gallery-save command. */
+	rawUrl: string;
 	/** Proxied still image for the grid thumbnail. */
 	thumbUrl: string;
 	contentType: string;
@@ -70,12 +72,14 @@ async function expandAlbum({
 					? "video"
 					: "image";
 				const still = content.coverUrl ?? content.thumbUrl;
+				const src = content.url || still;
 				return {
 					id: `album:${albumId}:${content.contentId}`,
 					conversationId,
 					profileId,
 					kind,
-					url: proxyMediaUrl(content.url || still, { as: kind }) ?? "",
+					url: proxyMediaUrl(src, { as: kind }) ?? "",
+					rawUrl: src,
 					thumbUrl: proxyMediaUrl(still) ?? "",
 					contentType: content.contentType,
 					albumId,
@@ -155,6 +159,7 @@ export async function loadReceivedMedia({
 					profileId: profile.profileId,
 					kind: "image",
 					url: proxyMediaUrl(url, { as: "image" }) ?? url,
+					rawUrl: url,
 					thumbUrl: proxyMediaUrl(url, { as: "image" }) ?? url,
 					contentType: "image/jpeg",
 					albumId: null,
@@ -175,6 +180,7 @@ export async function loadReceivedMedia({
 					profileId: profile.profileId,
 					kind: "video",
 					url: proxyMediaUrl(url, { as: "video" }) ?? url,
+					rawUrl: url,
 					thumbUrl: proxyMediaUrl(url, { as: "video" }) ?? url,
 					contentType: message.body.contentType ?? "video/mp4",
 					albumId: null,
