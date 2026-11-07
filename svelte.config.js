@@ -19,31 +19,45 @@ const projectVersion = JSON.parse(
 	),
 ).version;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const cargoMetadata = JSON.parse(
-	execSync("cargo metadata --format-version 1", {
-		cwd: path.join(__dirname, "src-tauri"),
-		maxBuffer: 16 * 1024 * 1024,
-	}),
-);
-const grindrManifest = cargoMetadata.packages.find(
-	(p) => p.name === "grindr",
-)?.manifest_path;
-if (!grindrManifest)
-	throw new Error("grindr crate not found in cargo metadata");
-const headersRs = fs.readFileSync(
-	path.join(path.dirname(grindrManifest), "src", "headers.rs"),
-	"utf-8",
-);
-function scrapeHeaderConst(name) {
-	const match = headersRs.match(
-		new RegExp(`const ${name}: &str = "([^"]+)";`),
+
+// The real API version is scraped from the grindr crate via cargo. That needs a
+// Rust toolchain, which isn't present when only type-checking the frontend; set
+// OPEN_GRIND_SKIP_CARGO=1 to fall back to a placeholder (dev/type-check only —
+// CI has cargo and always uses the real values).
+let grindrApiVersion = "0";
+let grindrApiBuildNumber = "0";
+try {
+	const cargoMetadata = JSON.parse(
+		execSync("cargo metadata --format-version 1", {
+			cwd: path.join(__dirname, "src-tauri"),
+			maxBuffer: 16 * 1024 * 1024,
+		}),
 	);
-	if (!match)
-		throw new Error(`${name} not found in the grindr crate headers`);
-	return match[1];
+	const grindrManifest = cargoMetadata.packages.find(
+		(p) => p.name === "grindr",
+	)?.manifest_path;
+	if (!grindrManifest)
+		throw new Error("grindr crate not found in cargo metadata");
+	const headersRs = fs.readFileSync(
+		path.join(path.dirname(grindrManifest), "src", "headers.rs"),
+		"utf-8",
+	);
+	const scrapeHeaderConst = (name) => {
+		const match = headersRs.match(
+			new RegExp(`const ${name}: &str = "([^"]+)";`),
+		);
+		if (!match)
+			throw new Error(`${name} not found in the grindr crate headers`);
+		return match[1];
+	};
+	grindrApiVersion = scrapeHeaderConst("APP_VERSION");
+	grindrApiBuildNumber = scrapeHeaderConst("BUILD_NUMBER");
+} catch (error) {
+	if (!process.env.OPEN_GRIND_SKIP_CARGO) throw error;
+	console.warn(
+		"[svelte.config] cargo unavailable; using a placeholder API version (type-check/dev only)",
+	);
 }
-const grindrApiVersion = scrapeHeaderConst("APP_VERSION");
-const grindrApiBuildNumber = scrapeHeaderConst("BUILD_NUMBER");
 
 /** @type {import('@sveltejs/kit').Config} */
 const config = {

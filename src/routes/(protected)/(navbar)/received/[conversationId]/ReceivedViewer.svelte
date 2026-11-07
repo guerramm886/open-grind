@@ -7,18 +7,14 @@
 
 	import { dismissOnBackGesture } from "$lib/platform/back-gesture-event.svelte";
 	import { receivedArchive } from "$lib/received/archive.svelte";
-	import type { ReceivedItem } from "$lib/received/received-media";
 	import { saveItemToDevice } from "$lib/received/save-to-device";
+	import type { ReceivedItem } from "$lib/received/received-media";
 
 	let {
 		items,
 		start,
 		onClose,
-	}: {
-		items: ReceivedItem[];
-		start: number;
-		onClose: () => void;
-	} = $props();
+	}: { items: ReceivedItem[]; start: number; onClose: () => void } = $props();
 
 	let index = $state(start);
 	const current = $derived(items[index]);
@@ -99,6 +95,7 @@
 	class="fixed inset-0 z-50 flex items-center justify-center bg-black/95"
 	role="dialog"
 	aria-modal="true"
+	tabindex="-1"
 	ontouchstart={onTouchStart}
 	ontouchend={onTouchEnd}
 >
@@ -151,18 +148,14 @@
 		{#if current.kind === "video"}
 			<!-- svelte-ignore a11y_media_has_caption -->
 			<video
-				src={src}
+				{src}
 				class="max-h-full max-w-full"
 				controls
 				autoplay
 				playsinline
 			></video>
 		{:else}
-			<img
-				src={src}
-				alt=""
-				class="max-h-full max-w-full object-contain"
-			/>
+			<img {src} alt="" class="max-h-full max-w-full object-contain" />
 		{/if}
 	{:else}
 		<span

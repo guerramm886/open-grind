@@ -148,7 +148,7 @@
 		const prefix =
 			(namePrefix.trim() || "perfil").replace(/[^a-z0-9_-]/gi, "_") ||
 			"perfil";
-		let targets: { url: string; isVideo: boolean }[] = [];
+		let targets: { rawUrl: string; isVideo: boolean }[] = [];
 		try {
 			targets = await collectTargets();
 		} catch (error) {
@@ -211,9 +211,9 @@
 						class="w-full rounded-lg bg-background px-2 py-1.5 text-base"
 					/>
 					<p class="text-2xs text-muted-foreground">
-						Guarda fotos enviadas, álbumes y fotos de perfil en Galería
-						› {GALLERY_FOLDER}, como {namePrefix.trim() || "perfil"}-1,
-						-2, …
+						Guarda fotos enviadas, álbumes y fotos de perfil en
+						Galería › {GALLERY_FOLDER}, como {namePrefix.trim() ||
+							"perfil"}-1, -2, …
 					</p>
 					<div class="flex justify-end gap-2">
 						<Button
@@ -240,7 +240,9 @@
 					</div>
 				{/if}
 				{#if saveResult}
-					<p class="text-xs font-medium text-green-500">{saveResult}</p>
+					<p class="text-xs font-medium text-green-500">
+						{saveResult}
+					</p>
 				{/if}
 			</div>
 		{/if}
