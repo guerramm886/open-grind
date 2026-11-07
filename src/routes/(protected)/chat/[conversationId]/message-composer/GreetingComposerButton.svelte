@@ -11,13 +11,21 @@
 
 	let configOpen = $state(false);
 	let draft = $state("");
+	let draftPhrases = $state<string[]>([]);
 	let sending = $state(false);
 	let pressTimer: ReturnType<typeof setTimeout> | null = null;
 	let longPressed = false;
 
 	function openConfig() {
 		draft = greeting.message;
+		draftPhrases = greeting.phrases.length > 0 ? [...greeting.phrases] : [""];
 		configOpen = true;
+	}
+
+	function saveConfig() {
+		greeting.save(draft.trim());
+		greeting.savePhrases(draftPhrases);
+		configOpen = false;
 	}
 
 	async function sendGreeting() {
@@ -88,7 +96,39 @@
 			placeholder="Hola, ¿cómo estás?"
 			class="w-full rounded-xl bg-secondary p-2 text-base text-foreground"
 		></textarea>
-		<div class="mt-2 flex justify-end gap-2">
+
+		<p class="mt-3 mb-1 text-sm font-semibold">Frases frecuentes</p>
+		<div class="flex max-h-44 flex-col gap-2 overflow-y-auto">
+			{#each draftPhrases as _, i (i)}
+				<div class="flex items-center gap-1">
+					<input
+						bind:value={draftPhrases[i]}
+						placeholder="Escribí una frase"
+						class="min-w-0 flex-1 rounded-lg bg-secondary px-2 py-1.5 text-base text-foreground"
+					/>
+					<button
+						type="button"
+						aria-label="Quitar frase"
+						class="flex size-7 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-input/40"
+						onclick={() =>
+							(draftPhrases = draftPhrases.filter(
+								(_, j) => j !== i,
+							))}
+					>
+						✕
+					</button>
+				</div>
+			{/each}
+		</div>
+		<button
+			type="button"
+			class="mt-1 text-xs font-medium text-accent"
+			onclick={() => (draftPhrases = [...draftPhrases, ""])}
+		>
+			+ Agregar frase
+		</button>
+
+		<div class="mt-3 flex justify-end gap-2">
 			<Button
 				variant="secondary"
 				size="sm"
@@ -96,15 +136,7 @@
 			>
 				Cancelar
 			</Button>
-			<Button
-				size="sm"
-				onclick={() => {
-					greeting.save(draft.trim());
-					configOpen = false;
-				}}
-			>
-				Guardar
-			</Button>
+			<Button size="sm" onclick={saveConfig}>Guardar</Button>
 		</div>
 	</div>
 {/if}

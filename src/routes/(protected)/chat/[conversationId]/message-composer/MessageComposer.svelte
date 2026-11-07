@@ -4,6 +4,7 @@
 
 	import { showErrorToast } from "$lib/api/error-toast";
 	import { getConversations } from "$lib/chat/conversations-context.svelte";
+	import { greeting } from "$lib/chat/greeting.svelte";
 	import { draftFromMessage } from "$lib/model/messaging/messages";
 	import { dismissOnBackGesture } from "$lib/platform/back-gesture-event.svelte";
 	import { below } from "$lib/util/breakpoints.svelte";
@@ -59,6 +60,16 @@
 			await onSend([draftFromMessage({ type: "Text", body: { text } })]);
 			textContent = "";
 			drafts.discard(conversationId);
+		} catch (error) {
+			console.error(error);
+			showErrorToast({ label: "Failed to send message", error });
+		}
+	}
+
+	async function sendPhrase(text: string) {
+		if (disabled) return;
+		try {
+			await onSend([draftFromMessage({ type: "Text", body: { text } })]);
 		} catch (error) {
 			console.error(error);
 			showErrorToast({ label: "Failed to send message", error });
@@ -144,6 +155,20 @@
 >
 	{#if replyTo}
 		<ComposerReplyPreview message={replyTo} onCancel={onCancelReply} />
+	{/if}
+	{#if greeting.phrases.length > 0 && textContent === ""}
+		<div class="no-scrollbar flex gap-1.5 overflow-x-auto pb-1">
+			{#each greeting.phrases as phrase (phrase)}
+				<button
+					type="button"
+					{disabled}
+					class="shrink-0 rounded-full bg-secondary px-3 py-1 text-sm text-foreground disabled:opacity-50"
+					onclick={() => void sendPhrase(phrase)}
+				>
+					{phrase}
+				</button>
+			{/each}
+		</div>
 	{/if}
 	<div class="relative h-full w-full rounded-composer bg-popover">
 		<GreetingComposerButton bind:ref={stickersTrigger} />
