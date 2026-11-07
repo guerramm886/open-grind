@@ -11,35 +11,49 @@ import {
 /** The album folder the native command writes into (Pictures/ and Movies/). */
 export const GALLERY_FOLDER = "Martins Grindr";
 
-export async function saveItemToDevice(item: ReceivedItem): Promise<void> {
-	const res = await fetch(item.url);
+/** Fetches a media URL and writes it to the phone gallery under `filename`. */
+export async function saveUrlToDevice({
+	url,
+	filename,
+	isVideo,
+}: {
+	url: string;
+	filename: string;
+	isVideo: boolean;
+}): Promise<void> {
+	const res = await fetch(url);
 	if (!res.ok) throw new Error(`descarga ${res.status}`);
 	const bytes = new Uint8Array(await res.arrayBuffer());
-	const ext = item.kind === "video" ? "mp4" : "jpg";
-	const filename = `${item.id.replace(/[^a-z0-9]/gi, "_")}.${ext}`;
-	const mime =
-		item.contentType ||
-		(item.kind === "video" ? "video/mp4" : "image/jpeg");
-
-	// Always keep a persistent in-app copy too (survives the sender deleting it).
-	void receivedArchive.save(archivableFromItem(item));
+	const mime = isVideo ? "video/mp4" : "image/jpeg";
 
 	if (isTauri()) {
 		await invoke("save_media_to_gallery", {
 			data: Array.from(bytes),
 			filename,
 			mime,
-			isVideo: item.kind === "video",
+			isVideo,
 		});
 		return;
 	}
 
-	const url = URL.createObjectURL(new Blob([bytes], { type: mime }));
+	const blobUrl = URL.createObjectURL(new Blob([bytes], { type: mime }));
 	const a = document.createElement("a");
-	a.href = url;
+	a.href = blobUrl;
 	a.download = filename;
 	document.body.appendChild(a);
 	a.click();
 	a.remove();
-	setTimeout(() => URL.revokeObjectURL(url), 10000);
+	setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+}
+
+export async function saveItemToDevice(item: ReceivedItem): Promise<void> {
+	const ext = item.kind === "video" ? "mp4" : "jpg";
+	const filename = `${item.id.replace(/[^a-z0-9]/gi, "_")}.${ext}`;
+	// Always keep a persistent in-app copy too (survives the sender deleting it).
+	void receivedArchive.save(archivableFromItem(item));
+	await saveUrlToDevice({
+		url: item.url,
+		filename,
+		isVideo: item.kind === "video",
+	});
 }

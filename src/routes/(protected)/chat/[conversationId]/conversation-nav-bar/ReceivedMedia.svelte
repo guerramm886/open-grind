@@ -1,12 +1,21 @@
 <script lang="ts">
+	import DownloadSimpleIcon from "phosphor-svelte/lib/DownloadSimpleIcon";
 	import ImageIcon from "phosphor-svelte/lib/ImageIcon";
 	import { z } from "zod";
 
+	import { getAlbumContent } from "$lib/api/messaging/albums";
 	import { fetchRest } from "$lib/api/transport";
+	import { getProfile } from "$lib/api/users/profiles";
+	import { isVideoContent } from "$lib/components/album/album";
 	import AlbumPreview from "$lib/components/album/AlbumPreview.svelte";
+	import { Button } from "$lib/components/ui/button";
 	import * as Dialog from "$lib/components/ui/dialog";
 	import { mediaUrlSchema } from "$lib/model/media";
-	import { proxyMediaUrl } from "$lib/util/media";
+	import {
+		GALLERY_FOLDER,
+		saveUrlToDevice,
+	} from "$lib/received/save-to-device";
+	import { profileMediaUrl, proxyMediaUrl } from "$lib/util/media";
 	import { getConversationState } from "../conversation-state.svelte";
 
 	const imageSchema = z.object({ mediaId: z.number(), url: mediaUrlSchema });
@@ -24,6 +33,14 @@
 	let albums = $state<z.infer<typeof albumSchema>[] | null>(null);
 	let failure = $state(false);
 	let activeImage = $state<string | null>(null);
+
+	// Download-all with a chosen name.
+	let downloadOpen = $state(false);
+	let namePrefix = $state("perfil");
+	let saving = $state(false);
+	let savedDone = $state(0);
+	let savedTotal = $state(0);
+	let saveResult = $state<string | null>(null);
 
 	async function load() {
 		if (!conversation.profile) return;
@@ -54,8 +71,119 @@
 	}
 	$effect(() => {
 		if (open) void load();
-		else activeImage = null;
+		else {
+			activeImage = null;
+			downloadOpen = false;
+			saveResult = null;
+		}
 	});
+
+	async function openDownload() {
+		downloadOpen = true;
+		saveResult = null;
+		const pid = conversation.profile?.profileId;
+		let name = "perfil";
+		if (pid !== undefined) {
+			try {
+				name = (await getProfile(pid)).displayName || `perfil-${pid}`;
+			} catch {
+				name = `perfil-${pid}`;
+			}
+		}
+		namePrefix = name;
+	}
+
+	// Everything this person shared with you: sent photos, album contents, and
+	// their profile photos.
+	async function collectTargets(): Promise<
+		{ url: string; isVideo: boolean }[]
+	> {
+		const targets: { url: string; isVideo: boolean }[] = [];
+		for (const img of images ?? []) {
+			const u = proxyMediaUrl(img.url, { as: "image" });
+			if (u) targets.push({ url: u, isVideo: false });
+		}
+		for (const album of albums ?? []) {
+			if (!album.albumViewable) continue;
+			try {
+				const detail = await getAlbumContent(album.albumId);
+				for (const c of detail.content) {
+					if (c.processing) continue;
+					const isVid = isVideoContent(c.contentType);
+					const src = c.url || c.coverUrl || c.thumbUrl;
+					const u = proxyMediaUrl(src, {
+						as: isVid ? "video" : "image",
+					});
+					if (u) targets.push({ url: u, isVideo: isVid });
+				}
+			} catch (error) {
+				console.error("[received-media] album expand failed", error);
+			}
+		}
+		const pid = conversation.profile?.profileId;
+		if (pid !== undefined) {
+			try {
+				const profile = await getProfile(pid);
+				for (const media of profile.medias) {
+					targets.push({
+						url: profileMediaUrl({
+							mediaHash: media.mediaHash,
+							size: "full",
+						}),
+						isVideo: false,
+					});
+				}
+			} catch (error) {
+				console.error("[received-media] profile photos failed", error);
+			}
+		}
+		return targets;
+	}
+
+	async function runDownload() {
+		if (saving) return;
+		saving = true;
+		savedDone = 0;
+		savedTotal = 0;
+		saveResult = null;
+		const prefix =
+			(namePrefix.trim() || "perfil").replace(/[^a-z0-9_-]/gi, "_") ||
+			"perfil";
+		let targets: { url: string; isVideo: boolean }[] = [];
+		try {
+			targets = await collectTargets();
+		} catch (error) {
+			console.error(error);
+		}
+		savedTotal = targets.length;
+		if (targets.length === 0) {
+			saving = false;
+			saveResult = "No hay nada para descargar.";
+			return;
+		}
+		let failed = 0;
+		for (let i = 0; i < targets.length; i++) {
+			const target = targets[i];
+			if (!target) continue;
+			const ext = target.isVideo ? "mp4" : "jpg";
+			try {
+				await saveUrlToDevice({
+					url: target.url,
+					filename: `${prefix}-${i + 1}.${ext}`,
+					isVideo: target.isVideo,
+				});
+			} catch (error) {
+				failed += 1;
+				console.error("[received-media] save failed", error);
+			}
+			savedDone = i + 1;
+		}
+		saving = false;
+		saveResult =
+			failed === 0
+				? `✓ ${savedTotal} guardados en Galería › ${GALLERY_FOLDER}`
+				: `Guardados ${savedTotal - failed}/${savedTotal} (fallaron ${failed})`;
+	}
 </script>
 
 <Dialog.Root bind:open>
@@ -67,6 +195,58 @@
 		<Dialog.Description
 			>Fotos y álbumes que esta persona compartió con vos.</Dialog.Description
 		>
+
+		{#if !activeImage}
+			<div class="flex flex-col gap-2 rounded-xl bg-secondary/40 p-2">
+				{#if !downloadOpen}
+					<Button size="sm" onclick={() => void openDownload()}>
+						<DownloadSimpleIcon weight="bold" class="size-4" />
+						Descargar todo
+					</Button>
+				{:else}
+					<label class="text-xs font-medium" for="save-name">
+						Guardar con nombre:
+					</label>
+					<input
+						id="save-name"
+						bind:value={namePrefix}
+						class="w-full rounded-lg bg-background px-2 py-1.5 text-base"
+					/>
+					<p class="text-2xs text-muted-foreground">
+						Guarda fotos enviadas, álbumes y fotos de perfil en Galería
+						› {GALLERY_FOLDER}, como {namePrefix.trim() || "perfil"}-1,
+						-2, …
+					</p>
+					<div class="flex justify-end gap-2">
+						<Button
+							variant="secondary"
+							size="sm"
+							disabled={saving}
+							onclick={() => (downloadOpen = false)}
+						>
+							Cancelar
+						</Button>
+						<button
+							type="button"
+							disabled={saving}
+							class="flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-sm font-semibold text-primary-foreground transition active:scale-95 active:brightness-90 disabled:opacity-50"
+							onclick={() => void runDownload()}
+						>
+							<DownloadSimpleIcon weight="bold" class="size-4" />
+							{#if saving}
+								Guardando {savedDone}/{savedTotal}…
+							{:else}
+								Guardar en galería
+							{/if}
+						</button>
+					</div>
+				{/if}
+				{#if saveResult}
+					<p class="text-xs font-medium text-green-500">{saveResult}</p>
+				{/if}
+			</div>
+		{/if}
+
 		{#if failure}
 			<p role="alert">No se pudo cargar toda la media.</p>
 			<button type="button" onclick={load}>Reintentar</button>
