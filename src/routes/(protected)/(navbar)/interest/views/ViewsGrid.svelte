@@ -24,15 +24,24 @@
 
 	let container: HTMLDivElement | null = $state(null);
 	let heartedOnly = $state(false);
+	let onlineOnly = $state(false);
 
 	const shownViews = $derived(
-		heartedOnly
-			? views.views.filter((entry) =>
-					entry.type === "profile"
-						? entry.profile.isFavorite
-						: entry.preview.isFavorite,
-				)
-			: views.views,
+		views.views.filter((entry) => {
+			const isFavorite =
+				entry.type === "profile"
+					? entry.profile.isFavorite
+					: entry.preview.isFavorite;
+			if (heartedOnly && !isFavorite) return false;
+			if (onlineOnly) {
+				// Previews (locked viewers) carry no online info, so they're
+				// dropped when filtering by who's online.
+				const onlineUntil =
+					entry.type === "profile" ? entry.profile.onlineUntil : null;
+				if (!onlineUntil || onlineUntil <= Date.now()) return false;
+			}
+			return true;
+		}),
 	);
 
 	restoreScrollOnce({ container: () => container, state: views });
@@ -85,7 +94,7 @@
 					<EmptyViewsGrid />
 				{/if}
 			{:else}
-				<div class="flex items-center justify-between gap-2">
+				<div class="flex items-center gap-2">
 					<Button
 						variant="secondary"
 						size="sm"
@@ -98,10 +107,22 @@
 					>
 						Favoritos ❤
 					</Button>
+					<Button
+						variant="secondary"
+						size="sm"
+						aria-pressed={onlineOnly}
+						class={{
+							"bg-primary text-primary-foreground hover:bg-primary/90":
+								onlineOnly,
+						}}
+						onclick={() => (onlineOnly = !onlineOnly)}
+					>
+						En línea 🟢
+					</Button>
 				</div>
 				{#if shownViews.length === 0}
 					<p class="py-8 text-center text-sm text-muted-foreground">
-						Todavía no te vio nadie a quien le hayas dado ❤.
+						Nadie coincide con el filtro.
 					</p>
 				{:else}
 					<div class="photo-grid">

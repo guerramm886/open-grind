@@ -2,11 +2,11 @@
 	import { onDestroy, tick } from "svelte";
 
 	import { getConversations } from "$lib/chat/conversations-context.svelte";
-	import { swipeDecisions } from "$lib/grid/swipe-decisions.svelte";
 	import ApiErrorDisplay from "$lib/components/feedback/ApiErrorDisplay.svelte";
 	import DataRefreshControl from "$lib/components/feedback/DataRefreshControl.svelte";
 	import ScrollToTopButton from "$lib/components/shared/ScrollToTopButton.svelte";
 	import Skeleton from "$lib/components/ui/skeleton/skeleton.svelte";
+	import { swipeDecisions } from "$lib/grid/swipe-decisions.svelte";
 	import { dismissOnBackGesture } from "$lib/platform/back-gesture-event.svelte";
 	import { below } from "$lib/util/breakpoints.svelte";
 	import { leaveDeletedPages } from "$lib/util/deleted-pages";
@@ -36,7 +36,8 @@
 	const sortKey = `conversation-sort-${conversations.ourProfileId}`;
 	let sortOrder = $state<"recent" | "distance">("recent");
 	try {
-		if (localStorage.getItem(sortKey) === "distance") sortOrder = "distance";
+		if (localStorage.getItem(sortKey) === "distance")
+			sortOrder = "distance";
 	} catch {
 		/* Storage may be unavailable. */
 	}
@@ -58,20 +59,34 @@
 		}
 	}
 
+	let searchQuery = $state("");
+
 	const orderedEntries = $derived.by(() => {
-		const base =
+		let base =
 			sortOrder === "recent"
 				? conversations.entries
 				: conversations.entries.toSorted(
 						(a, b) =>
-							(a.data.participants[0]?.distanceMetres ?? Infinity) -
-							(b.data.participants[0]?.distanceMetres ?? Infinity),
+							(a.data.participants[0]?.distanceMetres ??
+								Infinity) -
+							(b.data.participants[0]?.distanceMetres ??
+								Infinity),
 					);
-		if (!hideCrossed) return base;
-		return base.filter((entry) => {
-			const profileId = entry.data.participants[0]?.profileId;
-			return profileId === undefined || !swipeDecisions.isNope(profileId);
-		});
+		if (hideCrossed) {
+			base = base.filter((entry) => {
+				const profileId = entry.data.participants[0]?.profileId;
+				return (
+					profileId === undefined || !swipeDecisions.isNope(profileId)
+				);
+			});
+		}
+		const query = searchQuery.trim().toLowerCase();
+		if (query !== "") {
+			base = base.filter((entry) =>
+				entry.data.name.toLowerCase().includes(query),
+			);
+		}
+		return base;
 	});
 	function setSortOrder(value: string) {
 		sortOrder = value === "distance" ? "distance" : "recent";
@@ -101,7 +116,9 @@
 
 	async function compensateScroll() {
 		if (!container) return;
-		const paddingBefore = parseFloat(getComputedStyle(container).paddingTop);
+		const paddingBefore = parseFloat(
+			getComputedStyle(container).paddingTop,
+		);
 		const scrollBefore = container.scrollTop;
 		await tick();
 		if (!container) return;
@@ -263,7 +280,8 @@
 					class="min-h-overscrollable flex shrink-0 flex-col gap-1 pb-nav-clear"
 				>
 					{#each orderedEntries as conversation, i (conversation.data.conversationId)}
-						{@const conversationId = conversation.data.conversationId}
+						{@const conversationId =
+							conversation.data.conversationId}
 						<LazyConversation
 							{conversation}
 							eager={i < EAGER_COUNT}
@@ -272,7 +290,8 @@
 							onEnterSelection={mobile.current
 								? () => enterSelection(conversationId)
 								: undefined}
-							onRequestDelete={() => requestDelete([conversationId])}
+							onRequestDelete={() =>
+								requestDelete([conversationId])}
 						/>
 					{/each}
 					<ConversationsPagingTail
@@ -292,6 +311,8 @@
 			onchange={(values) => conversations.setFilters(values)}
 			{hideCrossed}
 			onToggleCrossed={toggleHideCrossed}
+			{searchQuery}
+			onSearchChange={(value) => (searchQuery = value)}
 			inert={selecting}
 			locked={filtersLocked}
 		/>

@@ -20,6 +20,8 @@
 		onSortChange = () => {},
 		hideCrossed = false,
 		onToggleCrossed = () => {},
+		searchQuery = "",
+		onSearchChange = () => {},
 	}: {
 		filters: ConversationFilters;
 		onchange: (values: Partial<ConversationFilterValues>) => void;
@@ -29,6 +31,8 @@
 		onSortChange?: (value: string) => void;
 		hideCrossed?: boolean;
 		onToggleCrossed?: () => void;
+		searchQuery?: string;
+		onSearchChange?: (value: string) => void;
 	} = $props();
 
 	const LABELLED_TOGGLES = [
@@ -53,6 +57,14 @@
 	{@attach !inert && topChrome}
 >
 	<div class="contents" inert={locked}>
+		<input
+			type="search"
+			aria-label="Buscar chats"
+			placeholder="Buscar…"
+			value={searchQuery}
+			oninput={(event) => onSearchChange(event.currentTarget.value)}
+			class="h-9 w-32 shrink-0 rounded-full bg-secondary px-3 text-sm"
+		/>
 		<select
 			aria-label="Ordenar chats"
 			value={sortOrder}
