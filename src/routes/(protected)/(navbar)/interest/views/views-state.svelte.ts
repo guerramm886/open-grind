@@ -12,6 +12,7 @@ import {
 	onProfileViewabilityChange,
 } from "$lib/api/users/profile-viewability";
 import { onProfileEdit } from "$lib/api/users/profiles";
+import { swipeDecisions } from "$lib/grid/swipe-decisions.svelte";
 import { ReconcilingListState } from "$lib/util/reconciling-list-state.svelte";
 import { viewedMeV1NewViewReceivedEventSchema, ws } from "$lib/ws.svelte";
 import type { ViewerProfile, ViewPreview } from "$lib/model/interest/views";
@@ -100,13 +101,16 @@ export class ViewsState extends ReconcilingListState<
 
 	get views(): ViewGridEntry[] {
 		const entries: ViewGridEntry[] = [
-			...this.#profiles.map(
-				(profile): ViewGridEntry => ({
-					type: "profile",
-					key: `profile:${profile.profileId}`,
-					profile,
-				}),
-			),
+			// Crossed-out people are hidden everywhere, like a block.
+			...this.#profiles
+				.filter((profile) => !swipeDecisions.isNope(profile.profileId))
+				.map(
+					(profile): ViewGridEntry => ({
+						type: "profile",
+						key: `profile:${profile.profileId}`,
+						profile,
+					}),
+				),
 			// Gated viewers Grindr won't identify (Xtra paywall): shown locked,
 			// but keeping their blurred photo and the view count.
 			...this.#previews.map(

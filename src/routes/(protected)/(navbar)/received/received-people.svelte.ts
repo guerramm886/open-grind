@@ -6,6 +6,7 @@
 import { accountScoped } from "$lib/api/account-caches";
 import { getConversations } from "$lib/api/messaging/conversations";
 import { getProfile } from "$lib/api/users/profiles";
+import { swipeDecisions } from "$lib/grid/swipe-decisions.svelte";
 import { detectIncomingMedia } from "$lib/received/received-media";
 import type { Conversation } from "$lib/model/messaging/conversations";
 
@@ -191,7 +192,10 @@ export class ReceivedPeople {
 	}
 
 	get visible(): Person[] {
-		let list = this.senders;
+		// Crossed-out people are hidden everywhere, like a block.
+		let list = this.senders.filter(
+			(p) => !swipeDecisions.isNope(p.profileId),
+		);
 		if (this.favoritesOnly) list = list.filter((p) => p.favorite);
 		if (this.ageFilterOn) {
 			for (const p of list) this.ensureAge(p.profileId);

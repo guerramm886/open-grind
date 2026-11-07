@@ -41,9 +41,11 @@
 		/* Storage may be unavailable. */
 	}
 	const crossedKey = `conversation-hide-crossed-${conversations.ourProfileId}`;
-	let hideCrossed = $state(false);
+	// Crossed-out people are hidden by default, like a block; the toggle lets
+	// you reveal them.
+	let hideCrossed = $state(true);
 	try {
-		if (localStorage.getItem(crossedKey) === "1") hideCrossed = true;
+		if (localStorage.getItem(crossedKey) === "0") hideCrossed = false;
 	} catch {
 		/* Storage may be unavailable. */
 	}
