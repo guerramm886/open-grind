@@ -265,6 +265,7 @@ pub fn run() {
             app_data::write_app_data,
             app_data::remove_app_data,
             gallery::save_media_to_gallery,
+            gallery::fetch_media_b64,
         ])
         .setup(|app| {
             scroll_phase::install_scroll_gesture_bridge(app.handle());

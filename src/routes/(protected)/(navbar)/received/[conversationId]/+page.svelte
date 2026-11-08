@@ -93,8 +93,13 @@
 		const items = result?.items;
 		if (!items || items.length === 0) return;
 		untrack(() => {
+			// Auto-keep an in-app copy of images (incl. album photos) so they
+			// survive deletion/blocking/album-locking. Videos are heavier, so
+			// they're saved on demand via the buttons instead.
 			void receivedArchive.saveMany(
-				items.filter((i) => i.available).map(archivableFromItem),
+				items
+					.filter((i) => i.available && i.kind === "image")
+					.map(archivableFromItem),
 			);
 		});
 	});

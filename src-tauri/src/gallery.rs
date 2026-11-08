@@ -5,6 +5,21 @@
 //! is mixed content), then written through the android-fs plugin. Writing in
 //! Rust needs no `android-fs:` capability grant — those gate the JS bridge.
 
+/// Fetch a media URL through the authenticated media path and return its bytes
+/// as base64, so the webview can keep an in-app copy (it can't fetch the proxied
+/// media itself: http scheme vs the https app is mixed content).
+#[tauri::command]
+pub async fn fetch_media_b64(
+	app: tauri::AppHandle,
+	url: String,
+	is_video: bool,
+) -> Result<String, String> {
+	use base64::{engine::general_purpose::STANDARD, Engine as _};
+	let (bytes, _content_type) =
+		crate::media::fetch_media_bytes(&app, &url, is_video).await?;
+	Ok(STANDARD.encode(bytes))
+}
+
 /// Fetch a media URL and write it to the gallery under `base_name` (the
 /// extension is chosen from the real content type).
 #[tauri::command]

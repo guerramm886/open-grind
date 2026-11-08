@@ -52,6 +52,7 @@ export function archivableFromItem(item: ReceivedItem): ArchivableItem {
 		name: item.name,
 		albumId: item.albumId,
 		url: item.url,
+		rawUrl: item.rawUrl,
 	};
 }
 
