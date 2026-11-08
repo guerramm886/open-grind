@@ -1,8 +1,12 @@
 <script lang="ts">
 	import { showErrorToast } from "$lib/api/error-toast";
+	import { getMyAlbums, shareAlbum } from "$lib/api/messaging/albums";
+	import { getConversations } from "$lib/chat/conversations-context.svelte";
 	import { greeting } from "$lib/chat/greeting.svelte";
+	import { albumDisplayName } from "$lib/components/album/album";
 	import { Button } from "$lib/components/ui/button";
 	import { draftFromMessage } from "$lib/model/messaging/messages";
+	import type { MyAlbum } from "$lib/model/messaging/albums";
 	import { getMessageComposerContext } from "./message-composer-context.svelte";
 
 	let { ref = $bindable(null) }: { ref?: HTMLElement | null } = $props();
@@ -12,20 +16,36 @@
 	let configOpen = $state(false);
 	let draft = $state("");
 	let draftPhrases = $state<string[]>([]);
+	let draftAlbumId = $state<number | null>(null);
+	let myAlbums = $state<MyAlbum[]>([]);
 	let sending = $state(false);
 	let pressTimer: ReturnType<typeof setTimeout> | null = null;
 	let longPressed = false;
 
 	function openConfig() {
 		draft = greeting.message;
-		draftPhrases = greeting.phrases.length > 0 ? [...greeting.phrases] : [""];
+		draftPhrases =
+			greeting.phrases.length > 0 ? [...greeting.phrases] : [""];
+		draftAlbumId = greeting.albumId;
 		configOpen = true;
+		void getMyAlbums()
+			.then((res) => {
+				myAlbums = res.albums.filter((album) => album.isShareable);
+			})
+			.catch((error) => console.error(error));
 	}
 
 	function saveConfig() {
 		greeting.save(draft.trim());
 		greeting.savePhrases(draftPhrases);
+		greeting.saveAlbum(draftAlbumId);
 		configOpen = false;
+	}
+
+	function targetProfileId(): number | undefined {
+		return getConversations().entries.find(
+			(entry) => entry.data.conversationId === composer().conversationId,
+		)?.data.participants[0]?.profileId;
 	}
 
 	async function sendGreeting() {
@@ -36,6 +56,13 @@
 			await composer().sendMessages([
 				draftFromMessage({ type: "Text", body: { text } }),
 			]);
+			const albumId = greeting.albumId;
+			const profileId = targetProfileId();
+			if (albumId !== null && profileId !== undefined) {
+				await shareAlbum({ albumId, profileIds: [profileId] }).catch(
+					(error: unknown) => console.error(error),
+				);
+			}
 		} catch (error) {
 			console.error(error);
 			showErrorToast({ label: "No se pudo enviar el saludo", error });
@@ -99,10 +126,12 @@
 
 		<p class="mt-3 mb-1 text-sm font-semibold">Frases frecuentes</p>
 		<div class="flex max-h-44 flex-col gap-2 overflow-y-auto">
-			{#each draftPhrases as _, i (i)}
+			{#each draftPhrases as phrase, i (i)}
 				<div class="flex items-center gap-1">
 					<input
-						bind:value={draftPhrases[i]}
+						value={phrase}
+						oninput={(event) =>
+							(draftPhrases[i] = event.currentTarget.value)}
 						placeholder="Escribí una frase"
 						class="min-w-0 flex-1 rounded-lg bg-secondary px-2 py-1.5 text-base text-foreground"
 					/>
@@ -111,9 +140,7 @@
 						aria-label="Quitar frase"
 						class="flex size-7 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-input/40"
 						onclick={() =>
-							(draftPhrases = draftPhrases.filter(
-								(_, j) => j !== i,
-							))}
+							(draftPhrases = draftPhrases.toSpliced(i, 1))}
 					>
 						✕
 					</button>
@@ -127,6 +154,26 @@
 		>
 			+ Agregar frase
 		</button>
+
+		<p class="mt-3 mb-1 text-sm font-semibold">
+			Enviar un álbum con el saludo
+		</p>
+		<select
+			value={draftAlbumId ?? ""}
+			onchange={(event) =>
+				(draftAlbumId =
+					event.currentTarget.value === ""
+						? null
+						: Number(event.currentTarget.value))}
+			class="w-full rounded-lg bg-secondary px-2 py-1.5 text-base text-foreground"
+		>
+			<option value="">Ninguno</option>
+			{#each myAlbums as album (album.albumId)}
+				<option value={album.albumId}>
+					{albumDisplayName(album.albumName)}
+				</option>
+			{/each}
+		</select>
 
 		<div class="mt-3 flex justify-end gap-2">
 			<Button

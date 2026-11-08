@@ -7,7 +7,12 @@ import { accountScoped } from "$lib/api/account-caches";
 import { getConversations } from "$lib/api/messaging/conversations";
 import { getProfile } from "$lib/api/users/profiles";
 import { swipeDecisions } from "$lib/grid/swipe-decisions.svelte";
-import { detectReceivedMedia } from "$lib/received/received-media";
+import { receivedArchive } from "$lib/received/archive.svelte";
+import {
+	archivableFromItem,
+	detectReceivedMedia,
+	loadReceivedMedia,
+} from "$lib/received/received-media";
 import type { Conversation } from "$lib/model/messaging/conversations";
 
 export type ReceivedSort = "recent" | "distance";
@@ -71,6 +76,8 @@ export class ReceivedPeople {
 	#seen = new Set<string>();
 	// eslint-disable-next-line svelte/prefer-svelte-reactivity -- in-flight guard, not reactive
 	#ageInFlight = new Set<number>();
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity -- once-per-session guard, not reactive
+	#albumArchivedFor = new Set<string>();
 
 	constructor(ourProfileId: number) {
 		this.#ourProfileId = ourProfileId;
@@ -236,6 +243,9 @@ export class ReceivedPeople {
 						person.hasAlbum = kinds.hasAlbum;
 						person.hasDirect = kinds.hasDirect;
 						this.senders.push(person);
+						// Albums get locked by Grindr's 5-album limit, so save a
+						// copy as soon as we see one, before it disappears.
+						if (kinds.hasAlbum) void this.#archiveAlbums(person);
 					}
 				} catch {
 					/* skip unreadable conversations */
@@ -245,6 +255,32 @@ export class ReceivedPeople {
 		await Promise.all(
 			Array.from({ length: SCAN_CONCURRENCY }, () => worker()),
 		);
+	}
+
+	// Keep a copy of this person's album photos while they're still viewable.
+	async #archiveAlbums(person: Person): Promise<void> {
+		if (this.#albumArchivedFor.has(person.conversationId)) return;
+		this.#albumArchivedFor.add(person.conversationId);
+		try {
+			const { items } = await loadReceivedMedia({
+				conversationId: person.conversationId,
+				ourProfileId: this.#ourProfileId,
+			});
+			const albumImages = items.filter(
+				(item) =>
+					item.source === "album" &&
+					item.kind === "image" &&
+					item.available,
+			);
+			if (albumImages.length === 0) return;
+			receivedArchive.notePerson(person.conversationId, {
+				name: person.name,
+				mediaHash: person.mediaHash,
+			});
+			await receivedArchive.saveMany(albumImages.map(archivableFromItem));
+		} catch {
+			/* best effort */
+		}
 	}
 
 	ensureAge(profileId: number): void {
