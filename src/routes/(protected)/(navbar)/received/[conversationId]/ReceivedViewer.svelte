@@ -14,7 +14,14 @@
 		items,
 		start,
 		onClose,
-	}: { items: ReceivedItem[]; start: number; onClose: () => void } = $props();
+		onAdjacent,
+	}: {
+		items: ReceivedItem[];
+		start: number;
+		onClose: () => void;
+		/** Called when the user swipes sideways: 1 = next person, -1 = previous. */
+		onAdjacent?: (dir: 1 | -1) => void;
+	} = $props();
 
 	let index = $state(start);
 	const current = $derived(items[index]);
@@ -61,8 +68,10 @@
 		if (touchX === null) return;
 		const dx = (event.changedTouches[0]?.clientX ?? touchX) - touchX;
 		touchX = null;
-		if (Math.abs(dx) < 50) return;
-		go(dx < 0 ? 1 : -1);
+		// Swiping sideways moves to the next/previous person (photos within a
+		// person are changed by tapping the screen edges instead).
+		if (Math.abs(dx) < 60) return;
+		onAdjacent?.(dx < 0 ? 1 : -1);
 	}
 
 	async function download() {
@@ -142,6 +151,22 @@
 		>
 			<CaretRightIcon class="size-6" />
 		</button>
+	{/if}
+
+	{#if current && current.kind === "image"}
+		<!-- Tap the left/right half of the screen to change photo. -->
+		<button
+			type="button"
+			aria-label="Foto anterior"
+			class="absolute inset-y-0 left-0 z-[5] w-1/2"
+			onclick={() => go(-1)}
+		></button>
+		<button
+			type="button"
+			aria-label="Foto siguiente"
+			class="absolute inset-y-0 right-0 z-[5] w-1/2"
+			onclick={() => go(1)}
+		></button>
 	{/if}
 
 	{#if current && src}

@@ -31,6 +31,7 @@
 	import OnlineStatus from "./OnlineStatus.svelte";
 	import type { ProfileState } from "./profile-state.svelte";
 	import ProfileHeading from "./ProfileHeading.svelte";
+	import ProfileNote from "./ProfileNote.svelte";
 	import ProfileSection from "./ProfileSection.svelte";
 	import ProfileTags from "./ProfileTags.svelte";
 	import SexualPosition from "./SexualPosition.svelte";
@@ -100,6 +101,9 @@
 		<ProfileTags tags={profileTags} />
 		{#if aboutMe !== null}
 			<AboutMe>{aboutMe}</AboutMe>
+		{/if}
+		{#if !ourProfile}
+			<ProfileNote profileId={profile.profileId} />
 		{/if}
 		<ProfileSection title="Stats">
 			<Genders {genders} {pronouns} />

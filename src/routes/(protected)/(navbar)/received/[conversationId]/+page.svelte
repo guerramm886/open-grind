@@ -161,6 +161,30 @@
 	}
 
 	let viewIndex = $state(-1);
+	let autoOpenedFor = $state<string | null>(null);
+
+	// Swiping sideways in the viewer jumps to the adjacent person in the grid.
+	function onAdjacent(dir: 1 | -1) {
+		const list = getReceivedPeople(data.ourProfileId).visible;
+		const idx = list.findIndex((p) => p.conversationId === conversationId);
+		if (idx === -1) return;
+		const next = list[idx + dir];
+		if (next) void goto(`/received/${next.conversationId}?view=1`);
+	}
+
+	// When arriving via a sideways swipe, open the viewer straight away.
+	$effect(() => {
+		const id = conversationId;
+		const wantsView = page.url.searchParams.get("view") === "1";
+		const items = result?.items;
+		if (!wantsView || !items || items.length === 0) return;
+		untrack(() => {
+			if (autoOpenedFor !== id) {
+				autoOpenedFor = id;
+				viewIndex = 0;
+			}
+		});
+	});
 </script>
 
 <ProgressiveBlur
@@ -339,5 +363,6 @@
 		items={result.items}
 		start={viewIndex}
 		onClose={() => (viewIndex = -1)}
+		{onAdjacent}
 	/>
 {/if}

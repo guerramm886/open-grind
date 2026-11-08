@@ -25,7 +25,9 @@
 	let container: HTMLDivElement | null = $state(null);
 	let heartedOnly = $state(false);
 	let onlineOnly = $state(false);
+	let withPhotoOnly = $state(false);
 	let sortByViews = $state(false);
+	let sortByDistance = $state(false);
 
 	const shownViews = $derived.by(() => {
 		const filtered = views.views.filter((entry) => {
@@ -41,14 +43,30 @@
 					entry.type === "profile" ? entry.profile.onlineUntil : null;
 				if (!onlineUntil || onlineUntil <= Date.now()) return false;
 			}
+			if (withPhotoOnly) {
+				const hash =
+					entry.type === "profile"
+						? entry.profile.profileImageMediaHash
+						: entry.preview.profileImageMediaHash;
+				if (!hash) return false;
+			}
 			return true;
 		});
-		if (!sortByViews) return filtered;
-		const viewsOf = (entry: (typeof filtered)[number]) =>
-			entry.type === "profile"
-				? entry.profile.viewedCount.totalCount
-				: entry.preview.viewedCount.totalCount;
-		return [...filtered].sort((a, b) => viewsOf(b) - viewsOf(a));
+		if (sortByDistance) {
+			const distOf = (entry: (typeof filtered)[number]) =>
+				(entry.type === "profile"
+					? entry.profile.distance
+					: entry.preview.distance) ?? Infinity;
+			return [...filtered].sort((a, b) => distOf(a) - distOf(b));
+		}
+		if (sortByViews) {
+			const viewsOf = (entry: (typeof filtered)[number]) =>
+				entry.type === "profile"
+					? entry.profile.viewedCount.totalCount
+					: entry.preview.viewedCount.totalCount;
+			return [...filtered].sort((a, b) => viewsOf(b) - viewsOf(a));
+		}
+		return filtered;
 	});
 
 	restoreScrollOnce({ container: () => container, state: views });
@@ -129,12 +147,42 @@
 					<Button
 						variant="secondary"
 						size="sm"
+						aria-pressed={withPhotoOnly}
+						class={{
+							"bg-primary text-primary-foreground hover:bg-primary/90":
+								withPhotoOnly,
+						}}
+						onclick={() => (withPhotoOnly = !withPhotoOnly)}
+					>
+						Con foto 🖼️
+					</Button>
+					<Button
+						variant="secondary"
+						size="sm"
+						aria-pressed={sortByDistance}
+						class={{
+							"bg-primary text-primary-foreground hover:bg-primary/90":
+								sortByDistance,
+						}}
+						onclick={() => {
+							sortByDistance = !sortByDistance;
+							if (sortByDistance) sortByViews = false;
+						}}
+					>
+						Cercanos 📍
+					</Button>
+					<Button
+						variant="secondary"
+						size="sm"
 						aria-pressed={sortByViews}
 						class={{
 							"bg-primary text-primary-foreground hover:bg-primary/90":
 								sortByViews,
 						}}
-						onclick={() => (sortByViews = !sortByViews)}
+						onclick={() => {
+							sortByViews = !sortByViews;
+							if (sortByViews) sortByDistance = false;
+						}}
 					>
 						Quién más te vio 👀
 					</Button>
