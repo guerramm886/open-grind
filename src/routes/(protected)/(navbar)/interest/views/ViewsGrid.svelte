@@ -25,9 +25,10 @@
 	let container: HTMLDivElement | null = $state(null);
 	let heartedOnly = $state(false);
 	let onlineOnly = $state(false);
+	let sortByViews = $state(false);
 
-	const shownViews = $derived(
-		views.views.filter((entry) => {
+	const shownViews = $derived.by(() => {
+		const filtered = views.views.filter((entry) => {
 			const isFavorite =
 				entry.type === "profile"
 					? entry.profile.isFavorite
@@ -41,8 +42,14 @@
 				if (!onlineUntil || onlineUntil <= Date.now()) return false;
 			}
 			return true;
-		}),
-	);
+		});
+		if (!sortByViews) return filtered;
+		const viewsOf = (entry: (typeof filtered)[number]) =>
+			entry.type === "profile"
+				? entry.profile.viewedCount.totalCount
+				: entry.preview.viewedCount.totalCount;
+		return [...filtered].sort((a, b) => viewsOf(b) - viewsOf(a));
+	});
 
 	restoreScrollOnce({ container: () => container, state: views });
 </script>
@@ -94,7 +101,7 @@
 					<EmptyViewsGrid />
 				{/if}
 			{:else}
-				<div class="flex items-center gap-2">
+				<div class="flex flex-wrap items-center gap-2">
 					<Button
 						variant="secondary"
 						size="sm"
@@ -118,6 +125,18 @@
 						onclick={() => (onlineOnly = !onlineOnly)}
 					>
 						En línea 🟢
+					</Button>
+					<Button
+						variant="secondary"
+						size="sm"
+						aria-pressed={sortByViews}
+						class={{
+							"bg-primary text-primary-foreground hover:bg-primary/90":
+								sortByViews,
+						}}
+						onclick={() => (sortByViews = !sortByViews)}
+					>
+						Quién más te vio 👀
 					</Button>
 				</div>
 				{#if shownViews.length === 0}
