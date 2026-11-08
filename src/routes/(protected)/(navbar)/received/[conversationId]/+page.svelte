@@ -161,29 +161,60 @@
 	}
 
 	let viewIndex = $state(-1);
-	let autoOpenedFor = $state<string | null>(null);
 
-	// Swiping sideways in the viewer jumps to the adjacent person in the grid.
-	function onAdjacent(dir: 1 | -1) {
+	// Swiping sideways on the photo GRID jumps to the adjacent person, landing
+	// on their grid. replaceState keeps the history flat, so the back button
+	// always returns to the Recibidos list — never to the previous person you
+	// swiped past.
+	function goAdjacentGrid(dir: 1 | -1) {
 		const list = getReceivedPeople(data.ourProfileId).visible;
 		const idx = list.findIndex((p) => p.conversationId === conversationId);
 		if (idx === -1) return;
 		const next = list[idx + dir];
-		if (next) void goto(`/received/${next.conversationId}?view=1`);
+		if (next)
+			void goto(`/received/${next.conversationId}`, {
+				replaceState: true,
+			});
 	}
 
-	// When arriving via a sideways swipe, open the viewer straight away.
+	let mainEl = $state<HTMLElement | null>(null);
+	let swipeStartX = 0;
+	let swipeStartY = 0;
+	let swiping = false;
+	let lastSwipeAt = 0;
+
+	function onGridPointerDown(event: PointerEvent) {
+		swiping = true;
+		swipeStartX = event.clientX;
+		swipeStartY = event.clientY;
+	}
+
+	function onGridPointerUp(event: PointerEvent) {
+		if (!swiping) return;
+		swiping = false;
+		const dx = event.clientX - swipeStartX;
+		const dy = event.clientY - swipeStartY;
+		// Needs enough horizontal travel, and clearly more sideways than
+		// vertical, so normal up/down scrolling never triggers a jump.
+		if (Math.abs(dx) < 70) return;
+		if (Math.abs(dx) < Math.abs(dy) * 1.4) return;
+		lastSwipeAt = Date.now();
+		goAdjacentGrid(dx < 0 ? 1 : -1);
+	}
+
+	// Swallow the click a swipe leaves behind, so releasing over a tile doesn't
+	// also pop its photo open as we navigate to the next person.
 	$effect(() => {
-		const id = conversationId;
-		const wantsView = page.url.searchParams.get("view") === "1";
-		const items = result?.items;
-		if (!wantsView || !items || items.length === 0) return;
-		untrack(() => {
-			if (autoOpenedFor !== id) {
-				autoOpenedFor = id;
-				viewIndex = 0;
+		const el = mainEl;
+		if (!el) return;
+		const onClickCapture = (event: MouseEvent) => {
+			if (Date.now() - lastSwipeAt < 400) {
+				event.stopPropagation();
+				event.preventDefault();
 			}
-		});
+		};
+		el.addEventListener("click", onClickCapture, true);
+		return () => el.removeEventListener("click", onClickCapture, true);
 	});
 </script>
 
@@ -314,7 +345,13 @@
 	{/if}
 </ProgressiveBlur>
 
-<main class="screen-nav-host">
+<main
+	class="screen-nav-host"
+	bind:this={mainEl}
+	onpointerdown={onGridPointerDown}
+	onpointerup={onGridPointerUp}
+	onpointercancel={() => (swiping = false)}
+>
 	<div class="pull-scroller">
 		<div
 			class="mx-auto min-h-overscrollable mt-14 w-full max-w-120 px-2 pt-header-clear-16 pb-nav-clear"
@@ -363,6 +400,5 @@
 		items={result.items}
 		start={viewIndex}
 		onClose={() => (viewIndex = -1)}
-		{onAdjacent}
 	/>
 {/if}

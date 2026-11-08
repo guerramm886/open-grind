@@ -14,14 +14,7 @@
 		items,
 		start,
 		onClose,
-		onAdjacent,
-	}: {
-		items: ReceivedItem[];
-		start: number;
-		onClose: () => void;
-		/** Called when the user swipes sideways: 1 = next person, -1 = previous. */
-		onAdjacent?: (dir: 1 | -1) => void;
-	} = $props();
+	}: { items: ReceivedItem[]; start: number; onClose: () => void } = $props();
 
 	let index = $state(start);
 	const current = $derived(items[index]);
@@ -61,17 +54,40 @@
 	});
 
 	let touchX: number | null = null;
+	let touchY: number | null = null;
+	// Set true when a touch ends as a horizontal swipe, so the edge-tap click
+	// that follows (which would change photo) is swallowed instead.
+	let swipedAway = false;
+
 	function onTouchStart(event: TouchEvent) {
-		touchX = event.changedTouches[0]?.clientX ?? null;
+		const touch = event.changedTouches[0];
+		touchX = touch?.clientX ?? null;
+		touchY = touch?.clientY ?? null;
+		swipedAway = false;
 	}
 	function onTouchEnd(event: TouchEvent) {
-		if (touchX === null) return;
-		const dx = (event.changedTouches[0]?.clientX ?? touchX) - touchX;
+		if (touchX === null || touchY === null) return;
+		const touch = event.changedTouches[0];
+		const dx = (touch?.clientX ?? touchX) - touchX;
+		const dy = (touch?.clientY ?? touchY) - touchY;
 		touchX = null;
-		// Swiping sideways moves to the next/previous person (photos within a
-		// person are changed by tapping the screen edges instead).
-		if (Math.abs(dx) < 60) return;
-		onAdjacent?.(dx < 0 ? 1 : -1);
+		touchY = null;
+		// A clearly horizontal swipe changes photo (same as tapping an edge);
+		// the gesture must be sideways enough not to be a tap or a scroll.
+		if (Math.abs(dx) < 55) return;
+		if (Math.abs(dx) < Math.abs(dy) * 1.3) return;
+		swipedAway = true;
+		go(dx < 0 ? 1 : -1);
+	}
+
+	// Edge taps change photo too, but after a swipe the browser fires a trailing
+	// click on the edge we must ignore once, or the photo would advance twice.
+	function onEdgeTap(delta: number) {
+		if (swipedAway) {
+			swipedAway = false;
+			return;
+		}
+		go(delta);
 	}
 
 	async function download() {
@@ -159,13 +175,13 @@
 			type="button"
 			aria-label="Foto anterior"
 			class="absolute inset-y-0 left-0 z-[5] w-1/2"
-			onclick={() => go(-1)}
+			onclick={() => onEdgeTap(-1)}
 		></button>
 		<button
 			type="button"
 			aria-label="Foto siguiente"
 			class="absolute inset-y-0 right-0 z-[5] w-1/2"
-			onclick={() => go(1)}
+			onclick={() => onEdgeTap(1)}
 		></button>
 	{/if}
 
