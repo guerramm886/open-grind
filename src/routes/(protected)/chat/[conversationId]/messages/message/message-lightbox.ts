@@ -2,14 +2,48 @@ import "photoswipe/style.css";
 
 import "./message-lightbox.css";
 
+import { toast } from "svelte-sonner";
 import type PhotoSwipeLightbox from "photoswipe/lightbox";
 
+import { saveUrlToDevice } from "$lib/received/save-to-device";
 import {
 	applyPhotoSwipeBackGesture,
 	applyPhotoSwipeErrorUi,
 	applyPhotoSwipeThumbDimensions,
 	applyPhotoSwipeViewportSync,
 } from "$lib/util/photoswipe";
+
+const DOWNLOAD_ICON =
+	'<svg aria-hidden="true" class="pswp__icn" viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M12 15.5l-5-5 1.4-1.4L11 11.7V3h2v8.7l2.6-2.6L17 10.5l-5 5zM5 19v-2h14v2z"/></svg>';
+
+function applyDownloadButton(lightbox: PhotoSwipeLightbox) {
+	lightbox.on("uiRegister", () => {
+		lightbox.pswp?.ui?.registerElement({
+			name: "download-media",
+			order: 9,
+			isButton: true,
+			html: DOWNLOAD_ICON,
+			onClick: (_event, _element, pswp) => {
+				const element = pswp.currSlide?.data.element;
+				const rawUrl =
+					element instanceof HTMLElement
+						? element.dataset.rawUrl
+						: undefined;
+				if (!rawUrl) return;
+				const isVideo =
+					element instanceof HTMLElement &&
+					element.dataset.mediaKind === "video";
+				void saveUrlToDevice({
+					rawUrl,
+					baseName: `grindr-${Date.now()}`,
+					isVideo,
+				})
+					.then(() => toast.success("Guardado en la galería"))
+					.catch(() => toast.error("No se pudo guardar"));
+			},
+		});
+	});
+}
 
 const PHOTOSWIPE_PLACEHOLDER_WIDTH_PX = 250;
 
@@ -89,6 +123,7 @@ function configure({
 	if (thumbScale !== 1) scaleThumbSize({ lightbox, thumbScale });
 	applyPhotoSwipeViewportSync(lightbox);
 	applyPhotoSwipeBackGesture(lightbox);
+	applyDownloadButton(lightbox);
 
 	lightbox.on("openingAnimationStart", () => {
 		setThumbRadii(lightbox);

@@ -40,6 +40,7 @@
 		rel="noreferrer"
 		data-pswp-width={size.width ?? undefined}
 		data-pswp-height={size.height ?? undefined}
+		data-raw-url={message.url}
 		aria-label="Photo"
 		aria-disabled={failed ? "true" : undefined}
 		class="item block"
