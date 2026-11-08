@@ -6,6 +6,7 @@
 	import { gridState } from "$lib/grid/grid-state.svelte";
 	import { defaultFilters } from "$lib/model/browse/grid/filters";
 	import AgeQuickFilter from "./AgeQuickFilter.svelte";
+	import FilterPresets from "./FilterPresets.svelte";
 	import PositionQuickFilter from "./PositionQuickFilter.svelte";
 	import { sentFilterKeysWithoutQuickFilter } from "./quick-filters";
 
@@ -111,6 +112,7 @@
 >
 	Fresh
 </QuickFilterButton>
+<FilterPresets />
 
 <AgeQuickFilter bind:open={openFilters.age} />
 <PositionQuickFilter bind:open={openFilters.position} />
