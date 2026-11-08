@@ -1,14 +1,16 @@
 <script lang="ts">
+	import ArrowClockwiseIcon from "phosphor-svelte/lib/ArrowClockwiseIcon";
 	import BookmarksSimpleIcon from "phosphor-svelte/lib/BookmarksSimpleIcon";
 	import HeartIcon from "phosphor-svelte/lib/HeartIcon";
+	import ImageIcon from "phosphor-svelte/lib/ImageIcon";
 	import ImagesIcon from "phosphor-svelte/lib/ImagesIcon";
+	import ImagesSquareIcon from "phosphor-svelte/lib/ImagesSquareIcon";
+	import { untrack } from "svelte";
 
 	import ProfileMiniCard from "$lib/components/profile/ProfileMiniCard.svelte";
 	import ProgressiveBlur from "$lib/components/shared/ProgressiveBlur.svelte";
 	import { Button } from "$lib/components/ui/button";
 	import { Skeleton } from "$lib/components/ui/skeleton";
-	import { untrack } from "svelte";
-
 	import { receivedArchive } from "$lib/received/archive.svelte";
 	import { observeIntersection } from "$lib/util/observe-intersection";
 	import { topChrome } from "$lib/util/screen-chrome.svelte";
@@ -42,9 +44,17 @@
 				title="Buscando quién te envió contenido"
 			></span>
 		{/if}
+		<button
+			type="button"
+			aria-label="Refrescar"
+			class="ms-auto flex size-8 items-center justify-center rounded-full hover:bg-input/30"
+			onclick={() => people.refresh()}
+		>
+			<ArrowClockwiseIcon class="size-4" />
+		</button>
 		<a
 			href="/received/guardados"
-			class="ms-auto inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium hover:bg-input/30"
+			class="inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium hover:bg-input/30"
 		>
 			<BookmarksSimpleIcon weight="fill" class="size-4 text-accent" />
 			Guardados
@@ -56,9 +66,11 @@
 				type="button"
 				class={[
 					"px-3 py-1 text-xs font-medium transition-colors",
-					people.sort === "recent"
-						? "bg-primary text-primary-foreground"
-						: "text-muted-foreground",
+					{
+						"bg-primary text-primary-foreground":
+							people.sort === "recent",
+						"text-muted-foreground": people.sort !== "recent",
+					},
 				]}
 				onclick={() => (people.sort = "recent")}
 			>
@@ -68,9 +80,11 @@
 				type="button"
 				class={[
 					"px-3 py-1 text-xs font-medium transition-colors",
-					people.sort === "distance"
-						? "bg-primary text-primary-foreground"
-						: "text-muted-foreground",
+					{
+						"bg-primary text-primary-foreground":
+							people.sort === "distance",
+						"text-muted-foreground": people.sort !== "distance",
+					},
 				]}
 				onclick={() => (people.sort = "distance")}
 			>
@@ -126,7 +140,7 @@
 <main class="screen-nav-host">
 	<div class="pull-scroller">
 		<div
-			class="@container/photo-grid mx-auto mt-14 min-h-overscrollable flex w-full max-w-120 flex-col gap-3 px-4 pt-header-clear-16 pb-nav-clear"
+			class="@container/photo-grid mx-auto min-h-overscrollable mt-14 flex w-full max-w-120 flex-col gap-3 px-4 pt-header-clear-16 pb-nav-clear"
 		>
 			{#if people.scanning && shown.length === 0}
 				<div class="photo-grid">
@@ -138,7 +152,8 @@
 				<p class="py-8 text-center text-sm text-muted-foreground">
 					No se pudo cargar. <button
 						class="underline"
-						onclick={() => void people.scanMore()}>Reintentar</button
+						onclick={() => void people.scanMore()}
+						>Reintentar</button
 					>
 				</p>
 			{:else if shown.length === 0}
@@ -167,8 +182,39 @@
 										class="absolute right-1.5 bottom-1.5 z-1 flex items-center gap-0.5 rounded-full bg-black/75 px-1.5 py-0.5 text-2xs font-semibold text-white"
 										title="{saved} guardados"
 									>
-										<ImagesIcon weight="bold" class="size-3" />
+										<ImagesIcon
+											weight="bold"
+											class="size-3"
+										/>
 										{saved}
+									</div>
+								{/if}
+								{#if person.hasAlbum || person.hasDirect}
+									<div
+										class="absolute bottom-1.5 left-1.5 z-1 flex items-center gap-1"
+									>
+										{#if person.hasAlbum}
+											<span
+												class="flex size-5 items-center justify-center rounded-full bg-black/70 text-white"
+												title="Te mandó un álbum"
+											>
+												<ImagesSquareIcon
+													weight="fill"
+													class="size-3"
+												/>
+											</span>
+										{/if}
+										{#if person.hasDirect}
+											<span
+												class="flex size-5 items-center justify-center rounded-full bg-black/70 text-white"
+												title="Te mandó fotos/videos"
+											>
+												<ImageIcon
+													weight="fill"
+													class="size-3"
+												/>
+											</span>
+										{/if}
 									</div>
 								{/if}
 							{/snippet}

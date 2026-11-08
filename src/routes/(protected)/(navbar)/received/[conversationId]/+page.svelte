@@ -23,9 +23,10 @@
 	} from "$lib/received/received-media";
 	import {
 		GALLERY_FOLDER,
-		saveItemToDevice,
+		saveUrlToDevice,
 	} from "$lib/received/save-to-device";
 	import { topChrome } from "$lib/util/screen-chrome.svelte";
+	import { getReceivedPeople } from "../received-people.svelte";
 	import ReceivedTile from "./ReceivedTile.svelte";
 	import ReceivedViewer from "./ReceivedViewer.svelte";
 
@@ -63,6 +64,14 @@
 					name: loaded.profile?.name ?? null,
 					mediaHash: loaded.profile?.mediaHash ?? null,
 				});
+				// Hide people from Recibidos once we confirm they have no
+				// available SENT content (profile photos don't count).
+				const sent = loaded.items.filter(
+					(i) => i.source !== "profile" && i.available,
+				).length;
+				const people = getReceivedPeople(ourId);
+				if (sent === 0) people.markEmpty(id);
+				else people.markHasContent(id);
 			})
 			.catch((error: unknown) => {
 				console.error(error);
@@ -90,18 +99,39 @@
 		});
 	});
 
+	let nameOpen = $state(false);
+	let namePrefix = $state("perfil");
+
+	function openSaveAll() {
+		namePrefix =
+			(result?.profile?.name || "perfil").replace(/[^a-z0-9_-]/gi, "_") ||
+			"perfil";
+		saveResult = null;
+		nameOpen = true;
+	}
+
 	async function saveAllToGallery() {
 		if (!result || savingAll) return;
 		const items = result.items.filter((i) => i.available);
 		if (items.length === 0) return;
+		const prefix =
+			(namePrefix.trim() || "perfil").replace(/[^a-z0-9_-]/gi, "_") ||
+			"perfil";
+		nameOpen = false;
 		savingAll = true;
 		savedDone = 0;
 		savedTotal = items.length;
 		saveResult = null;
 		let failed = 0;
-		for (const item of items) {
+		for (let i = 0; i < items.length; i++) {
+			const item = items[i];
+			if (!item) continue;
 			try {
-				await saveItemToDevice(item);
+				await saveUrlToDevice({
+					rawUrl: item.rawUrl,
+					baseName: `${prefix}-${i + 1}`,
+					isVideo: item.kind === "video",
+				});
 			} catch (error) {
 				failed += 1;
 				console.error("[received] save failed", error);
@@ -158,7 +188,7 @@
 				<p class="truncate text-sm font-semibold">
 					{result?.profile?.name ?? "Perfil"}
 				</p>
-				{#if result?.profile?.distance != null}
+				{#if typeof result?.profile?.distance === "number"}
 					<p class="text-2xs text-muted-foreground">
 						<DistanceFormatted distance={result.profile.distance} />
 					</p>
@@ -191,22 +221,56 @@
 		</button>
 	</div>
 	<div class="flex flex-wrap items-center gap-2">
-		<button
-			type="button"
-			disabled={savingAll || !result || result.items.length === 0}
-			class="flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow transition active:scale-95 active:brightness-90 disabled:opacity-50"
-			onclick={() => void saveAllToGallery()}
-		>
-			<DownloadSimpleIcon weight="bold" class="size-4" />
-			{#if savingAll}
-				Guardando {savedDone}/{savedTotal}…
-			{:else}
-				Guardar todo en galería
-			{/if}
-		</button>
-		<span class="text-2xs text-muted-foreground">
-			Se guardan en Galería › {GALLERY_FOLDER}
-		</span>
+		{#if !nameOpen}
+			<button
+				type="button"
+				disabled={savingAll || !result || result.items.length === 0}
+				class="flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow transition active:scale-95 active:brightness-90 disabled:opacity-50"
+				onclick={openSaveAll}
+			>
+				<DownloadSimpleIcon weight="bold" class="size-4" />
+				{#if savingAll}
+					Guardando {savedDone}/{savedTotal}…
+				{:else}
+					Guardar todo en galería
+				{/if}
+			</button>
+			<span class="text-2xs text-muted-foreground">
+				Se guardan en Galería › {GALLERY_FOLDER}
+			</span>
+		{:else}
+			<div class="flex w-full flex-col gap-1.5">
+				<label for="save-prefix" class="text-xs font-medium">
+					Guardar con nombre:
+				</label>
+				<input
+					id="save-prefix"
+					bind:value={namePrefix}
+					class="w-full rounded-lg bg-secondary px-2 py-1.5 text-base"
+				/>
+				<p class="text-2xs text-muted-foreground">
+					En Galería › {GALLERY_FOLDER}, como {namePrefix.trim() ||
+						"perfil"}-1, -2, …
+				</p>
+				<div class="flex justify-end gap-2">
+					<button
+						type="button"
+						class="rounded-full bg-secondary px-3 py-1.5 text-sm font-medium"
+						onclick={() => (nameOpen = false)}
+					>
+						Cancelar
+					</button>
+					<button
+						type="button"
+						class="flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-sm font-semibold text-primary-foreground transition active:scale-95"
+						onclick={() => void saveAllToGallery()}
+					>
+						<DownloadSimpleIcon weight="bold" class="size-4" />
+						Guardar en galería
+					</button>
+				</div>
+			</div>
+		{/if}
 	</div>
 	{#if savingAll || saveResult}
 		<div
@@ -224,14 +288,14 @@
 <main class="screen-nav-host">
 	<div class="pull-scroller">
 		<div
-			class="mx-auto mt-14 min-h-overscrollable w-full max-w-120 px-2 pt-header-clear-16 pb-nav-clear"
+			class="mx-auto min-h-overscrollable mt-14 w-full max-w-120 px-2 pt-header-clear-16 pb-nav-clear"
 		>
 			{#if !receivedArchive.supported}
 				<p
 					class="mx-2 mb-2 rounded-md bg-amber-500/15 px-3 py-2 text-2xs text-amber-200"
 				>
-					Este dispositivo no permite guardar copias locales; se mostrará
-					el contenido en vivo.
+					Este dispositivo no permite guardar copias locales; se
+					mostrará el contenido en vivo.
 				</p>
 			{/if}
 			{#if loading && !result}

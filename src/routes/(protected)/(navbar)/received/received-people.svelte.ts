@@ -7,7 +7,7 @@ import { accountScoped } from "$lib/api/account-caches";
 import { getConversations } from "$lib/api/messaging/conversations";
 import { getProfile } from "$lib/api/users/profiles";
 import { swipeDecisions } from "$lib/grid/swipe-decisions.svelte";
-import { detectIncomingMedia } from "$lib/received/received-media";
+import { detectReceivedMedia } from "$lib/received/received-media";
 import type { Conversation } from "$lib/model/messaging/conversations";
 
 export type ReceivedSort = "recent" | "distance";
@@ -20,6 +20,8 @@ export type Person = {
 	distance: number | null;
 	favorite: boolean;
 	lastActivity: number;
+	hasAlbum: boolean;
+	hasDirect: boolean;
 };
 
 function personFromConversation(entry: Conversation): Person | null {
@@ -34,6 +36,8 @@ function personFromConversation(entry: Conversation): Person | null {
 		distance: other.distanceMetres ?? null,
 		favorite: data.favorite,
 		lastActivity: data.lastActivityTimestamp,
+		hasAlbum: false,
+		hasDirect: false,
 	};
 }
 
@@ -55,9 +59,13 @@ export class ReceivedPeople {
 	ageMax = $state(99);
 
 	ages = $state<Record<number, number | null>>({});
+	// Conversations whose gallery loaded with no available sent content — hidden
+	// from the grid, but re-checked on refresh (availability is dynamic).
+	#empty = $state<Record<string, true>>({});
 
 	readonly #ourProfileId: number;
 	readonly #prefsKey: string;
+	readonly #emptyKey: string;
 	#page = 1;
 	// eslint-disable-next-line svelte/prefer-svelte-reactivity -- membership check, not reactive
 	#seen = new Set<string>();
@@ -67,7 +75,63 @@ export class ReceivedPeople {
 	constructor(ourProfileId: number) {
 		this.#ourProfileId = ourProfileId;
 		this.#prefsKey = `received-prefs-${ourProfileId}`;
+		this.#emptyKey = `received-empty-${ourProfileId}`;
 		this.#loadPrefs();
+		this.#loadEmpty();
+		void this.scanMore();
+	}
+
+	#loadEmpty(): void {
+		try {
+			const raw = localStorage.getItem(this.#emptyKey);
+			const list: unknown = raw ? JSON.parse(raw) : [];
+			if (Array.isArray(list)) {
+				const next: Record<string, true> = {};
+				for (const id of list)
+					if (typeof id === "string") next[id] = true;
+				this.#empty = next;
+			}
+		} catch {
+			/* ignore */
+		}
+	}
+
+	#persistEmpty(): void {
+		try {
+			localStorage.setItem(
+				this.#emptyKey,
+				JSON.stringify(Object.keys(this.#empty)),
+			);
+		} catch {
+			/* ignore */
+		}
+	}
+
+	/** Called by a person's gallery when it loads with no sent content. */
+	markEmpty(conversationId: string): void {
+		if (this.#empty[conversationId]) return;
+		this.#empty = { ...this.#empty, [conversationId]: true };
+		this.#persistEmpty();
+	}
+
+	/** Called by a person's gallery when it does have sent content. */
+	markHasContent(conversationId: string): void {
+		if (!this.#empty[conversationId]) return;
+		const next = { ...this.#empty };
+		delete next[conversationId];
+		this.#empty = next;
+		this.#persistEmpty();
+	}
+
+	/** Re-check everyone from scratch (availability can change in Grindr). */
+	refresh(): void {
+		this.#empty = {};
+		this.#persistEmpty();
+		this.senders = [];
+		this.#seen.clear();
+		this.#page = 1;
+		this.hasMore = true;
+		this.error = null;
 		void this.scanMore();
 	}
 
@@ -84,7 +148,8 @@ export class ReceivedPeople {
 				ageMin: number;
 				ageMax: number;
 			}>;
-			if (p.sort === "recent" || p.sort === "distance") this.sort = p.sort;
+			if (p.sort === "recent" || p.sort === "distance")
+				this.sort = p.sort;
 			if (typeof p.favoritesOnly === "boolean")
 				this.favoritesOnly = p.favoritesOnly;
 			if (typeof p.ageFilterOn === "boolean")
@@ -163,11 +228,15 @@ export class ReceivedPeople {
 				const person = queue.shift();
 				if (!person) return;
 				try {
-					const hasMedia = await detectIncomingMedia({
+					const kinds = await detectReceivedMedia({
 						conversationId: person.conversationId,
 						ourProfileId: this.#ourProfileId,
 					});
-					if (hasMedia) this.senders.push(person);
+					if (kinds.hasAlbum || kinds.hasDirect) {
+						person.hasAlbum = kinds.hasAlbum;
+						person.hasDirect = kinds.hasDirect;
+						this.senders.push(person);
+					}
 				} catch {
 					/* skip unreadable conversations */
 				}
@@ -192,9 +261,12 @@ export class ReceivedPeople {
 	}
 
 	get visible(): Person[] {
-		// Crossed-out people are hidden everywhere, like a block.
+		// Crossed-out people are hidden everywhere, like a block; so are people
+		// confirmed to have no available content.
 		let list = this.senders.filter(
-			(p) => !swipeDecisions.isNope(p.profileId),
+			(p) =>
+				!swipeDecisions.isNope(p.profileId) &&
+				!this.#empty[p.conversationId],
 		);
 		if (this.favoritesOnly) list = list.filter((p) => p.favorite);
 		if (this.ageFilterOn) {

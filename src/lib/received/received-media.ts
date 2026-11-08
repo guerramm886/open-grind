@@ -4,6 +4,7 @@
 
 import { getAlbumContent } from "$lib/api/messaging/albums";
 import { getConversationMessages } from "$lib/api/messaging/messages";
+import { getProfile } from "$lib/api/users/profiles";
 import { isVideoContent } from "$lib/components/album/album";
 import { proxyMediaUrl } from "$lib/util/media";
 import type { ArchivableItem } from "$lib/received/archive.svelte";
@@ -25,6 +26,8 @@ export type ReceivedItem = {
 	timestamp: number;
 	/** False when the source is no longer fetchable (e.g. already viewed). */
 	available: boolean;
+	/** Where it came from: a shared album, direct chat media, or a profile photo. */
+	source: "album" | "direct" | "profile";
 };
 
 export type ReceivedProfile = {
@@ -86,6 +89,7 @@ async function expandAlbum({
 					name: album.albumName,
 					timestamp,
 					available: content.url !== "" || kind === "image",
+					source: "album",
 				};
 			});
 	} catch (error) {
@@ -94,35 +98,78 @@ async function expandAlbum({
 	}
 }
 
-const INCOMING_MEDIA_TYPES = new Set([
+export type ReceivedKinds = { hasAlbum: boolean; hasDirect: boolean };
+
+const ALBUM_TYPES = new Set(["Album", "ExpiringAlbum", "ExpiringAlbumV2"]);
+const DIRECT_TYPES = new Set([
 	"Image",
 	"ExpiringImage",
 	"Video",
 	"PrivateVideo",
-	"Album",
-	"ExpiringAlbum",
-	"ExpiringAlbumV2",
 ]);
 
 /**
- * Cheap check (one messages fetch, no album expansion) of whether the OTHER
- * person sent any photo, video or album in the recent window. Used to keep the
- * grid to people who actually sent you content.
+ * Cheap check (one messages fetch, no album expansion) of what the OTHER person
+ * sent in the recent window — only counting content that still looks available
+ * (direct media with a URL, albums still marked viewable). Used to keep the grid
+ * to people who actually sent you something, and to badge each card.
  */
-export async function detectIncomingMedia({
+export async function detectReceivedMedia({
 	conversationId,
 	ourProfileId,
 }: {
 	conversationId: string;
 	ourProfileId: number;
-}): Promise<boolean> {
+}): Promise<ReceivedKinds> {
 	const page = await getConversationMessages({ conversationId });
-	return page.messages.some(
-		(message) =>
-			message.senderId !== ourProfileId &&
-			!message.unsent &&
-			INCOMING_MEDIA_TYPES.has(message.type),
-	);
+	let hasAlbum = false;
+	let hasDirect = false;
+	for (const message of page.messages) {
+		if (message.senderId === ourProfileId || message.unsent) continue;
+		const body = message.body as {
+			url?: unknown;
+			isViewable?: unknown;
+		} | null;
+		if (!body) continue;
+		if (DIRECT_TYPES.has(message.type) && Boolean(body.url)) {
+			hasDirect = true;
+		} else if (ALBUM_TYPES.has(message.type) && body.isViewable === true) {
+			hasAlbum = true;
+		}
+		if (hasAlbum && hasDirect) break;
+	}
+	return { hasAlbum, hasDirect };
+}
+
+async function profilePhotoItems(
+	conversationId: string,
+	profileId: number,
+): Promise<ReceivedItem[]> {
+	try {
+		const profile = await getProfile(profileId);
+		return profile.medias.map((media): ReceivedItem => {
+			const raw = `https://cdns.grindr.com/images/profile/1024x1024/${media.mediaHash}`;
+			const proxied = proxyMediaUrl(raw, { as: "image" }) ?? raw;
+			return {
+				id: `profile:${profileId}:${media.mediaHash}`,
+				conversationId,
+				profileId,
+				kind: "image",
+				url: proxied,
+				rawUrl: raw,
+				thumbUrl: proxied,
+				contentType: "image/jpeg",
+				albumId: null,
+				name: null,
+				timestamp: 0,
+				available: true,
+				source: "profile",
+			};
+		});
+	} catch (error) {
+		console.error("[received-media] profile photos failed", error);
+		return [];
+	}
 }
 
 export async function loadReceivedMedia({
@@ -166,6 +213,7 @@ export async function loadReceivedMedia({
 					name: null,
 					timestamp: ts,
 					available: true,
+					source: "direct",
 				});
 				break;
 			}
@@ -187,6 +235,7 @@ export async function loadReceivedMedia({
 					name: null,
 					timestamp: ts,
 					available: true,
+					source: "direct",
 				});
 				break;
 			}
@@ -200,7 +249,8 @@ export async function loadReceivedMedia({
 					expandAlbum({
 						conversationId,
 						albumId,
-						profileId: message.body.ownerProfileId ?? profile.profileId,
+						profileId:
+							message.body.ownerProfileId ?? profile.profileId,
 						timestamp: ts,
 					}),
 				);
@@ -211,8 +261,11 @@ export async function loadReceivedMedia({
 		}
 	}
 
-	const fromAlbums = (await Promise.all(albumJobs)).flat();
-	const items = [...direct, ...fromAlbums]
+	const [fromAlbums, profilePhotos] = await Promise.all([
+		Promise.all(albumJobs).then((lists) => lists.flat()),
+		profilePhotoItems(conversationId, profile.profileId),
+	]);
+	const items = [...direct, ...fromAlbums, ...profilePhotos]
 		.filter((item) => item.url !== "")
 		.sort((a, b) => b.timestamp - a.timestamp);
 
