@@ -178,26 +178,29 @@
 	}
 
 	let mainEl = $state<HTMLElement | null>(null);
-	let swipeStartX = 0;
+	let swipeStartX: number | null = null;
 	let swipeStartY = 0;
-	let swiping = false;
 	let lastSwipeAt = 0;
 
-	function onGridPointerDown(event: PointerEvent) {
-		swiping = true;
-		swipeStartX = event.clientX;
-		swipeStartY = event.clientY;
+	// Touch events (not pointer): a horizontal swipe gets interpreted as a
+	// scroll and cancels the pointer before pointerup fires, so pointer-based
+	// detection never triggered. touchend always fires at the end of a touch.
+	function onGridTouchStart(event: TouchEvent) {
+		const touch = event.changedTouches[0];
+		swipeStartX = touch?.clientX ?? null;
+		swipeStartY = touch?.clientY ?? 0;
 	}
 
-	function onGridPointerUp(event: PointerEvent) {
-		if (!swiping) return;
-		swiping = false;
-		const dx = event.clientX - swipeStartX;
-		const dy = event.clientY - swipeStartY;
+	function onGridTouchEnd(event: TouchEvent) {
+		if (swipeStartX === null) return;
+		const touch = event.changedTouches[0];
+		const dx = (touch?.clientX ?? swipeStartX) - swipeStartX;
+		const dy = (touch?.clientY ?? swipeStartY) - swipeStartY;
+		swipeStartX = null;
 		// Needs enough horizontal travel, and clearly more sideways than
 		// vertical, so normal up/down scrolling never triggers a jump.
-		if (Math.abs(dx) < 70) return;
-		if (Math.abs(dx) < Math.abs(dy) * 1.4) return;
+		if (Math.abs(dx) < 60) return;
+		if (Math.abs(dx) < Math.abs(dy) * 1.3) return;
 		lastSwipeAt = Date.now();
 		goAdjacentGrid(dx < 0 ? 1 : -1);
 	}
@@ -348,9 +351,8 @@
 <main
 	class="screen-nav-host"
 	bind:this={mainEl}
-	onpointerdown={onGridPointerDown}
-	onpointerup={onGridPointerUp}
-	onpointercancel={() => (swiping = false)}
+	ontouchstart={onGridTouchStart}
+	ontouchend={onGridTouchEnd}
 >
 	<div class="pull-scroller">
 		<div

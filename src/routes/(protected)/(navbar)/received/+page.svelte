@@ -23,6 +23,24 @@
 
 	// Remember the chosen sort/filters whenever they change.
 	$effect(() => people.savePrefs());
+
+	// Keep the scroll position when entering a profile and coming back, so the
+	// grid doesn't jump to the top. SvelteKit stores this with the history
+	// entry and calls restore() on back-navigation. The scroll lives in the
+	// inner .pull-scroller (overflow-auto), not the window.
+	let scrollerEl = $state<HTMLElement | null>(null);
+	export const snapshot = {
+		capture: () => scrollerEl?.scrollTop ?? 0,
+		restore: (top: number) => {
+			const el = scrollerEl;
+			if (!el) return;
+			// Wait a frame so the (cached) list has laid out, or the assigned
+			// scrollTop would clamp to 0 against a not-yet-tall container.
+			requestAnimationFrame(() => {
+				el.scrollTop = top;
+			});
+		},
+	};
 </script>
 
 <ProgressiveBlur
@@ -138,7 +156,7 @@
 </ProgressiveBlur>
 
 <main class="screen-nav-host">
-	<div class="pull-scroller">
+	<div class="pull-scroller" bind:this={scrollerEl}>
 		<div
 			class="@container/photo-grid mx-auto min-h-overscrollable mt-14 flex w-full max-w-120 flex-col gap-3 px-4 pt-header-clear-16 pb-nav-clear"
 		>
