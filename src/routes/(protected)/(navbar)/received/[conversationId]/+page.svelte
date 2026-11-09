@@ -151,13 +151,23 @@
 		window.setTimeout(() => (saveResult = null), 6000);
 	}
 
-	// Cross this person out (hidden everywhere, like a block) and go back to the
-	// Recibidos grid, where they'll no longer appear.
+	// Cross this person out (hidden everywhere, like a block) and move on to the
+	// NEXT person's grid in the current order, so you can keep going through the
+	// list without bouncing back to Recibidos. Falls back to Recibidos only when
+	// this was the last one.
 	function crossUser() {
 		const profileId = result?.profile?.profileId;
 		if (profileId === undefined) return;
+		// Pick the next person BEFORE crossing removes the current one.
+		const list = getReceivedPeople(data.ourProfileId).visible;
+		const idx = list.findIndex((p) => p.conversationId === conversationId);
+		const next = idx === -1 ? undefined : list[idx + 1];
 		swipeDecisions.cross(profileId);
-		void goto("/received");
+		if (next)
+			void goto(`/received/${next.conversationId}`, {
+				replaceState: true,
+			});
+		else void goto("/received");
 	}
 
 	let viewIndex = $state(-1);
