@@ -124,6 +124,27 @@
 		<Button
 			variant="secondary"
 			size="sm"
+			aria-pressed={people.onlineOnly}
+			class={{
+				"bg-primary text-primary-foreground hover:bg-primary/90":
+					people.onlineOnly,
+			}}
+			onclick={() => (people.onlineOnly = !people.onlineOnly)}
+		>
+			<span
+				class={[
+					"size-2.5 rounded-full",
+					{
+						"bg-green-400": !people.onlineOnly,
+						"bg-current": people.onlineOnly,
+					},
+				]}
+			></span>
+			Online
+		</Button>
+		<Button
+			variant="secondary"
+			size="sm"
 			aria-pressed={people.ageFilterOn}
 			class={{
 				"bg-primary text-primary-foreground hover:bg-primary/90":

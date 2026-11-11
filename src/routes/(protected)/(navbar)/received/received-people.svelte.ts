@@ -25,6 +25,7 @@ export type Person = {
 	distance: number | null;
 	favorite: boolean;
 	lastActivity: number;
+	online: boolean;
 	hasAlbum: boolean;
 	hasDirect: boolean;
 };
@@ -41,6 +42,7 @@ function personFromConversation(entry: Conversation): Person | null {
 		distance: other.distanceMetres ?? null,
 		favorite: data.favorite,
 		lastActivity: data.lastActivityTimestamp,
+		online: (other.onlineUntil ?? 0) > Date.now(),
 		hasAlbum: false,
 		hasDirect: false,
 	};
@@ -59,6 +61,7 @@ export class ReceivedPeople {
 
 	sort = $state<ReceivedSort>("recent");
 	favoritesOnly = $state(false);
+	onlineOnly = $state(false);
 	ageFilterOn = $state(false);
 	ageMin = $state(18);
 	ageMax = $state(99);
@@ -151,6 +154,7 @@ export class ReceivedPeople {
 			const p = JSON.parse(raw) as Partial<{
 				sort: ReceivedSort;
 				favoritesOnly: boolean;
+				onlineOnly: boolean;
 				ageFilterOn: boolean;
 				ageMin: number;
 				ageMax: number;
@@ -159,6 +163,8 @@ export class ReceivedPeople {
 				this.sort = p.sort;
 			if (typeof p.favoritesOnly === "boolean")
 				this.favoritesOnly = p.favoritesOnly;
+			if (typeof p.onlineOnly === "boolean")
+				this.onlineOnly = p.onlineOnly;
 			if (typeof p.ageFilterOn === "boolean")
 				this.ageFilterOn = p.ageFilterOn;
 			if (typeof p.ageMin === "number") this.ageMin = p.ageMin;
@@ -175,6 +181,7 @@ export class ReceivedPeople {
 				JSON.stringify({
 					sort: this.sort,
 					favoritesOnly: this.favoritesOnly,
+					onlineOnly: this.onlineOnly,
 					ageFilterOn: this.ageFilterOn,
 					ageMin: this.ageMin,
 					ageMax: this.ageMax,
@@ -305,6 +312,7 @@ export class ReceivedPeople {
 				!this.#empty[p.conversationId],
 		);
 		if (this.favoritesOnly) list = list.filter((p) => p.favorite);
+		if (this.onlineOnly) list = list.filter((p) => p.online);
 		if (this.ageFilterOn) {
 			for (const p of list) this.ensureAge(p.profileId);
 			list = list.filter((p) => {
