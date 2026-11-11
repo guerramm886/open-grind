@@ -4,7 +4,6 @@
 	import { stableSignedUrl } from "$lib/util/signed-url";
 	import type { ImageMessage } from "$lib/model/messaging/messages";
 	import { mediaRenewal } from "./media-renewal";
-	import { attachGalleryLightbox } from "./message-lightbox";
 	import { MeasuredSize, MessageMediaState } from "./message-media.svelte";
 
 	let { message }: { message: ImageMessage["body"] } = $props();
@@ -26,12 +25,6 @@
 		fallback: () => message,
 		ratioAllowsZero: true,
 	});
-
-	$effect(() => {
-		const gallery = media.el;
-		if (!gallery) return;
-		return attachGalleryLightbox({ gallery });
-	});
 </script>
 
 <div class={["relative", media.widthClass]} {@attach media.attach}>
@@ -41,6 +34,7 @@
 		data-pswp-width={size.width ?? undefined}
 		data-pswp-height={size.height ?? undefined}
 		data-raw-url={message.url}
+		data-lightbox-group="chat-photos"
 		aria-label="Photo"
 		aria-disabled={failed ? "true" : undefined}
 		class="item block"

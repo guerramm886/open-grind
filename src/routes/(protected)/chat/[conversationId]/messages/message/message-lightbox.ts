@@ -148,9 +148,13 @@ function configure({
 export function attachGalleryLightbox({
 	gallery,
 	thumbScale = 1,
+	childrenSelector = "a[href]",
 }: {
 	gallery: HTMLElement;
 	thumbScale?: number;
+	/** Which anchors become slides. Narrow it to group siblings into one
+	 * swipeable gallery (e.g. all chat photos). */
+	childrenSelector?: string;
 }): () => void {
 	let disposed = false;
 	let lightbox: PhotoSwipeLightbox | undefined;
@@ -159,7 +163,7 @@ export function attachGalleryLightbox({
 			if (disposed) return;
 			lightbox = new PhotoSwipeLightbox({
 				gallery,
-				children: "a[href]",
+				children: childrenSelector,
 				pswpModule: () => import("photoswipe"),
 				mainClass: "pswp--buttons-visible",
 				showAnimationDuration: 500,

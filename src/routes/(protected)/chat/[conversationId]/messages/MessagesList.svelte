@@ -19,8 +19,22 @@
 	import { processMessages } from "../messages";
 	import { setMediaRenewal } from "./message/media-renewal";
 	import Message from "./message/Message.svelte";
+	import { attachGalleryLightbox } from "./message/message-lightbox";
 
 	let { seenMessageIds }: { seenMessageIds: Set<string> } = $props();
+
+	// One lightbox for every photo in the conversation, so opening a photo lets
+	// you swipe (or use the side arrows) to the next/previous one. The wrapper
+	// is display:contents, so it groups the anchors without affecting layout.
+	let photosEl = $state<HTMLElement | null>(null);
+	$effect(() => {
+		const gallery = photosEl;
+		if (!gallery) return;
+		return attachGalleryLightbox({
+			gallery,
+			childrenSelector: 'a[data-lightbox-group="chat-photos"]',
+		});
+	});
 
 	let reportOpen = $state(false);
 	let reportProfileId = $state<number | null>(null);
@@ -93,8 +107,9 @@
 	}
 </script>
 
-{#each conversationState.messages.toReversed() as message (message.messageId)}
-	{@const isOut = message.senderId === conversationState.ourProfileId}
+<div class="contents" bind:this={photosEl}>
+	{#each conversationState.messages.toReversed() as message (message.messageId)}
+		{@const isOut = message.senderId === conversationState.ourProfileId}
 	{@const delivered = message.status === "sent"}
 	{@const layout = layoutByMessageId.get(message.messageId)}
 	{@const indexInStack = layout?.indexInStack ?? 0}
@@ -149,7 +164,8 @@
 			? () => void promptCopyError(message.sendError).catch(() => {})
 			: undefined}
 	/>
-{/each}
+	{/each}
+</div>
 
 {#if reportProfileId !== null}
 	<ReportSheet
