@@ -157,12 +157,23 @@
 		<ComposerReplyPreview message={replyTo} onCancel={onCancelReply} />
 	{/if}
 	{#if greeting.phrases.length > 0 && textContent === ""}
-		<div class="no-scrollbar flex gap-1.5 overflow-x-auto pb-1">
+		<div
+			class={[
+				"flex gap-1.5 pb-1",
+				{
+					"max-h-24 flex-wrap overflow-y-auto": greeting.phrasesWrap,
+					"no-scrollbar overflow-x-auto": !greeting.phrasesWrap,
+				},
+			]}
+		>
 			{#each greeting.phrases as phrase (phrase)}
 				<button
 					type="button"
 					{disabled}
-					class="shrink-0 rounded-full bg-secondary px-3 py-1 text-sm text-foreground disabled:opacity-50"
+					class={[
+						"rounded-full bg-secondary px-3 py-1 text-sm text-foreground disabled:opacity-50",
+						{ "shrink-0": !greeting.phrasesWrap },
+					]}
 					onclick={() => void sendPhrase(phrase)}
 				>
 					{phrase}

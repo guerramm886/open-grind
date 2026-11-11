@@ -17,6 +17,7 @@
 	let draft = $state("");
 	let draftPhrases = $state<string[]>([]);
 	let draftAlbumId = $state<number | null>(null);
+	let draftWrap = $state(false);
 	let myAlbums = $state<MyAlbum[]>([]);
 	let sending = $state(false);
 	let pressTimer: ReturnType<typeof setTimeout> | null = null;
@@ -27,6 +28,7 @@
 		draftPhrases =
 			greeting.phrases.length > 0 ? [...greeting.phrases] : [""];
 		draftAlbumId = greeting.albumId;
+		draftWrap = greeting.phrasesWrap;
 		configOpen = true;
 		void getMyAlbums()
 			.then((res) => {
@@ -39,6 +41,7 @@
 		greeting.save(draft.trim());
 		greeting.savePhrases(draftPhrases);
 		greeting.saveAlbum(draftAlbumId);
+		greeting.saveWrap(draftWrap);
 		configOpen = false;
 	}
 
@@ -154,6 +157,18 @@
 		>
 			+ Agregar frase
 		</button>
+
+		<label class="mt-3 flex items-start gap-2 text-xs font-medium">
+			<input
+				type="checkbox"
+				bind:checked={draftWrap}
+				class="mt-0.5 size-4 shrink-0"
+			/>
+			<span>
+				Mostrar las frases en varias líneas (en vez de una sola con
+				scroll al costado)
+			</span>
+		</label>
 
 		<p class="mt-3 mb-1 text-sm font-semibold">
 			Enviar un álbum con el saludo

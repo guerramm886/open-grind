@@ -4,12 +4,15 @@
 const STORAGE_KEY = "greeting-message-v1";
 const PHRASES_KEY = "greeting-phrases-v1";
 const ALBUM_KEY = "greeting-album-v1";
+const WRAP_KEY = "greeting-phrases-wrap-v1";
 
 class Greeting {
 	message = $state(load());
 	phrases = $state<string[]>(loadPhrases());
 	/** An album of yours to auto-share with the greeting, or null for none. */
 	albumId = $state<number | null>(loadAlbumId());
+	/** Show the quick phrases wrapped over a few rows instead of one scrolling row. */
+	phrasesWrap = $state<boolean>(loadWrap());
 
 	get configured(): boolean {
 		return this.message.trim() !== "";
@@ -42,6 +45,23 @@ class Greeting {
 		} catch (error) {
 			console.error(error);
 		}
+	}
+
+	saveWrap(wrap: boolean): void {
+		this.phrasesWrap = wrap;
+		try {
+			localStorage.setItem(WRAP_KEY, JSON.stringify(wrap));
+		} catch (error) {
+			console.error(error);
+		}
+	}
+}
+
+function loadWrap(): boolean {
+	try {
+		return localStorage.getItem(WRAP_KEY) === "true";
+	} catch {
+		return false;
 	}
 }
 

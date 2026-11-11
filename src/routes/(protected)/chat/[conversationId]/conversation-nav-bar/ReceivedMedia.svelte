@@ -32,6 +32,7 @@
 	let open = $state(false);
 	let images = $state<z.infer<typeof imageSchema>[] | null>(null);
 	let albums = $state<z.infer<typeof albumSchema>[] | null>(null);
+	let profilePhotos = $state<string[] | null>(null);
 	let failure = $state(false);
 	let activeImage = $state<string | null>(null);
 
@@ -47,25 +48,40 @@
 		if (!conversation.profile) return;
 		images = null;
 		albums = null;
+		profilePhotos = null;
 		failure = false;
-		const [imageResult, albumResult] = await Promise.allSettled([
-			fetchRest(
-				`/v5/chat/media/shared/images/with-me/${encodeURIComponent(conversation.conversationId)}`,
-			).then(
-				(res) =>
-					res.jsonParsed(z.object({ images: z.array(imageSchema) }))
-						.images,
-			),
-			fetchRest(
-				`/v2/albums/shares/${conversation.profile.profileId}`,
-			).then(
-				(res) =>
-					res.jsonParsed(z.object({ albums: z.array(albumSchema) }))
-						.albums,
-			),
-		]);
+		const [imageResult, albumResult, profileResult] =
+			await Promise.allSettled([
+				fetchRest(
+					`/v5/chat/media/shared/images/with-me/${encodeURIComponent(conversation.conversationId)}`,
+				).then(
+					(res) =>
+						res.jsonParsed(
+							z.object({ images: z.array(imageSchema) }),
+						).images,
+				),
+				fetchRest(
+					`/v2/albums/shares/${conversation.profile.profileId}`,
+				).then(
+					(res) =>
+						res.jsonParsed(
+							z.object({ albums: z.array(albumSchema) }),
+						).albums,
+				),
+				getProfile(conversation.profile.profileId),
+			]);
 		images = imageResult.status === "fulfilled" ? imageResult.value : [];
 		albums = albumResult.status === "fulfilled" ? albumResult.value : [];
+		// Their public profile photos, shown alongside what they sent you.
+		profilePhotos =
+			profileResult.status === "fulfilled"
+				? profileResult.value.medias.map(
+						(media) =>
+							`https://cdns.grindr.com/images/profile/1024x1024/${media.mediaHash}`,
+					)
+				: [];
+		// Profile photos are a bonus; don't flag the whole view as failed if
+		// only that call fell over.
 		failure =
 			imageResult.status === "rejected" ||
 			albumResult.status === "rejected";
@@ -251,7 +267,7 @@
 			<p role="alert">No se pudo cargar toda la media.</p>
 			<button type="button" onclick={load}>Reintentar</button>
 		{/if}
-		{#if images === null || albums === null}
+		{#if images === null || albums === null || profilePhotos === null}
 			<p>Cargando…</p>
 		{:else if activeImage}
 			<button type="button" onclick={() => (activeImage = null)}
@@ -263,7 +279,7 @@
 				class="max-h-[70vh] w-full object-contain"
 			/>
 		{:else}
-			{#if !failure && !images.length && !albums.length}<p>
+			{#if !failure && !images.length && !albums.length && !profilePhotos.length}<p>
 					No hay media compartida disponible.
 				</p>{/if}
 			<div class="grid grid-cols-3 gap-2">
@@ -275,6 +291,19 @@
 					>
 						<img
 							src={proxyMediaUrl(item.url)}
+							alt=""
+							class="aspect-square w-full rounded-lg object-cover"
+						/>
+					</button>
+				{/each}
+				{#each profilePhotos as url (url)}
+					<button
+						type="button"
+						aria-label="Abrir foto de perfil"
+						onclick={() => (activeImage = url)}
+					>
+						<img
+							src={proxyMediaUrl(url)}
 							alt=""
 							class="aspect-square w-full rounded-lg object-cover"
 						/>
