@@ -96,11 +96,14 @@
 			// Auto-keep an in-app copy of images (incl. album photos) so they
 			// survive deletion/blocking/album-locking. Videos are heavier, so
 			// they're saved on demand via the buttons instead.
-			void receivedArchive.saveMany(
-				items
-					.filter((i) => i.available && i.kind === "image")
-					.map(archivableFromItem),
+			const images = items.filter(
+				(i) => i.available && i.kind === "image",
 			);
+			const sentImages = images.filter((i) => i.source !== "profile");
+			// Keep their profile photos locally too, but only for people who
+			// actually sent you something; otherwise archive nothing.
+			const toSave = sentImages.length > 0 ? images : [];
+			void receivedArchive.saveMany(toSave.map(archivableFromItem));
 		});
 	});
 
@@ -158,6 +161,8 @@
 	function crossUser() {
 		const profileId = result?.profile?.profileId;
 		if (profileId === undefined) return;
+		// Crossing someone out wipes everything of theirs kept on this device.
+		void receivedArchive.forget(conversationId);
 		// Pick the next person BEFORE crossing removes the current one.
 		const list = getReceivedPeople(data.ourProfileId).visible;
 		const idx = list.findIndex((p) => p.conversationId === conversationId);

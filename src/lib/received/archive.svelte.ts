@@ -343,6 +343,28 @@ class ReceivedArchive {
 		this.#persistManifest();
 	}
 
+	/**
+	 * Forget everything stored for a person: delete every archived file, its
+	 * manifest entries, and the saved person record. Used when you cross them
+	 * out, so nothing of theirs is kept.
+	 */
+	async forget(conversationId: string): Promise<void> {
+		const ids = Object.values(this.#entries)
+			.filter((entry) => entry.conversationId === conversationId)
+			.map((entry) => entry.id);
+		for (const id of ids) await this.remove(id);
+		if (this.#people[conversationId]) {
+			const next = { ...this.#people };
+			delete next[conversationId];
+			this.#people = next;
+			try {
+				localStorage.setItem(PEOPLE_KEY, JSON.stringify(this.#people));
+			} catch {
+				/* storage unavailable */
+			}
+		}
+	}
+
 	/** Object URL for the locally stored copy, or null if it cannot be read. */
 	async objectUrl(id: string): Promise<string | null> {
 		const cached = this.#urls.get(id);

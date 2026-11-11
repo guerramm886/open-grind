@@ -33,6 +33,9 @@
 	let images = $state<z.infer<typeof imageSchema>[] | null>(null);
 	let albums = $state<z.infer<typeof albumSchema>[] | null>(null);
 	let profilePhotos = $state<string[] | null>(null);
+	// Locally archived copies (OPFS) for this person, as blob: object URLs, so
+	// their photos keep showing even after Grindr locks the album.
+	let archivedUrls = $state<string[]>([]);
 	let failure = $state(false);
 	let activeImage = $state<string | null>(null);
 
@@ -85,6 +88,14 @@
 		failure =
 			imageResult.status === "rejected" ||
 			albumResult.status === "rejected";
+		// Resolve the locally archived copies to blob URLs (images only).
+		const entries = receivedArchive
+			.entriesFor(conversation.conversationId)
+			.filter((entry) => entry.kind === "image");
+		const urls = await Promise.all(
+			entries.map((entry) => receivedArchive.objectUrl(entry.id)),
+		);
+		archivedUrls = urls.filter((url): url is string => url !== null);
 	}
 	$effect(() => {
 		if (open) void load();
@@ -274,12 +285,14 @@
 				>Volver a la media</button
 			>
 			<img
-				src={proxyMediaUrl(activeImage)}
+				src={activeImage.startsWith("blob:")
+					? activeImage
+					: proxyMediaUrl(activeImage)}
 				alt="Foto recibida"
 				class="max-h-[70vh] w-full object-contain"
 			/>
 		{:else}
-			{#if !failure && !images.length && !albums.length && !profilePhotos.length}<p>
+			{#if !failure && !images.length && !albums.length && !profilePhotos.length && !archivedUrls.length}<p>
 					No hay media compartida disponible.
 				</p>{/if}
 			<div class="grid grid-cols-3 gap-2">
@@ -322,6 +335,27 @@
 					{/if}
 				{/each}
 			</div>
+			{#if archivedUrls.length > 0}
+				<p class="mt-3 mb-1 text-2xs text-muted-foreground">
+					Guardadas en la app ({archivedUrls.length}) — siguen acá
+					aunque Grindr bloquee el álbum
+				</p>
+				<div class="grid grid-cols-3 gap-2">
+					{#each archivedUrls as url (url)}
+						<button
+							type="button"
+							aria-label="Abrir foto guardada"
+							onclick={() => (activeImage = url)}
+						>
+							<img
+								src={url}
+								alt=""
+								class="aspect-square w-full rounded-lg object-cover"
+							/>
+						</button>
+					{/each}
+				</div>
+			{/if}
 		{/if}
 	</Dialog.Content>
 </Dialog.Root>
