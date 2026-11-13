@@ -128,3 +128,30 @@ jobs:
           name: open-grind-apk
           path: out/
           retention-days: 30
+
+  # Keeps only the most recent android-apk runs (with their APKs and logs) and
+  # deletes the older ones, so the Actions history stays clean. Runs on every
+  # push alongside the build; the current run is newest, so it is always kept.
+  cleanup:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Delete old android-apk runs, keep the latest 3
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          KEEP: "3"
+        run: |
+          ids=$(gh api "/repos/$REPO/actions/runs?per_page=100" \
+            --jq '.workflow_runs | map(select(.name=="android-apk")) | .[].id')
+          i=0
+          for id in $ids; do
+            i=$((i+1))
+            if [ "$i" -le "$KEEP" ]; then
+              echo "keep run $id"
+              continue
+            fi
+            echo "deleting run $id"
+            gh api -X DELETE "/repos/$REPO/actions/runs/$id" || echo "could not delete $id"
+          done
