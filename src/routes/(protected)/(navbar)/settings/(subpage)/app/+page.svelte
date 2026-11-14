@@ -17,6 +17,7 @@
 	import AppsMenuEntrySetting from "./AppsMenuEntrySetting.svelte";
 	import AutomaticUpdatesSetting from "./AutomaticUpdatesSetting.svelte";
 	import BackdropBlurSetting from "./BackdropBlurSetting.svelte";
+	import GeminiKeySetting from "./GeminiKeySetting.svelte";
 	import PreferenceSwitchSetting from "./PreferenceSwitchSetting.svelte";
 	import UnitsSetting from "./UnitsSetting.svelte";
 </script>
@@ -61,6 +62,8 @@
 		{/snippet}
 	</Item.Root>
 {/snippet}
+<h2>Búsqueda</h2>
+<GeminiKeySetting />
 <h2>Display</h2>
 <UnitsSetting />
 <BackdropBlurSetting />

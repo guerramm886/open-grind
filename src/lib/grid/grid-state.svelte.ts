@@ -19,6 +19,10 @@ import {
 	pushDeeplinkAhead,
 	untilPushDeeplinkOpened,
 } from "$lib/push/opening-deeplink";
+import {
+	geminiMatchPhotos,
+	type VisionCandidate,
+} from "$lib/search/gemini-search.svelte";
 import { Generation } from "$lib/util/generation";
 import { reconciler } from "$lib/util/reconcile";
 import { SentinelPaging } from "$lib/util/sentinel-paging.svelte";
@@ -61,12 +65,23 @@ class GridState {
 	searchingDescriptions = $state(false);
 	descriptionSearchErrors = $state(false);
 	#descriptionSearchGeneration = 0;
+	// Ids whose photo matched a query via Gemini vision search, plus the query
+	// they were computed for (so they stop applying when the query changes).
+	visionMatches = $state.raw<Record<number, true>>({});
+	visionQuery = $state("");
+	searchingVision = $state(false);
+	visionProgress = $state<{ done: number; total: number } | null>(null);
+	visionSearchErrors = $state(false);
+	#visionSearchGeneration = 0;
 	readonly profiles: GridProfile[] = $derived.by(() => {
 		const query = searchKey(this.searchText.trim());
+		const visionActive =
+			this.visionQuery.trim() === this.searchText.trim();
 		const deduped = dedupeGridProfiles(this.items).filter(
 			(profile) =>
 				!query ||
 				profile.type === "lazy" ||
+				(visionActive && this.visionMatches[profile.id]) ||
 				searchKey(profile.displayName ?? "").includes(query) ||
 				searchKey(this.descriptions[profile.id] ?? "").includes(query),
 		);
@@ -277,6 +292,7 @@ class GridState {
 		this.cancelDescriptionSearch();
 		this.descriptions = {};
 		this.descriptionSearchErrors = false;
+		this.clearVisionMatches();
 		this.#reset();
 		this.searchText = "";
 		this.hiddenDistanceOnly = false;
@@ -324,6 +340,62 @@ class GridState {
 		} finally {
 			if (generation === this.#descriptionSearchGeneration)
 				this.searchingDescriptions = false;
+		}
+	}
+
+	cancelVisionSearch(): void {
+		this.#visionSearchGeneration++;
+		this.searchingVision = false;
+		this.visionProgress = null;
+	}
+
+	clearVisionMatches(): void {
+		this.cancelVisionSearch();
+		this.visionMatches = {};
+		this.visionQuery = "";
+		this.visionSearchErrors = false;
+	}
+
+	// Search by what's in the profile photos, limited to a radius (metres),
+	// using the user's Gemini key. Matches are merged into the grid results.
+	async searchPhotosWithGemini(radiusMetres = 20000): Promise<void> {
+		const query = this.searchText.trim();
+		if (query === "") return;
+		const generation = ++this.#visionSearchGeneration;
+		this.searchingVision = true;
+		this.visionSearchErrors = false;
+		this.visionProgress = { done: 0, total: 0 };
+		const candidates: VisionCandidate[] = dedupeGridProfiles(this.items)
+			.map((profile) =>
+				profile.type === "rendered" &&
+				profile.distance !== null &&
+				profile.distance <= radiusMetres &&
+				profile.profilePhotosHashes?.[0]
+					? { id: profile.id, mediaHash: profile.profilePhotosHashes[0] }
+					: null,
+			)
+			.filter((candidate): candidate is VisionCandidate => candidate !== null);
+		try {
+			const { matches, failed } = await geminiMatchPhotos({
+				query,
+				candidates,
+				onProgress: (done, total) => {
+					if (generation === this.#visionSearchGeneration)
+						this.visionProgress = { done, total };
+				},
+				shouldStop: () => generation !== this.#visionSearchGeneration,
+			});
+			if (generation !== this.#visionSearchGeneration) return;
+			const next: Record<number, true> = {};
+			for (const id of matches) next[id] = true;
+			this.visionMatches = next;
+			this.visionQuery = query;
+			this.visionSearchErrors = failed;
+		} finally {
+			if (generation === this.#visionSearchGeneration) {
+				this.searchingVision = false;
+				this.visionProgress = null;
+			}
 		}
 	}
 

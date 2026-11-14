@@ -4,6 +4,7 @@
 	import CommandCenterTrigger from "$lib/components/command-center/CommandCenterTrigger.svelte";
 	import ProgressiveBlur from "$lib/components/shared/ProgressiveBlur.svelte";
 	import { gridState } from "$lib/grid/grid-state.svelte";
+	import { gemini } from "$lib/search/gemini-search.svelte";
 	import { topChrome } from "$lib/util/screen-chrome.svelte";
 	import GridFilters from "../GridFilters.svelte";
 	import LocationChange from "../LocationChange.svelte";
@@ -40,7 +41,7 @@
 		</div>
 	</div>
 	{#if searchOpen}
-		<div class="px-4 pb-2">
+		<div class="flex flex-col gap-2 px-4 pb-2">
 			<input
 				type="search"
 				aria-label="Buscar por nombre o descripción"
@@ -48,6 +49,31 @@
 				bind:value={gridState.searchText}
 				class="w-full rounded-xl bg-card px-4 py-3 text-foreground"
 			/>
+			{#if gemini.configured}
+				<button
+					type="button"
+					disabled={gridState.searchingVision ||
+						gridState.searchText.trim() === ""}
+					class="self-start rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-50"
+					onclick={() => void gridState.searchPhotosWithGemini()}
+				>
+					{#if gridState.searchingVision}
+						Mirando fotos… {gridState.visionProgress?.done ??
+							0}/{gridState.visionProgress?.total ?? 0}
+					{:else}
+						🔍 Buscar en fotos (20 km)
+					{/if}
+				</button>
+				{#if gridState.visionSearchErrors}
+					<span class="text-2xs text-amber-400">
+						Algunas fotos no se pudieron analizar.
+					</span>
+				{/if}
+			{:else}
+				<a href="/settings/app" class="self-start text-2xs text-accent underline">
+					Activá la búsqueda en fotos (Gemini) en Configuración
+				</a>
+			{/if}
 			<p class="text-xs text-muted-foreground">
 				{gridState.searchingDescriptions
 					? "Revisando descripciones…"
