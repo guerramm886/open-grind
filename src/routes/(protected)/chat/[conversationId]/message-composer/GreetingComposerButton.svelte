@@ -1,7 +1,12 @@
 <script lang="ts">
+	import { toast } from "svelte-sonner";
+
 	import { showErrorToast } from "$lib/api/error-toast";
 	import { getMyAlbums, shareAlbum } from "$lib/api/messaging/albums";
-	import { addMediaToDrawer } from "$lib/api/messaging/chat-media";
+	import {
+		addMediaToDrawer,
+		chatMediaFailureMessage,
+	} from "$lib/api/messaging/chat-media";
 	import { getAllDrawerMedia } from "$lib/api/messaging/drawer";
 	import { getConversations } from "$lib/chat/conversations-context.svelte";
 	import { greeting } from "$lib/chat/greeting.svelte";
@@ -68,10 +73,7 @@
 				try {
 					draftPhotos = [...draftPhotos, await addMediaToDrawer(item)];
 				} catch (error) {
-					showErrorToast({
-						label: "No se pudo subir la foto",
-						error,
-					});
+					toast.error(chatMediaFailureMessage(error));
 				}
 			}
 		} catch (error) {
