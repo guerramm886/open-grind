@@ -62,7 +62,7 @@
 	}
 
 	function isFavorite(post: RightNowPost): boolean {
-		return favorites[post.profileId] ?? false;
+		return favorites[post.profileId] ?? post.isFavorite ?? false;
 	}
 
 	async function toggleFavorite(post: RightNowPost) {

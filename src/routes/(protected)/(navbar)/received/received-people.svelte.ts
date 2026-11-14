@@ -25,10 +25,22 @@ export type Person = {
 	distance: number | null;
 	favorite: boolean;
 	lastActivity: number;
-	online: boolean;
+	/** Online while this is in the future (a stored boolean would go stale). */
+	onlineUntil: number;
 	hasAlbum: boolean;
 	hasDirect: boolean;
+	/** Has an album that is still stored on Grindr's side (counts to the limit). */
+	albumInApi: boolean;
+	/** When their newest photo/video/album was sent in the chat (0 = unknown). */
+	mediaAt: number;
 };
+
+function normalize(text: string): string {
+	return text
+		.normalize("NFD")
+		.replace(/[\u0300-\u036f]/g, "")
+		.toLowerCase();
+}
 
 function personFromConversation(entry: Conversation): Person | null {
 	const data = entry.data;
@@ -42,9 +54,11 @@ function personFromConversation(entry: Conversation): Person | null {
 		distance: other.distanceMetres ?? null,
 		favorite: data.favorite,
 		lastActivity: data.lastActivityTimestamp,
-		online: (other.onlineUntil ?? 0) > Date.now(),
+		onlineUntil: other.onlineUntil ?? 0,
 		hasAlbum: false,
 		hasDirect: false,
+		albumInApi: false,
+		mediaAt: 0,
 	};
 }
 
@@ -65,6 +79,8 @@ export class ReceivedPeople {
 	ageFilterOn = $state(false);
 	ageMin = $state(18);
 	ageMax = $state(99);
+	/** Name filter typed in the search box (not remembered). */
+	search = $state("");
 
 	ages = $state<Record<number, number | null>>({});
 	// Conversations whose gallery loaded with no available sent content — hidden
@@ -93,6 +109,8 @@ export class ReceivedPeople {
 		this.#loadSenders();
 		// Fill in / refresh in the background; the cached list shows instantly.
 		void this.scanMore();
+		// People cached by an older version have no send date yet.
+		void this.#recheck(this.senders.filter((p) => p.mediaAt === 0));
 	}
 
 	// Remember the scanned senders so reopening the app shows them at once
@@ -103,13 +121,29 @@ export class ReceivedPeople {
 			const raw = localStorage.getItem(this.#sendersKey);
 			const list: unknown = raw ? JSON.parse(raw) : [];
 			if (!Array.isArray(list)) return;
-			const cached = list.filter(
-				(person): person is Person =>
-					typeof person === "object" &&
-					person !== null &&
-					typeof (person as Person).conversationId === "string" &&
-					typeof (person as Person).profileId === "number",
-			);
+			const cached = list
+				.filter(
+					(person): person is Partial<Person> & Person =>
+						typeof person === "object" &&
+						person !== null &&
+						typeof (person as Person).conversationId === "string" &&
+						typeof (person as Person).profileId === "number",
+				)
+				.map(
+					(person): Person => ({
+						...person,
+						onlineUntil:
+							typeof person.onlineUntil === "number"
+								? person.onlineUntil
+								: 0,
+						albumInApi:
+							typeof person.albumInApi === "boolean"
+								? person.albumInApi
+								: person.hasAlbum,
+						mediaAt:
+							typeof person.mediaAt === "number" ? person.mediaAt : 0,
+					}),
+				);
 			this.senders = cached;
 			// Don't re-probe people we already know; the scan looks for new ones.
 			for (const person of cached) this.#seen.add(person.conversationId);
@@ -171,17 +205,65 @@ export class ReceivedPeople {
 		this.#persistEmpty();
 	}
 
-	/** Re-check everyone from scratch (availability can change in Grindr). */
+	/**
+	 * Look for new people and re-check the known ones, WITHOUT emptying the
+	 * list: nobody disappears while it works.
+	 */
 	refresh(): void {
 		this.#empty = {};
 		this.#persistEmpty();
-		this.senders = [];
-		this.#persistSenders();
-		this.#seen.clear();
 		this.#page = 1;
 		this.hasMore = true;
 		this.error = null;
 		void this.scanMore();
+		void this.#recheck([...this.senders]);
+	}
+
+	// Update what a known person has (album still on Grindr, last send date).
+	// Never removes anyone: a failed or empty check leaves the person as is.
+	async #recheck(list: Person[]): Promise<void> {
+		const queue = [...list];
+		const worker = async () => {
+			for (;;) {
+				const person = queue.shift();
+				if (!person) return;
+				try {
+					const kinds = await detectReceivedMedia({
+						conversationId: person.conversationId,
+						ourProfileId: this.#ourProfileId,
+					});
+					person.albumInApi = kinds.hasAlbum;
+					if (kinds.hasAlbum) person.hasAlbum = true;
+					if (kinds.hasDirect) person.hasDirect = true;
+					if (kinds.mediaAt > 0) person.mediaAt = kinds.mediaAt;
+				} catch {
+					/* keep what we knew */
+				}
+			}
+		};
+		await Promise.all(
+			Array.from({ length: SCAN_CONCURRENCY }, () => worker()),
+		);
+		this.#persistSenders();
+	}
+
+	/** Called by a person's gallery with what it just saw live. */
+	noteGallery(
+		conversationId: string,
+		seen: { albumInApi: boolean; mediaAt: number },
+	): void {
+		const person = this.senders.find(
+			(p) => p.conversationId === conversationId,
+		);
+		if (!person) return;
+		if (
+			person.albumInApi === seen.albumInApi &&
+			(seen.mediaAt === 0 || person.mediaAt === seen.mediaAt)
+		)
+			return;
+		person.albumInApi = seen.albumInApi;
+		if (seen.mediaAt > 0) person.mediaAt = seen.mediaAt;
+		this.#persistSenders();
 	}
 
 	// The instance is account-scoped (survives navigation), and prefs are also
@@ -266,7 +348,22 @@ export class ReceivedPeople {
 		const candidates: Person[] = [];
 		for (const entry of result.entries) {
 			const person = personFromConversation(entry);
-			if (!person || this.#seen.has(person.conversationId)) continue;
+			if (!person) continue;
+			if (this.#seen.has(person.conversationId)) {
+				// Already known: just freshen what changes over time.
+				const known = this.senders.find(
+					(p) => p.conversationId === person.conversationId,
+				);
+				if (known) {
+					known.name = person.name;
+					known.mediaHash = person.mediaHash;
+					known.distance = person.distance;
+					known.favorite = person.favorite;
+					known.lastActivity = person.lastActivity;
+					known.onlineUntil = person.onlineUntil;
+				}
+				continue;
+			}
 			this.#seen.add(person.conversationId);
 			candidates.push(person);
 		}
@@ -289,6 +386,8 @@ export class ReceivedPeople {
 					if (kinds.hasAlbum || kinds.hasDirect) {
 						person.hasAlbum = kinds.hasAlbum;
 						person.hasDirect = kinds.hasDirect;
+						person.albumInApi = kinds.hasAlbum;
+						person.mediaAt = kinds.mediaAt;
 						this.senders.push(person);
 						// Albums get locked by Grindr's 5-album limit, so save a
 						// copy as soon as we see one, before it disappears.
@@ -323,6 +422,7 @@ export class ReceivedPeople {
 			receivedArchive.notePerson(person.conversationId, {
 				name: person.name,
 				mediaHash: person.mediaHash,
+				lastActivity: person.mediaAt > 0 ? person.mediaAt : undefined,
 			});
 			await receivedArchive.saveMany(albumImages.map(archivableFromItem));
 		} catch {
@@ -366,14 +466,23 @@ export class ReceivedPeople {
 				mediaHash: saved.mediaHash,
 				distance: null,
 				favorite: false,
-				lastActivity: saved.lastSavedAt,
-				online: false,
+				lastActivity: 0,
+				onlineUntil: 0,
 				hasAlbum: saved.hasAlbum,
 				hasDirect: saved.hasDirect,
+				albumInApi: false,
+				// When it was sent, never when it was saved; unknown sorts last.
+				mediaAt: saved.lastSentAt || (saved.lastActivity ?? 0),
 			});
 		}
+		const query = normalize(this.search.trim());
+		if (query !== "")
+			list = list.filter((p) => normalize(p.name).includes(query));
 		if (this.favoritesOnly) list = list.filter((p) => p.favorite);
-		if (this.onlineOnly) list = list.filter((p) => p.online);
+		if (this.onlineOnly) {
+			const now = Date.now();
+			list = list.filter((p) => p.onlineUntil > now);
+		}
 		if (this.ageFilterOn) {
 			for (const p of list) this.ensureAge(p.profileId);
 			list = list.filter((p) => {
@@ -394,7 +503,9 @@ export class ReceivedPeople {
 				return a.distance - b.distance;
 			});
 		} else {
-			sorted.sort((a, b) => b.lastActivity - a.lastActivity);
+			// By when they SENT the media, not by chat activity or save time.
+			const key = (p: Person) => p.mediaAt || p.lastActivity;
+			sorted.sort((a, b) => key(b) - key(a));
 		}
 		return sorted;
 	}

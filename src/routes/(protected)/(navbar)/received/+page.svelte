@@ -1,11 +1,15 @@
 <script lang="ts">
 	import ArrowClockwiseIcon from "phosphor-svelte/lib/ArrowClockwiseIcon";
+	import ArrowLeftIcon from "phosphor-svelte/lib/ArrowLeftIcon";
 	import HeartIcon from "phosphor-svelte/lib/HeartIcon";
 	import ImageIcon from "phosphor-svelte/lib/ImageIcon";
 	import ImagesIcon from "phosphor-svelte/lib/ImagesIcon";
 	import ImagesSquareIcon from "phosphor-svelte/lib/ImagesSquareIcon";
-	import { untrack } from "svelte";
+	import MagnifyingGlassIcon from "phosphor-svelte/lib/MagnifyingGlassIcon";
+	import XIcon from "phosphor-svelte/lib/XIcon";
+	import { tick, untrack } from "svelte";
 
+	import BackLink from "$lib/components/navigation/BackLink.svelte";
 	import ProfileMiniCard from "$lib/components/profile/ProfileMiniCard.svelte";
 	import ProgressiveBlur from "$lib/components/shared/ProgressiveBlur.svelte";
 	import { Button } from "$lib/components/ui/button";
@@ -22,6 +26,20 @@
 
 	// Remember the chosen sort/filters whenever they change.
 	$effect(() => people.savePrefs());
+
+	let searchOpen = $state(untrack(() => people.search !== ""));
+	let searchInput = $state<HTMLInputElement | null>(null);
+
+	async function toggleSearch() {
+		if (searchOpen) {
+			searchOpen = false;
+			people.search = "";
+			return;
+		}
+		searchOpen = true;
+		await tick();
+		searchInput?.focus();
+	}
 
 	// For people with no profile photo (blocked, or none set), show their first
 	// locally-saved received photo as the tile instead of the grey placeholder.
@@ -82,6 +100,13 @@
 	{@attach topChrome}
 >
 	<div class="flex h-10 items-center gap-2">
+		<BackLink
+			href="/chat"
+			label="Volver a chats"
+			class="flex size-9 shrink-0 items-center justify-center rounded-full hover:bg-input/30"
+		>
+			<ArrowLeftIcon class="size-5" />
+		</BackLink>
 		<ImagesIcon weight="fill" class="size-5 text-accent" />
 		<h1 class="text-base font-semibold">Recibidos</h1>
 		{#if people.scanning}
@@ -92,13 +117,52 @@
 		{/if}
 		<button
 			type="button"
-			aria-label="Refrescar"
-			class="ms-auto flex size-8 items-center justify-center rounded-full hover:bg-input/30"
+			aria-label={searchOpen ? "Cerrar búsqueda" : "Buscar persona"}
+			aria-pressed={searchOpen}
+			class={[
+				"ms-auto flex size-8 items-center justify-center rounded-full hover:bg-input/30",
+				{ "bg-primary text-primary-foreground": searchOpen },
+			]}
+			onclick={() => void toggleSearch()}
+		>
+			<MagnifyingGlassIcon weight="bold" class="size-4" />
+		</button>
+		<button
+			type="button"
+			aria-label="Buscar gente nueva"
+			title="Buscar gente nueva (no borra la lista)"
+			disabled={people.scanning}
+			class="flex size-8 items-center justify-center rounded-full hover:bg-input/30 disabled:opacity-40"
 			onclick={() => people.refresh()}
 		>
 			<ArrowClockwiseIcon class="size-4" />
 		</button>
 	</div>
+	{#if searchOpen}
+		<div class="relative">
+			<input
+				bind:this={searchInput}
+				bind:value={people.search}
+				type="search"
+				placeholder="Buscar por nombre…"
+				autocomplete="off"
+				class="w-full rounded-full border bg-background py-1.5 ps-3 pe-9 text-base"
+			/>
+			{#if people.search !== ""}
+				<button
+					type="button"
+					aria-label="Borrar búsqueda"
+					class="absolute inset-y-0 right-1 flex w-8 items-center justify-center text-muted-foreground"
+					onclick={() => {
+						people.search = "";
+						searchInput?.focus();
+					}}
+				>
+					<XIcon weight="bold" class="size-4" />
+				</button>
+			{/if}
+		</div>
+	{/if}
 	<div class="flex flex-wrap items-center gap-2">
 		<div class="inline-flex overflow-hidden rounded-full border">
 			<button
@@ -218,8 +282,11 @@
 				</p>
 			{:else if shown.length === 0}
 				<p class="py-8 text-center text-sm text-muted-foreground">
-					{people.ageFilterOn || people.favoritesOnly
-						? "Nadie coincide con el filtro."
+					{people.ageFilterOn ||
+					people.favoritesOnly ||
+					people.onlineOnly ||
+					people.search.trim() !== ""
+						? "Nadie coincide con la búsqueda o el filtro."
 						: "Todavía nadie te envió fotos, videos ni álbumes."}
 				</p>
 			{:else}
@@ -251,10 +318,16 @@
 										{saved}
 									</div>
 								{/if}
-								{#if person.hasAlbum || person.hasDirect}
+								{#if person.hasAlbum || person.hasDirect || person.albumInApi}
 									<div
 										class="absolute bottom-1.5 left-1.5 z-1 flex items-center gap-1"
 									>
+										{#if person.albumInApi}
+											<span
+												class="size-3 rounded-full bg-yellow-400 ring-2 ring-black/70"
+												title="Tiene un álbum guardado en Grindr"
+											></span>
+										{/if}
 										{#if person.hasAlbum}
 											<span
 												class="flex size-5 items-center justify-center rounded-full bg-black/70 text-white"

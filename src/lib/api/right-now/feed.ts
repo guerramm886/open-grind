@@ -20,6 +20,8 @@ const postDataSchema = z.object({
 	text: z.string().nullish(),
 	distance: z.number().nullish(),
 	hosting: z.boolean().nullish(),
+	// Not confirmed that the feed sends it; when it does, the star starts lit.
+	isFavorite: z.boolean().nullish(),
 	posted: z.number().nullish(),
 });
 

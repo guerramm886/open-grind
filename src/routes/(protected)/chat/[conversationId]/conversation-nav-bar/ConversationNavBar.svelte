@@ -7,7 +7,7 @@
 	import { topChrome } from "$lib/util/screen-chrome.svelte";
 	import { getConversationState } from "../conversation-state.svelte";
 	import ConversationNavBarProfile from "./ConversationNavBarProfile.svelte";
-	import ReceivedMedia from "./ReceivedMedia.svelte";
+	import ReceivedMediaLink from "./ReceivedMediaLink.svelte";
 
 	const conversationState = $derived(getConversationState()());
 </script>
@@ -23,16 +23,16 @@
 >
 	<BackLink
 		href="/chat"
-		label="Back to chats"
+		label="Volver a chats"
 		class="flex h-full w-19 items-center justify-center"
 	>
 		<ArrowLeftIcon size={32} />
 	</BackLink>
 	{#if conversationState.profile !== null}
 		<ConversationNavBarProfile profile={conversationState.profile} />
-		<ReceivedMedia />
+		<ReceivedMediaLink />
 	{:else if conversationState.error}
-		<span class="flex-1">Failed to load conversation</span>
+		<span class="flex-1">No se pudo cargar la conversación</span>
 	{:else}
 		<div class="flex flex-1 items-center gap-3 py-4 ps-0">
 			<Skeleton class="size-avatar rounded-full" />

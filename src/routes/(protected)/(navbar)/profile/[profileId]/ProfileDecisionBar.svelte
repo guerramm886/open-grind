@@ -12,6 +12,7 @@
 	} from "$lib/api/users/favorites";
 	import { gridState } from "$lib/grid/grid-state.svelte";
 	import { swipeDecisions } from "$lib/grid/swipe-decisions.svelte";
+	import { canGoBack, returnTo } from "$lib/util/history";
 
 	let {
 		profileId,
@@ -33,14 +34,22 @@
 		onNavigate(id);
 	}
 
-	// Where to go after a decision. From a chat, go back to the chat list; from
-	// Browse, move on to the next profile (or the grid when none are left).
+	// Where to go after crossing. From a chat, back to the chat list; from
+	// Browse, on to the next profile (or the grid when none are left); from
+	// anywhere else (Right Now, Visitas, Recibidos…), back to that list.
 	function navigateAfterDecision(next: number | null) {
-		if (page.state.profileOrigin === "chat") {
-			void goto("/chat");
+		const origin = page.state.profileOrigin;
+		if (origin === "chat") {
+			returnTo("/chat");
 			return;
 		}
-		navigateAfterDecision(next);
+		if (origin !== "browse") {
+			if (canGoBack()) history.back();
+			else void goto("/", { replaceState: true });
+			return;
+		}
+		if (next !== null) goToProfile(next);
+		else void goto("/");
 	}
 
 	// The next profile to decide, worked out BEFORE we change anything (a cross
@@ -53,29 +62,31 @@
 		navigateAfterDecision(next);
 	}
 
-	// The heart is Grindr's real favorite, so it also shows as a star in the
-	// official app. Marking it moves on to the next profile.
+	// The star is Grindr's real favorite. It only toggles: it never moves on to
+	// another profile (same as the star in Recibidos).
 	async function favorite() {
 		if (busy) return;
-		const next = swipeDecisions.nextUndecidedAfter(
-			gridState.profiles,
-			profileId,
-		);
-		if (!isFavorite) {
-			busy = true;
-			try {
+		busy = true;
+		try {
+			if (isFavorite) {
+				await removeFavoriteUser({ profileId });
+				onFavorite(false);
+			} else {
 				await addFavoriteUser({ profileId });
 				onFavorite(true);
 				swipeDecisions.record({ id: profileId, action: "favorite" });
-			} catch (error) {
-				console.error(error);
-				showErrorToast({ label: "No se pudo marcar como favorito", error });
-				busy = false;
-				return;
 			}
+		} catch (error) {
+			console.error(error);
+			showErrorToast({
+				label: isFavorite
+					? "No se pudo quitar de favoritos"
+					: "No se pudo marcar como favorito",
+				error,
+			});
+		} finally {
 			busy = false;
 		}
-		navigateAfterDecision(next);
 	}
 
 	async function cross() {
@@ -129,7 +140,7 @@
 <div class="flex flex-row-reverse items-center justify-center gap-4 bg-background px-4 py-3">
 	<button
 		type="button"
-		aria-label={isFavorite ? "Favorito" : "Agregar a favoritos"}
+		aria-label={isFavorite ? "Quitar de favoritos" : "Agregar a favoritos"}
 		disabled={busy}
 		class={[
 			"pointer-events-auto flex size-13 items-center justify-center rounded-full backdrop-blur-sm transition active:scale-90",

@@ -17,12 +17,24 @@
 	import { proxyMediaUrl } from "$lib/util/media";
 	import type { DrawerMedia } from "$lib/api/messaging/drawer";
 	import type { MyAlbum } from "$lib/model/messaging/albums";
+	import { getConversationState } from "../conversation-state.svelte";
 	import { mediaMessageDraft } from "./attachments/media/media-messages";
 	import { getMessageComposerContext } from "./message-composer-context.svelte";
 
 	let { ref = $bindable(null) }: { ref?: HTMLElement | null } = $props();
 
 	const composer = getMessageComposerContext();
+
+	// The greeting is a FIRST message: once you've written to this person, the
+	// button stops sending it (a stray tap would re-send text and photos) and
+	// just opens the greeting/phrases settings.
+	const conversation = $derived(getConversationState()());
+	const alreadyWrote = $derived(
+		conversation.messages.some(
+			(message) => message.senderId === conversation.ourProfileId,
+		),
+	);
+	const canGreet = $derived(greeting.configured && !alreadyWrote);
 
 	let configOpen = $state(false);
 	let draft = $state("");
@@ -159,7 +171,7 @@
 	function onPointerUp() {
 		clearTimer();
 		if (longPressed) return;
-		if (greeting.configured) void sendGreeting();
+		if (canGreet) void sendGreeting();
 		else openConfig();
 	}
 </script>
@@ -167,9 +179,12 @@
 <button
 	bind:this={ref}
 	type="button"
-	aria-label={greeting.configured
+	aria-label={canGreet
 		? "Enviar saludo (mantené apretado para editar)"
-		: "Configurar saludo"}
+		: "Configurar saludo y frases"}
+	title={canGreet
+		? "Tocá para enviar el saludo · mantené apretado para editarlo"
+		: "Configurar saludo y frases"}
 	disabled={composer().disabled || sending}
 	class="absolute bottom-0 left-0 flex h-11 items-center justify-center rounded-none rounded-s-composer ps-2.75 pe-1.5 text-xl text-muted-foreground disabled:opacity-50"
 	onpointerdown={onPointerDown}
@@ -177,7 +192,7 @@
 	onpointerleave={clearTimer}
 	onpointercancel={clearTimer}
 >
-	👋
+	{canGreet ? "👋" : "⚙️"}
 </button>
 
 {#if configOpen}
@@ -186,7 +201,11 @@
 		role="dialog"
 		aria-label="Primer mensaje configurable"
 	>
-		<p class="mb-2 text-sm font-semibold">Primer mensaje</p>
+		<p class="mb-2 text-sm font-semibold">Primer mensaje (saludo 👋)</p>
+		<p class="mb-2 text-2xs text-muted-foreground">
+			El 👋 lo envía con un toque, solo si todavía no le escribiste a la
+			persona. Mantenelo apretado para volver acá.
+		</p>
 		<textarea
 			bind:value={draft}
 			rows="3"

@@ -125,7 +125,7 @@
 						{#if conversationId === null}
 							<Card.Content class="m-auto flex p-6">
 								<span class="text-center text-xl text-muted">
-									Select a conversation to start chatting
+									Elegí una conversación para empezar a chatear
 								</span>
 							</Card.Content>
 						{:else}

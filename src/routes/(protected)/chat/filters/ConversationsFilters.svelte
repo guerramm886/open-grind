@@ -37,9 +37,9 @@
 	} = $props();
 
 	const LABELLED_TOGGLES = [
-		{ key: "unread", label: "Unread" },
+		{ key: "unread", label: "No leídos" },
 		{ key: "online", label: "Online" },
-		{ key: "rightNow", label: "Right now" },
+		{ key: "rightNow", label: "Right Now" },
 	] as const;
 
 	const values = $derived(filters.value);
@@ -95,7 +95,7 @@
 		>
 			<ToggleGroup.Item
 				value="favorites"
-				aria-label="Favorites only"
+				aria-label="Solo favoritos"
 				class={buttonVariants({ variant: "secondary" })}
 			>
 				<StarIcon weight={values.favorites ? "fill" : "bold"} />
@@ -132,13 +132,13 @@
 			active={values.distanceMetres !== null}
 			onclick={() => (open.distance = true)}
 		>
-			Distance
+			Distancia
 		</QuickFilterButton>
 		<QuickFilterButton
 			active={values.positions.length > 0}
 			onclick={() => (open.position = true)}
 		>
-			Position
+			Posición
 		</QuickFilterButton>
 		<QuickFilterButton active={hideCrossed} onclick={onToggleCrossed}>
 			Ocultar cruzados

@@ -12,6 +12,7 @@
 		addFavoriteUser,
 		removeFavoriteUser,
 	} from "$lib/api/users/favorites";
+	import BackLink from "$lib/components/navigation/BackLink.svelte";
 	import DistanceFormatted from "$lib/components/profile/DistanceFormatted.svelte";
 	import UserAvatar from "$lib/components/profile/UserAvatar.svelte";
 	import ProgressiveBlur from "$lib/components/shared/ProgressiveBlur.svelte";
@@ -32,6 +33,7 @@
 		GALLERY_FOLDER,
 		saveUrlToDevice,
 	} from "$lib/received/save-to-device";
+	import { canGoBack, returnTo } from "$lib/util/history";
 	import { topChrome } from "$lib/util/screen-chrome.svelte";
 	import { getReceivedPeople } from "../received-people.svelte";
 	import ReceivedTile from "./ReceivedTile.svelte";
@@ -53,25 +55,37 @@
 	let removingAlbum = $state<number | null>(null);
 	let confirmingAlbum = $state<number | null>(null);
 
-	// Albums still stored on Grindr's side (as opposed to local-only copies).
-	const apiAlbums = $derived.by(() => {
-		const ids: number[] = [];
+	// Opened from this person's chat (photo icon): back and the cross return to
+	// the chat side instead of the Recibidos list.
+	const fromChat = $derived(page.state.receivedOrigin === "chat");
+
+	// Every album this person sent: still stored on Grindr ("En Grindr", counts
+	// to its limit) or only as a copy kept in the app.
+	type AlbumStatus = { albumId: number; inApi: boolean; sentAt: number };
+	const albums = $derived.by(() => {
+		const list: AlbumStatus[] = [];
 		for (const item of result?.items ?? []) {
-			if (
-				item.source === "album" &&
-				item.available &&
-				item.albumId !== null &&
-				!ids.includes(item.albumId)
-			)
-				ids.push(item.albumId);
+			if (item.source !== "album" || item.albumId === null) continue;
+			const known = list.find((album) => album.albumId === item.albumId);
+			if (known) {
+				known.inApi ||= item.available;
+				known.sentAt = Math.max(known.sentAt, item.timestamp);
+			} else {
+				list.push({
+					albumId: item.albumId,
+					inApi: item.available,
+					sentAt: item.timestamp,
+				});
+			}
 		}
-		return ids;
+		return list;
 	});
 
-	// Untick "guardado en API": save the whole album in the app, then delete
-	// it on Grindr. It keeps showing here from the local copy.
-	async function keepOnlyLocal(albumId: number) {
+	// Stop keeping an album on Grindr: its content is (re)checked as saved in
+	// the app first, then our access is dropped. It keeps showing here.
+	async function keepOnlyLocal(album: AlbumStatus) {
 		if (removingAlbum !== null) return;
+		const albumId = album.albumId;
 		removingAlbum = albumId;
 		confirmingAlbum = null;
 		try {
@@ -79,15 +93,17 @@
 				conversationId,
 				albumId,
 				profileId: result?.profile?.profileId ?? null,
+				ourProfileId: data.ourProfileId,
+				sentAt: album.sentAt,
 			});
-			toast.success("Álbum borrado del API. Quedó guardado en la app.");
+			toast.success("Listo: ya no está en Grindr. Quedó guardado en la app.");
 			reloadTick += 1;
 		} catch (error) {
 			console.error(error);
 			toast.error(
 				error instanceof Error && error.message
 					? error.message
-					: "No se pudo quitar el álbum del API",
+					: "No se pudo quitar el álbum de Grindr",
 			);
 		} finally {
 			removingAlbum = null;
@@ -113,9 +129,18 @@
 				if (!alive) return;
 				setCachedReceived(id, loaded);
 				result = loaded;
+				// When they last SENT something (profile photos have no date).
+				const mediaAt = loaded.items.reduce(
+					(max, item) =>
+						item.source === "profile"
+							? max
+							: Math.max(max, item.timestamp),
+					0,
+				);
 				receivedArchive.notePerson(id, {
 					name: loaded.profile?.name ?? null,
 					mediaHash: loaded.profile?.mediaHash ?? null,
+					lastActivity: mediaAt > 0 ? mediaAt : undefined,
 				});
 				// Hide people from Recibidos once we confirm they have no
 				// available SENT content (profile photos don't count).
@@ -123,6 +148,12 @@
 					(i) => i.source !== "profile" && i.available,
 				).length;
 				const people = getReceivedPeople(ourId);
+				people.noteGallery(id, {
+					albumInApi: loaded.items.some(
+						(i) => i.source === "album" && i.available,
+					),
+					mediaAt,
+				});
 				// Don't hide people whose media we've already saved locally,
 				// even if their live content is gone (locked album, etc.).
 				if (sent === 0 && receivedArchive.archivedCount(id) === 0)
@@ -149,16 +180,18 @@
 		const items = result?.items;
 		if (!items || items.length === 0) return;
 		untrack(() => {
-			// Auto-keep an in-app copy of images (incl. album photos) so they
-			// survive deletion/blocking/album-locking. Videos are heavier, so
-			// they're saved on demand via the buttons instead.
-			const images = items.filter(
-				(i) => i.available && i.kind === "image",
+			// Auto-keep an in-app copy of images so they survive
+			// deletion/blocking/album-locking. Albums are kept whole (videos
+			// too), so an album is already duplicated in the app before you
+			// stop keeping it on Grindr. Loose chat videos are heavier and are
+			// saved on demand via the buttons instead.
+			const keep = items.filter(
+				(i) => i.available && (i.kind === "image" || i.source === "album"),
 			);
-			const sentImages = images.filter((i) => i.source !== "profile");
+			const sent = keep.filter((i) => i.source !== "profile");
 			// Keep their profile photos locally too, but only for people who
 			// actually sent you something; otherwise archive nothing.
-			const toSave = sentImages.length > 0 ? images : [];
+			const toSave = sent.length > 0 ? keep : [];
 			void receivedArchive.saveMany(toSave.map(archivableFromItem));
 		});
 	});
@@ -214,7 +247,17 @@
 	// NEXT person's grid in the current order, so you can keep going through the
 	// list without bouncing back to Recibidos. Falls back to Recibidos only when
 	// this was the last one.
+	let confirmingCross = $state(false);
+
+	// Crossing deletes their saved photos for good, so ask first when there
+	// are any.
+	function askCross() {
+		if (savedCount > 0) confirmingCross = true;
+		else crossUser();
+	}
+
 	function crossUser() {
+		confirmingCross = false;
 		const profileId = result?.profile?.profileId;
 		if (profileId === undefined) return;
 		// Crossing someone out wipes everything of theirs kept on this device.
@@ -224,11 +267,17 @@
 		const idx = list.findIndex((p) => p.conversationId === conversationId);
 		const next = idx === -1 ? undefined : list[idx + 1];
 		swipeDecisions.cross(profileId);
+		if (fromChat) {
+			// Came from their chat: back to the chat list, not on to Recibidos.
+			returnTo("/chat");
+			return;
+		}
 		if (next)
 			void goto(`/received/${next.conversationId}`, {
 				replaceState: true,
 			});
-		else void goto("/received");
+		else if (canGoBack()) history.back();
+		else void goto("/received", { replaceState: true });
 	}
 
 	// Favorite state (optimistic), seeded from the scanned person.
@@ -275,6 +324,8 @@
 		if (next)
 			void goto(`/received/${next.conversationId}`, {
 				replaceState: true,
+				// Keep where we came from, so back still returns there.
+				state: page.state,
 			});
 	}
 
@@ -333,13 +384,13 @@
 	{@attach topChrome}
 >
 	<div class="flex h-10 items-center gap-2">
-		<a
-			href="/received"
-			aria-label="Volver"
+		<BackLink
+			href={fromChat ? `/chat/${conversationId}` : "/received"}
+			label={fromChat ? "Volver al chat" : "Volver a Recibidos"}
 			class="flex size-9 shrink-0 items-center justify-center rounded-full hover:bg-input/30"
 		>
 			<ArrowLeftIcon class="size-5" />
-		</a>
+		</BackLink>
 		{#snippet identity()}
 			<div class="size-9 shrink-0 overflow-hidden rounded-full">
 				<UserAvatar
@@ -393,14 +444,38 @@
 		</button>
 		<button
 			type="button"
-			aria-label="Cruzar y volver"
+			aria-label="Cruzar"
 			disabled={!result?.profile}
 			class="flex size-9 shrink-0 items-center justify-center rounded-full border-2 border-destructive/70 bg-card/70 text-destructive transition active:scale-90 disabled:opacity-40"
-			onclick={crossUser}
+			onclick={askCross}
 		>
 			<XIcon weight="bold" class="size-5" />
 		</button>
 	</div>
+	{#if confirmingCross}
+		<div class="flex flex-col gap-2 rounded-xl bg-destructive/15 p-2.5">
+			<p class="text-xs font-medium">
+				Cruzar a esta persona borra para siempre sus {savedCount} archivos
+				guardados en la app.
+			</p>
+			<div class="flex justify-end gap-2">
+				<button
+					type="button"
+					class="rounded-full bg-secondary px-3 py-1.5 text-xs font-medium"
+					onclick={() => (confirmingCross = false)}
+				>
+					Cancelar
+				</button>
+				<button
+					type="button"
+					class="rounded-full bg-destructive px-3 py-1.5 text-xs font-semibold text-white"
+					onclick={crossUser}
+				>
+					Cruzar y borrar
+				</button>
+			</div>
+		</div>
+	{/if}
 	<div class="flex flex-wrap items-center gap-2">
 		{#if !nameOpen}
 			<button
@@ -500,52 +575,66 @@
 					(dentro de los mensajes recientes).
 				</p>
 			{:else}
-				{#if apiAlbums.length > 0}
-					<div
-						class="mx-1 mb-2 flex flex-col gap-1.5 rounded-xl bg-secondary/40 p-2"
-					>
-						{#each apiAlbums as albumId, i (albumId)}
-							<label
-								class="flex items-center gap-2 text-xs font-medium"
-							>
-								<input
-									type="checkbox"
-									checked
-									disabled={removingAlbum !== null}
-									class="size-4 shrink-0"
-									onclick={(event) => {
-										event.preventDefault();
-										confirmingAlbum = albumId;
-									}}
-								/>
-								<span>
-									Álbum {i + 1}: guardado en API
-									{#if removingAlbum === albumId}
-										— guardando y borrando…
-									{/if}
-								</span>
-							</label>
-							{#if confirmingAlbum === albumId}
-								<p class="text-2xs text-muted-foreground">
-									Se guarda todo en la app y después se borra del
-									API de Grindr (no se puede deshacer). Lo vas a
-									seguir viendo acá.
-								</p>
-								<div class="flex gap-2">
+				{#if albums.length > 0}
+					<div class="mx-1 mb-2 flex flex-col gap-2">
+						<div class="flex flex-wrap gap-2">
+							{#each albums as album, i (album.albumId)}
+								{#if album.inApi}
 									<button
 										type="button"
-										class="rounded-full bg-secondary px-3 py-1.5 text-xs font-medium"
-										onclick={() => (confirmingAlbum = null)}
+										aria-pressed="true"
+										disabled={removingAlbum !== null}
+										class="flex items-center gap-1.5 rounded-full bg-yellow-400 px-3 py-1.5 text-xs font-semibold text-black shadow-[0_0_14px_rgba(250,204,21,0.75)] transition active:scale-95 disabled:opacity-60"
+										onclick={() =>
+											(confirmingAlbum = album.albumId)}
 									>
-										Cancelar
+										<span
+											class="size-2 rounded-full bg-black/70"
+										></span>
+										{#if removingAlbum === album.albumId}
+											Álbum {i + 1} · quitando…
+										{:else}
+											Álbum {i + 1} · En Grindr
+										{/if}
 									</button>
-									<button
-										type="button"
-										class="rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground"
-										onclick={() => void keepOnlyLocal(albumId)}
+								{:else}
+									<span
+										class="flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground"
 									>
-										Dejar solo local
-									</button>
+										Álbum {i + 1} · solo en la app
+									</span>
+								{/if}
+							{/each}
+						</div>
+						{#each albums as album (album.albumId)}
+							{#if confirmingAlbum === album.albumId}
+								<div
+									class="flex flex-col gap-2 rounded-xl bg-secondary/60 p-2.5"
+								>
+									<p class="text-xs font-medium">
+										¿Dejar de guardar este álbum en Grindr?
+									</p>
+									<p class="text-2xs text-muted-foreground">
+										Queda guardado en la app y lo vas a seguir
+										viendo acá. En Grindr dejás de tenerlo (no se
+										puede deshacer).
+									</p>
+									<div class="flex justify-end gap-2">
+										<button
+											type="button"
+											class="rounded-full bg-secondary px-3 py-1.5 text-xs font-medium"
+											onclick={() => (confirmingAlbum = null)}
+										>
+											Cancelar
+										</button>
+										<button
+											type="button"
+											class="rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground"
+											onclick={() => void keepOnlyLocal(album)}
+										>
+											Dejar de guardar en Grindr
+										</button>
+									</div>
 								</div>
 							{/if}
 						{/each}

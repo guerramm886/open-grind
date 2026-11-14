@@ -29,6 +29,8 @@ export type ArchivedEntry = {
 	name: string | null;
 	albumId: number | null;
 	savedAt: number;
+	/** When it was sent in the chat (unknown for older saves). */
+	sentAt?: number;
 	fileName: string;
 };
 
@@ -40,6 +42,8 @@ export type ArchivableItem = {
 	contentType: string;
 	name: string | null;
 	albumId: number | null;
+	/** When it was sent in the chat, if known. */
+	sentAt?: number;
 	/** Proxied (ogmedia) URL — used only for the web fallback. */
 	url: string;
 	/** Raw https URL, passed to the native command that fetches the bytes. */
@@ -97,19 +101,20 @@ function readAutoSave(): Record<string, true> {
 	}
 }
 
-function readPeople(): Record<
-	string,
-	{ name: string | null; mediaHash: string | null }
-> {
+type PersonRecord = {
+	name: string | null;
+	mediaHash: string | null;
+	/** Last chat activity, so a local-only person still sorts by recency. */
+	lastActivity?: number;
+};
+
+function readPeople(): Record<string, PersonRecord> {
 	try {
 		const raw = localStorage.getItem(PEOPLE_KEY);
 		if (!raw) return {};
 		const parsed: unknown = JSON.parse(raw);
 		return typeof parsed === "object" && parsed !== null
-			? (parsed as Record<
-					string,
-					{ name: string | null; mediaHash: string | null }
-				>)
+			? (parsed as Record<string, PersonRecord>)
 			: {};
 	} catch {
 		return {};
@@ -143,9 +148,7 @@ class ReceivedArchive {
 	#urls = new Map<string, string>();
 	#supported = $state(true);
 
-	#people = $state<
-		Record<string, { name: string | null; mediaHash: string | null }>
-	>({});
+	#people = $state<Record<string, PersonRecord>>({});
 
 	constructor() {
 		if (typeof localStorage !== "undefined") {
@@ -224,6 +227,9 @@ class ReceivedArchive {
 	savedPeople(): (ArchivedPerson & {
 		count: number;
 		lastSavedAt: number;
+		/** Newest known chat send date among the saved items (0 = unknown). */
+		lastSentAt: number;
+		lastActivity: number | null;
 		profileId: number | null;
 		hasAlbum: boolean;
 		hasDirect: boolean;
@@ -233,6 +239,7 @@ class ReceivedArchive {
 			{
 				count: number;
 				lastSavedAt: number;
+				lastSentAt: number;
 				profileId: number | null;
 				hasAlbum: boolean;
 				hasDirect: boolean;
@@ -243,6 +250,7 @@ class ReceivedArchive {
 			byConv[entry.conversationId] = {
 				count: (prev?.count ?? 0) + 1,
 				lastSavedAt: Math.max(prev?.lastSavedAt ?? 0, entry.savedAt),
+				lastSentAt: Math.max(prev?.lastSentAt ?? 0, entry.sentAt ?? 0),
 				profileId: prev?.profileId ?? entry.profileId,
 				hasAlbum: (prev?.hasAlbum ?? false) || entry.albumId !== null,
 				hasDirect: (prev?.hasDirect ?? false) || entry.albumId === null,
@@ -253,6 +261,7 @@ class ReceivedArchive {
 				conversationId,
 				name: this.#people[conversationId]?.name ?? null,
 				mediaHash: this.#people[conversationId]?.mediaHash ?? null,
+				lastActivity: this.#people[conversationId]?.lastActivity ?? null,
 				...stats,
 			}))
 			.sort((a, b) => b.lastSavedAt - a.lastSavedAt);
@@ -260,16 +269,22 @@ class ReceivedArchive {
 
 	notePerson(
 		conversationId: string,
-		person: { name: string | null; mediaHash: string | null },
+		person: PersonRecord,
 	): void {
 		const prev = this.#people[conversationId];
+		const next: PersonRecord = {
+			...prev,
+			...person,
+			lastActivity: person.lastActivity ?? prev?.lastActivity,
+		};
 		if (
 			prev &&
-			prev.name === person.name &&
-			prev.mediaHash === person.mediaHash
+			prev.name === next.name &&
+			prev.mediaHash === next.mediaHash &&
+			prev.lastActivity === next.lastActivity
 		)
 			return;
-		this.#people = { ...this.#people, [conversationId]: person };
+		this.#people = { ...this.#people, [conversationId]: next };
 		try {
 			localStorage.setItem(PEOPLE_KEY, JSON.stringify(this.#people));
 		} catch {
@@ -316,6 +331,7 @@ class ReceivedArchive {
 				name: item.name,
 				albumId: item.albumId,
 				savedAt: Date.now(),
+				sentAt: item.sentAt,
 				fileName,
 			};
 			this.#entries = { ...this.#entries, [item.id]: entry };

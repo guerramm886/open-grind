@@ -19,7 +19,7 @@
 </script>
 
 <Textarea
-	placeholder="Say something..."
+	placeholder="Escribí un mensaje…"
 	class="h-fit! max-h-33 min-h-11 shrink-0 rounded-composer py-2.75 pr-10 pl-10 leading-5 placeholder-shown:truncate"
 	enterkeyhint={isMobile ? "enter" : "send"}
 	onkeydown={(

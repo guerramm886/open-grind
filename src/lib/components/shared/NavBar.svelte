@@ -105,7 +105,8 @@
 		</a>
 		<a
 			href="/chat"
-			data-active={page.route.id === "/(protected)/chat"}
+			data-active={page.route.id === "/(protected)/chat" ||
+				page.route.id?.startsWith("/(protected)/(navbar)/received")}
 			onclick={tabNavigation({ href: "/chat" })}
 		>
 			<ChatCircleIcon weight="fill" />

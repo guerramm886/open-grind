@@ -17,6 +17,7 @@
 	const composer = getMessageComposerContext();
 	let addingTo = $state<string | null>(null);
 	let newName = $state("");
+	let confirmingDelete = $state<string | null>(null);
 
 	async function addPhotos(setId: string) {
 		if (addingTo !== null) return;
@@ -94,13 +95,34 @@
 						mediaSets.rename(set.id, event.currentTarget.value)}
 					class="min-w-0 flex-1 bg-transparent text-sm font-semibold"
 				/>
-				<button
-					type="button"
-					class="shrink-0 text-xs text-destructive"
-					onclick={() => mediaSets.remove(set.id)}
-				>
-					Borrar
-				</button>
+				{#if confirmingDelete === set.id}
+					<span class="shrink-0 text-xs">¿Borrar el set?</span>
+					<button
+						type="button"
+						class="shrink-0 text-xs font-semibold text-destructive"
+						onclick={() => {
+							confirmingDelete = null;
+							mediaSets.remove(set.id);
+						}}
+					>
+						Sí
+					</button>
+					<button
+						type="button"
+						class="shrink-0 text-xs"
+						onclick={() => (confirmingDelete = null)}
+					>
+						No
+					</button>
+				{:else}
+					<button
+						type="button"
+						class="shrink-0 text-xs text-destructive"
+						onclick={() => (confirmingDelete = set.id)}
+					>
+						Borrar
+					</button>
+				{/if}
 			</div>
 			<div class="flex flex-wrap gap-1.5">
 				{#each set.items as item (item.id)}

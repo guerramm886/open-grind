@@ -44,7 +44,7 @@
 			</Card.Title>
 			{#if profile.distance === null}
 				<Card.Description class="truncate"
-					>Distance unknown</Card.Description
+					>Distancia desconocida</Card.Description
 				>
 			{:else}
 				<Card.Description class="truncate">

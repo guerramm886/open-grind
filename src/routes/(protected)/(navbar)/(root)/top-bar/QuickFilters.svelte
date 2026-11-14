@@ -34,7 +34,7 @@
 					gridState.filters.set({ isOnline: !filters.isOnline }),
 			},
 			{
-				label: "Right now",
+				label: "Right Now",
 				active: filters.isRightNow,
 				toggle: () =>
 					gridState.filters.set({ isRightNow: !filters.isRightNow }),
@@ -87,19 +87,19 @@
 
 <QuickFilterButton
 	active={sheetOnlyFiltersSent}
-	label="All filters"
+	label="Todos los filtros"
 	onclick={() => (openFilters.all = true)}
 >
 	<SlidersHorizontalIcon />
 </QuickFilterButton>
 <QuickFilterButton active={ageEnabled} onclick={() => (openFilters.age = true)}>
-	Age
+	Edad
 </QuickFilterButton>
 <QuickFilterButton
 	active={positionEnabled}
 	onclick={() => (openFilters.position = true)}
 >
-	Position
+	Posición
 </QuickFilterButton>
 {#each toggles as toggle (toggle.label)}
 	<QuickFilterButton active={toggle.active} onclick={toggle.toggle}>
@@ -110,7 +110,7 @@
 	active={filters.isFresh}
 	onclick={() => gridState.filters.set({ isFresh: !filters.isFresh })}
 >
-	Fresh
+	Nuevos
 </QuickFilterButton>
 <FilterPresets />
 

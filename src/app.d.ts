@@ -4,6 +4,8 @@ declare global {
 	namespace App {
 		interface PageState {
 			profileOrigin?: "browse" | "chat";
+			/** Set when a person's Recibidos gallery was opened from their chat. */
+			receivedOrigin?: "chat";
 		}
 	}
 

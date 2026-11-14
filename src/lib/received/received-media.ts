@@ -2,7 +2,7 @@
 // sent you in a conversation, so they can be shown in one gallery and archived.
 // Album messages are expanded into their individual items.
 
-import { deleteAlbum, getAlbumContent } from "$lib/api/messaging/albums";
+import { getAlbumContent, unshareAlbum } from "$lib/api/messaging/albums";
 import { getConversationMessages } from "$lib/api/messaging/messages";
 import { getProfile } from "$lib/api/users/profiles";
 import { isVideoContent } from "$lib/components/album/album";
@@ -54,6 +54,7 @@ export function archivableFromItem(item: ReceivedItem): ArchivableItem {
 		contentType: item.contentType,
 		name: item.name,
 		albumId: item.albumId,
+		sentAt: item.timestamp > 0 ? item.timestamp : undefined,
 		url: item.url,
 		rawUrl: item.rawUrl,
 	};
@@ -102,7 +103,12 @@ async function expandAlbum({
 	}
 }
 
-export type ReceivedKinds = { hasAlbum: boolean; hasDirect: boolean };
+export type ReceivedKinds = {
+	hasAlbum: boolean;
+	hasDirect: boolean;
+	/** When the newest photo/video/album was sent in the chat (0 = none). */
+	mediaAt: number;
+};
 
 const ALBUM_TYPES = new Set(["Album", "ExpiringAlbum", "ExpiringAlbumV2"]);
 const DIRECT_TYPES = new Set([
@@ -128,6 +134,7 @@ export async function detectReceivedMedia({
 	const page = await getConversationMessages({ conversationId });
 	let hasAlbum = false;
 	let hasDirect = false;
+	let mediaAt = 0;
 	for (const message of page.messages) {
 		if (message.senderId === ourProfileId || message.unsent) continue;
 		const body = message.body as {
@@ -139,10 +146,10 @@ export async function detectReceivedMedia({
 			hasDirect = true;
 		} else if (ALBUM_TYPES.has(message.type) && body.isViewable === true) {
 			hasAlbum = true;
-		}
-		if (hasAlbum && hasDirect) break;
+		} else continue;
+		mediaAt = Math.max(mediaAt, message.timestamp);
 	}
-	return { hasAlbum, hasDirect };
+	return { hasAlbum, hasDirect, mediaAt };
 }
 
 async function profilePhotoItems(
@@ -201,7 +208,8 @@ function archivedOnlyItems(
 				contentType: entry.contentType,
 				albumId: entry.albumId,
 				name: entry.name,
-				timestamp: entry.savedAt,
+				// Sort by when it was sent, not by when we saved it.
+				timestamp: entry.sentAt ?? 0,
 				available: false,
 				source,
 			};
@@ -210,23 +218,30 @@ function archivedOnlyItems(
 
 /**
  * Save every photo and video of a received album into the app, and only once
- * ALL of them are safely stored, delete the album on Grindr's side. The local
- * copies keep showing in Recibidos and in the chat.
+ * ALL of them are safely stored, drop our access to it on Grindr's side. The
+ * local copies keep showing in Recibidos.
+ *
+ * Grindr refuses DELETE on someone else's album (403), so this asks to be
+ * removed from the album's shares instead.
  */
 export async function keepAlbumOnlyLocally({
 	conversationId,
 	albumId,
 	profileId,
+	ourProfileId,
+	sentAt,
 }: {
 	conversationId: string;
 	albumId: number;
 	profileId: number | null;
+	ourProfileId: number;
+	sentAt: number;
 }): Promise<void> {
 	const items = await expandAlbum({
 		conversationId,
 		albumId,
 		profileId,
-		timestamp: Date.now(),
+		timestamp: sentAt,
 	});
 	const savable = items.filter((item) => item.rawUrl !== "");
 	if (savable.length === 0)
@@ -239,7 +254,25 @@ export async function keepAlbumOnlyLocally({
 		throw new Error(
 			`No se pudieron guardar ${missing} de ${savable.length} archivos; no se borró nada`,
 		);
-	await deleteAlbum({ albumId });
+	try {
+		await unshareAlbum({ albumId, profileIds: [ourProfileId] });
+	} catch (error) {
+		console.error("[received-media] unshare failed", error);
+		throw new Error(
+			"Grindr no permitió quitar este álbum. Lo guardado en la app sigue intacto.",
+			{ cause: error },
+		);
+	}
+	// Grindr may answer OK without doing anything: only call it done when the
+	// album really stopped being readable.
+	const stillThere = await getAlbumContent(albumId).then(
+		(album) => album.content.length > 0,
+		() => false,
+	);
+	if (stillThere)
+		throw new Error(
+			"Grindr aceptó el pedido pero el álbum sigue ahí. Lo guardado en la app sigue intacto.",
+		);
 }
 
 export async function loadReceivedMedia({
