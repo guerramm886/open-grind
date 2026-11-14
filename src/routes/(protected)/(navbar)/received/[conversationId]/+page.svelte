@@ -6,12 +6,12 @@
 	import StarIcon from "phosphor-svelte/lib/StarIcon";
 	import XIcon from "phosphor-svelte/lib/XIcon";
 	import { untrack } from "svelte";
+	import { toast } from "svelte-sonner";
 
 	import {
 		addFavoriteUser,
 		removeFavoriteUser,
 	} from "$lib/api/users/favorites";
-
 	import DistanceFormatted from "$lib/components/profile/DistanceFormatted.svelte";
 	import UserAvatar from "$lib/components/profile/UserAvatar.svelte";
 	import ProgressiveBlur from "$lib/components/shared/ProgressiveBlur.svelte";
@@ -24,6 +24,7 @@
 	} from "$lib/received/received-cache";
 	import {
 		archivableFromItem,
+		keepAlbumOnlyLocally,
 		loadReceivedMedia,
 		type ReceivedMediaResult,
 	} from "$lib/received/received-media";
@@ -48,7 +49,53 @@
 	let savedTotal = $state(0);
 	let saveResult = $state<string | null>(null);
 
+	let reloadTick = $state(0);
+	let removingAlbum = $state<number | null>(null);
+	let confirmingAlbum = $state<number | null>(null);
+
+	// Albums still stored on Grindr's side (as opposed to local-only copies).
+	const apiAlbums = $derived.by(() => {
+		const ids: number[] = [];
+		for (const item of result?.items ?? []) {
+			if (
+				item.source === "album" &&
+				item.available &&
+				item.albumId !== null &&
+				!ids.includes(item.albumId)
+			)
+				ids.push(item.albumId);
+		}
+		return ids;
+	});
+
+	// Untick "guardado en API": save the whole album in the app, then delete
+	// it on Grindr. It keeps showing here from the local copy.
+	async function keepOnlyLocal(albumId: number) {
+		if (removingAlbum !== null) return;
+		removingAlbum = albumId;
+		confirmingAlbum = null;
+		try {
+			await keepAlbumOnlyLocally({
+				conversationId,
+				albumId,
+				profileId: result?.profile?.profileId ?? null,
+			});
+			toast.success("Álbum borrado del API. Quedó guardado en la app.");
+			reloadTick += 1;
+		} catch (error) {
+			console.error(error);
+			toast.error(
+				error instanceof Error && error.message
+					? error.message
+					: "No se pudo quitar el álbum del API",
+			);
+		} finally {
+			removingAlbum = null;
+		}
+	}
+
 	$effect(() => {
+		void reloadTick;
 		const id = conversationId;
 		const ourId = data.ourProfileId;
 		const cached = getCachedReceived(id);
@@ -338,7 +385,10 @@
 		>
 			<StarIcon
 				weight={isFavorite ? "fill" : "bold"}
-				class={["size-5", isFavorite ? "text-yellow-400" : "text-white"]}
+				class={[
+				"size-5",
+				{ "text-yellow-400": isFavorite, "text-white": !isFavorite },
+			]}
 			/>
 		</button>
 		<button
@@ -450,6 +500,57 @@
 					(dentro de los mensajes recientes).
 				</p>
 			{:else}
+				{#if apiAlbums.length > 0}
+					<div
+						class="mx-1 mb-2 flex flex-col gap-1.5 rounded-xl bg-secondary/40 p-2"
+					>
+						{#each apiAlbums as albumId, i (albumId)}
+							<label
+								class="flex items-center gap-2 text-xs font-medium"
+							>
+								<input
+									type="checkbox"
+									checked
+									disabled={removingAlbum !== null}
+									class="size-4 shrink-0"
+									onclick={(event) => {
+										event.preventDefault();
+										confirmingAlbum = albumId;
+									}}
+								/>
+								<span>
+									Álbum {i + 1}: guardado en API
+									{#if removingAlbum === albumId}
+										— guardando y borrando…
+									{/if}
+								</span>
+							</label>
+							{#if confirmingAlbum === albumId}
+								<p class="text-2xs text-muted-foreground">
+									Se guarda todo en la app y después se borra del
+									API de Grindr (no se puede deshacer). Lo vas a
+									seguir viendo acá.
+								</p>
+								<div class="flex gap-2">
+									<button
+										type="button"
+										class="rounded-full bg-secondary px-3 py-1.5 text-xs font-medium"
+										onclick={() => (confirmingAlbum = null)}
+									>
+										Cancelar
+									</button>
+									<button
+										type="button"
+										class="rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground"
+										onclick={() => void keepOnlyLocal(albumId)}
+									>
+										Dejar solo local
+									</button>
+								</div>
+							{/if}
+						{/each}
+					</div>
+				{/if}
 				<div class="grid grid-cols-3 gap-1">
 					{#each result.items as item, i (item.id)}
 						<ReceivedTile {item} onOpen={() => (viewIndex = i)} />

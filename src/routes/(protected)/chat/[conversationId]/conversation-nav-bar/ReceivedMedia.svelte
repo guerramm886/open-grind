@@ -3,6 +3,7 @@
 	import CaretRightIcon from "phosphor-svelte/lib/CaretRightIcon";
 	import DownloadSimpleIcon from "phosphor-svelte/lib/DownloadSimpleIcon";
 	import ImageIcon from "phosphor-svelte/lib/ImageIcon";
+	import { toast } from "svelte-sonner";
 	import { z } from "zod";
 
 	import { getAlbumContent } from "$lib/api/messaging/albums";
@@ -13,6 +14,7 @@
 	import * as Dialog from "$lib/components/ui/dialog";
 	import { mediaUrlSchema } from "$lib/model/media";
 	import { receivedArchive } from "$lib/received/archive.svelte";
+	import { keepAlbumOnlyLocally } from "$lib/received/received-media";
 	import {
 		GALLERY_FOLDER,
 		saveUrlToDevice,
@@ -39,6 +41,9 @@
 	const conversation = $derived(getConversationState()());
 	let open = $state(false);
 	let tiles = $state<MediaTile[] | null>(null);
+	let albums = $state<number[]>([]);
+	let removingAlbum = $state<number | null>(null);
+	let confirmingAlbum = $state<number | null>(null);
 	let failure = $state(false);
 	let activeIndex = $state<number | null>(null);
 
@@ -109,6 +114,9 @@
 		// A locked album falls back to its locally saved copies.
 		const liveAlbums =
 			albumResult.status === "fulfilled" ? albumResult.value : [];
+		albums = liveAlbums
+			.filter((album) => album.albumViewable)
+			.map((album) => album.albumId);
 		for (const album of liveAlbums) {
 			if (!album.albumViewable) continue;
 			let added = 0;
@@ -174,6 +182,37 @@
 			saveResult = null;
 		}
 	});
+
+	// TEST: archive an album's photos locally, then remove it from your side
+	// (deleteAlbum) to free a slot — to check whether older locked albums then
+	// become visible. The photos stay in the app ("Guardadas en la app").
+	async function removeAlbum(albumId: number) {
+		if (removingAlbum !== null || !conversation.profile) return;
+		removingAlbum = albumId;
+		confirmingAlbum = null;
+		try {
+			receivedArchive.notePerson(conversation.conversationId, {
+				name: conversation.profile.name ?? null,
+				mediaHash: conversation.profile.mediaHash ?? null,
+			});
+			await keepAlbumOnlyLocally({
+				conversationId: conversation.conversationId,
+				albumId,
+				profileId: conversation.profile.profileId,
+			});
+			toast.success("Álbum borrado del API. Quedó guardado en la app.");
+			await load();
+		} catch (error) {
+			console.error(error);
+			toast.error(
+				error instanceof Error && error.message
+					? error.message
+					: "No se pudo quitar el álbum del API",
+			);
+		} finally {
+			removingAlbum = null;
+		}
+	}
 
 	function go(delta: number) {
 		if (activeIndex === null || !tiles) return;
@@ -341,6 +380,55 @@
 						{saveResult}
 					</p>
 				{/if}
+			</div>
+		{/if}
+
+		{#if activeIndex === null && albums.length > 0}
+			<div class="flex flex-col gap-1.5 rounded-xl bg-secondary/40 p-2">
+				{#each albums as albumId, i (albumId)}
+					<div class="flex flex-col gap-1">
+						<label class="flex items-center gap-2 text-xs font-medium">
+							<input
+								type="checkbox"
+								checked
+								disabled={removingAlbum !== null}
+								class="size-4 shrink-0"
+								onclick={(event) => {
+									event.preventDefault();
+									confirmingAlbum = albumId;
+								}}
+							/>
+							<span>
+								Álbum {i + 1}: guardado en API
+								{#if removingAlbum === albumId}
+									— guardando y borrando…
+								{/if}
+							</span>
+						</label>
+						{#if confirmingAlbum === albumId}
+							<p class="text-2xs text-muted-foreground">
+								Se guarda todo en la app y después se borra del API de
+								Grindr (no se puede deshacer). Vas a seguir viéndolo
+								acá y en Recibidos.
+							</p>
+							<div class="flex gap-2">
+								<Button
+									size="sm"
+									variant="secondary"
+									onclick={() => (confirmingAlbum = null)}
+								>
+									Cancelar
+								</Button>
+								<Button
+									size="sm"
+									onclick={() => void removeAlbum(albumId)}
+								>
+									Dejar solo local
+								</Button>
+							</div>
+						{/if}
+					</div>
+				{/each}
 			</div>
 		{/if}
 

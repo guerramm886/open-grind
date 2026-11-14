@@ -2,12 +2,15 @@
 // sent you in a conversation, so they can be shown in one gallery and archived.
 // Album messages are expanded into their individual items.
 
-import { getAlbumContent } from "$lib/api/messaging/albums";
+import { deleteAlbum, getAlbumContent } from "$lib/api/messaging/albums";
 import { getConversationMessages } from "$lib/api/messaging/messages";
 import { getProfile } from "$lib/api/users/profiles";
 import { isVideoContent } from "$lib/components/album/album";
+import {
+	type ArchivableItem,
+	receivedArchive,
+} from "$lib/received/archive.svelte";
 import { proxyMediaUrl } from "$lib/util/media";
-import type { ArchivableItem } from "$lib/received/archive.svelte";
 
 export type ReceivedItem = {
 	id: string;
@@ -173,6 +176,72 @@ async function profilePhotoItems(
 	}
 }
 
+// Locally saved copies that the live API no longer returns (album removed or
+// locked, message gone, person vanished). They have no URL: tiles and the
+// viewer show them from the archive.
+function archivedOnlyItems(
+	conversationId: string,
+	liveIds: ReadonlySet<string>,
+): ReceivedItem[] {
+	return receivedArchive
+		.entriesFor(conversationId)
+		.filter((entry) => !liveIds.has(entry.id))
+		.map((entry): ReceivedItem => {
+			let source: ReceivedItem["source"] = "direct";
+			if (entry.albumId !== null) source = "album";
+			else if (entry.id.startsWith("profile:")) source = "profile";
+			return {
+				id: entry.id,
+				conversationId,
+				profileId: entry.profileId,
+				kind: entry.kind,
+				url: "",
+				rawUrl: "",
+				thumbUrl: "",
+				contentType: entry.contentType,
+				albumId: entry.albumId,
+				name: entry.name,
+				timestamp: entry.savedAt,
+				available: false,
+				source,
+			};
+		});
+}
+
+/**
+ * Save every photo and video of a received album into the app, and only once
+ * ALL of them are safely stored, delete the album on Grindr's side. The local
+ * copies keep showing in Recibidos and in the chat.
+ */
+export async function keepAlbumOnlyLocally({
+	conversationId,
+	albumId,
+	profileId,
+}: {
+	conversationId: string;
+	albumId: number;
+	profileId: number | null;
+}): Promise<void> {
+	const items = await expandAlbum({
+		conversationId,
+		albumId,
+		profileId,
+		timestamp: Date.now(),
+	});
+	const savable = items.filter((item) => item.rawUrl !== "");
+	if (savable.length === 0)
+		throw new Error("No se pudo leer el contenido del álbum");
+	await receivedArchive.saveMany(savable.map(archivableFromItem));
+	const missing = savable.filter(
+		(item) => !receivedArchive.isArchived(item.id),
+	).length;
+	if (missing > 0)
+		throw new Error(
+			`No se pudieron guardar ${missing} de ${savable.length} archivos; no se borró nada`,
+		);
+	await deleteAlbum({ albumId });
+}
+
 export async function loadReceivedMedia({
 	conversationId,
 	ourProfileId,
@@ -180,7 +249,31 @@ export async function loadReceivedMedia({
 	conversationId: string;
 	ourProfileId: number;
 }): Promise<ReceivedMediaResult> {
-	const page = await getConversationMessages({ conversationId });
+	let page: Awaited<ReturnType<typeof getConversationMessages>>;
+	try {
+		page = await getConversationMessages({ conversationId });
+	} catch (error) {
+		// The conversation may be gone; still show what we saved from it.
+		const saved = archivedOnlyItems(conversationId, new Set());
+		if (saved.length === 0) throw error;
+		const profileId = saved.find((item) => item.profileId !== null)
+			?.profileId;
+		const person = receivedArchive
+			.savedPeople()
+			.find((entry) => entry.conversationId === conversationId);
+		return {
+			profile:
+				typeof profileId === "number"
+					? {
+							profileId,
+							name: person?.name ?? null,
+							distance: null,
+							mediaHash: person?.mediaHash ?? null,
+						}
+					: null,
+			items: saved,
+		};
+	}
 	const profile: ReceivedProfile = {
 		profileId: page.profile.profileId,
 		name: page.profile.name,
@@ -274,5 +367,12 @@ export async function loadReceivedMedia({
 	const byId = new Map<string, ReceivedItem>();
 	for (const item of items) if (!byId.has(item.id)) byId.set(item.id, item);
 
-	return { profile, items: [...byId.values()] };
+	const live = [...byId.values()];
+	return {
+		profile,
+		items: [
+			...live,
+			...archivedOnlyItems(conversationId, new Set(byId.keys())),
+		],
+	};
 }
