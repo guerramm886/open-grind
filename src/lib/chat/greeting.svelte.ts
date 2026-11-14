@@ -1,10 +1,13 @@
 // A one-tap greeting message plus a set of frequent phrases, configured once
 // and kept on this device.
 
+import type { DrawerMedia } from "$lib/api/messaging/drawer";
+
 const STORAGE_KEY = "greeting-message-v1";
 const PHRASES_KEY = "greeting-phrases-v1";
 const ALBUM_KEY = "greeting-album-v1";
 const WRAP_KEY = "greeting-phrases-wrap-v1";
+const PHOTOS_KEY = "greeting-photos-v1";
 
 class Greeting {
 	message = $state(load());
@@ -13,6 +16,8 @@ class Greeting {
 	albumId = $state<number | null>(loadAlbumId());
 	/** Show the quick phrases wrapped over a few rows instead of one scrolling row. */
 	phrasesWrap = $state<boolean>(loadWrap());
+	/** Photos (from your reusable media drawer) sent along with the greeting. */
+	photos = $state<DrawerMedia[]>(loadPhotos());
 
 	get configured(): boolean {
 		return this.message.trim() !== "";
@@ -54,6 +59,26 @@ class Greeting {
 		} catch (error) {
 			console.error(error);
 		}
+	}
+
+	savePhotos(photos: DrawerMedia[]): void {
+		this.photos = photos;
+		try {
+			localStorage.setItem(PHOTOS_KEY, JSON.stringify(photos));
+		} catch (error) {
+			console.error(error);
+		}
+	}
+}
+
+function loadPhotos(): DrawerMedia[] {
+	try {
+		const raw = localStorage.getItem(PHOTOS_KEY);
+		if (!raw) return [];
+		const list: unknown = JSON.parse(raw);
+		return Array.isArray(list) ? (list as DrawerMedia[]) : [];
+	} catch {
+		return [];
 	}
 }
 

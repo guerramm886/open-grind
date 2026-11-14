@@ -1,12 +1,17 @@
 <script lang="ts">
 	import { showErrorToast } from "$lib/api/error-toast";
 	import { getMyAlbums, shareAlbum } from "$lib/api/messaging/albums";
+	import { addMediaToDrawer } from "$lib/api/messaging/chat-media";
 	import { getConversations } from "$lib/chat/conversations-context.svelte";
 	import { greeting } from "$lib/chat/greeting.svelte";
 	import { albumDisplayName } from "$lib/components/album/album";
 	import { Button } from "$lib/components/ui/button";
 	import { draftFromMessage } from "$lib/model/messaging/messages";
+	import { pickMultipleMedia } from "$lib/platform/media-picker";
+	import { proxyMediaUrl } from "$lib/util/media";
+	import type { DrawerMedia } from "$lib/api/messaging/drawer";
 	import type { MyAlbum } from "$lib/model/messaging/albums";
+	import { mediaMessageDraft } from "./attachments/media/media-messages";
 	import { getMessageComposerContext } from "./message-composer-context.svelte";
 
 	let { ref = $bindable(null) }: { ref?: HTMLElement | null } = $props();
@@ -18,6 +23,8 @@
 	let draftPhrases = $state<string[]>([]);
 	let draftAlbumId = $state<number | null>(null);
 	let draftWrap = $state(false);
+	let draftPhotos = $state<DrawerMedia[]>([]);
+	let addingPhoto = $state(false);
 	let myAlbums = $state<MyAlbum[]>([]);
 	let sending = $state(false);
 	let pressTimer: ReturnType<typeof setTimeout> | null = null;
@@ -29,6 +36,7 @@
 			greeting.phrases.length > 0 ? [...greeting.phrases] : [""];
 		draftAlbumId = greeting.albumId;
 		draftWrap = greeting.phrasesWrap;
+		draftPhotos = [...greeting.photos];
 		configOpen = true;
 		void getMyAlbums()
 			.then((res) => {
@@ -42,7 +50,30 @@
 		greeting.savePhrases(draftPhrases);
 		greeting.saveAlbum(draftAlbumId);
 		greeting.saveWrap(draftWrap);
+		greeting.savePhotos(draftPhotos);
 		configOpen = false;
+	}
+
+	async function addGreetingPhotos() {
+		if (addingPhoto) return;
+		addingPhoto = true;
+		try {
+			const picked = await pickMultipleMedia("media");
+			for (const item of picked) {
+				try {
+					draftPhotos = [...draftPhotos, await addMediaToDrawer(item)];
+				} catch (error) {
+					showErrorToast({
+						label: "No se pudo subir la foto",
+						error,
+					});
+				}
+			}
+		} catch (error) {
+			console.error(error);
+		} finally {
+			addingPhoto = false;
+		}
 	}
 
 	function targetProfileId(): number | undefined {
@@ -58,6 +89,9 @@
 		try {
 			await composer().sendMessages([
 				draftFromMessage({ type: "Text", body: { text } }),
+				...greeting.photos.map((item) =>
+					mediaMessageDraft({ item, expiring: false }),
+				),
 			]);
 			const albumId = greeting.albumId;
 			const profileId = targetProfileId();
@@ -189,6 +223,39 @@
 				</option>
 			{/each}
 		</select>
+
+		<p class="mt-3 mb-1 text-sm font-semibold">Fotos del saludo</p>
+		<div class="flex flex-wrap gap-2">
+			{#each draftPhotos as photo (photo.id)}
+				<div class="relative size-16 overflow-hidden rounded-lg">
+					<img
+						src={proxyMediaUrl(photo.url)}
+						alt=""
+						class="size-full object-cover"
+					/>
+					<button
+						type="button"
+						aria-label="Quitar foto"
+						class="absolute top-0.5 right-0.5 flex size-5 items-center justify-center rounded-full bg-black/70 text-xs text-white"
+						onclick={() =>
+							(draftPhotos = draftPhotos.filter(
+								(item) => item.id !== photo.id,
+							))}
+					>
+						✕
+					</button>
+				</div>
+			{/each}
+			<button
+				type="button"
+				disabled={addingPhoto}
+				aria-label="Agregar foto"
+				class="flex size-16 items-center justify-center rounded-lg border border-dashed border-border text-2xl text-muted-foreground disabled:opacity-50"
+				onclick={() => void addGreetingPhotos()}
+			>
+				{addingPhoto ? "…" : "+"}
+			</button>
+		</div>
 
 		<div class="mt-3 flex justify-end gap-2">
 			<Button
