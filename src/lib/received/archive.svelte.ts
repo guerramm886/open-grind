@@ -221,14 +221,31 @@ class ReceivedArchive {
 	}
 
 	/** People who have archived media, newest-saved first, with their details. */
-	savedPeople(): (ArchivedPerson & { count: number; lastSavedAt: number })[] {
-		const byConv: Record<string, { count: number; lastSavedAt: number }> =
-			{};
+	savedPeople(): (ArchivedPerson & {
+		count: number;
+		lastSavedAt: number;
+		profileId: number | null;
+		hasAlbum: boolean;
+		hasDirect: boolean;
+	})[] {
+		const byConv: Record<
+			string,
+			{
+				count: number;
+				lastSavedAt: number;
+				profileId: number | null;
+				hasAlbum: boolean;
+				hasDirect: boolean;
+			}
+		> = {};
 		for (const entry of Object.values(this.#entries)) {
 			const prev = byConv[entry.conversationId];
 			byConv[entry.conversationId] = {
 				count: (prev?.count ?? 0) + 1,
 				lastSavedAt: Math.max(prev?.lastSavedAt ?? 0, entry.savedAt),
+				profileId: prev?.profileId ?? entry.profileId,
+				hasAlbum: (prev?.hasAlbum ?? false) || entry.albumId !== null,
+				hasDirect: (prev?.hasDirect ?? false) || entry.albumId === null,
 			};
 		}
 		return Object.entries(byConv)

@@ -76,7 +76,10 @@
 					(i) => i.source !== "profile" && i.available,
 				).length;
 				const people = getReceivedPeople(ourId);
-				if (sent === 0) people.markEmpty(id);
+				// Don't hide people whose media we've already saved locally,
+				// even if their live content is gone (locked album, etc.).
+				if (sent === 0 && receivedArchive.archivedCount(id) === 0)
+					people.markEmpty(id);
 				else people.markHasContent(id);
 			})
 			.catch((error: unknown) => {

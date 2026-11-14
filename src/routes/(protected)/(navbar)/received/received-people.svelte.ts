@@ -311,6 +311,27 @@ export class ReceivedPeople {
 				!swipeDecisions.isNope(p.profileId) &&
 				!this.#empty[p.conversationId],
 		);
+		// Keep anyone whose media we've saved locally, even if Grindr locked
+		// their album or they vanished — otherwise you'd lose access to photos
+		// you already have. Merge them in if the live scan didn't surface them.
+		for (const saved of receivedArchive.savedPeople()) {
+			if (saved.profileId === null) continue;
+			if (swipeDecisions.isNope(saved.profileId)) continue;
+			if (list.some((p) => p.conversationId === saved.conversationId))
+				continue;
+			list.push({
+				conversationId: saved.conversationId,
+				profileId: saved.profileId,
+				name: saved.name ?? "",
+				mediaHash: saved.mediaHash,
+				distance: null,
+				favorite: false,
+				lastActivity: saved.lastSavedAt,
+				online: false,
+				hasAlbum: saved.hasAlbum,
+				hasDirect: saved.hasDirect,
+			});
+		}
 		if (this.favoritesOnly) list = list.filter((p) => p.favorite);
 		if (this.onlineOnly) list = list.filter((p) => p.online);
 		if (this.ageFilterOn) {
