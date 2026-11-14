@@ -327,16 +327,18 @@
 										{saved}
 									</div>
 								{/if}
-								{#if person.hasAlbum || person.hasDirect || person.albumInApi}
+								{#if person.albumInApi}
+									<!-- Its own corner spot, clear of the name
+									pill, the distance and the favorite star. -->
+									<span
+										class="absolute top-7 right-1.5 z-2 size-3.5 rounded-full bg-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.9)] ring-2 ring-black/80"
+										title="Tiene un álbum guardado en Grindr"
+									></span>
+								{/if}
+								{#if person.hasAlbum || person.hasDirect}
 									<div
 										class="absolute bottom-1.5 left-1.5 z-1 flex items-center gap-1"
 									>
-										{#if person.albumInApi}
-											<span
-												class="size-3 rounded-full bg-yellow-400 ring-2 ring-black/70"
-												title="Tiene un álbum guardado en Grindr"
-											></span>
-										{/if}
 										{#if person.hasAlbum}
 											<span
 												class="flex size-5 items-center justify-center rounded-full bg-black/70 text-white"
