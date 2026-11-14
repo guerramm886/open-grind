@@ -6,7 +6,10 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 
 const KEY_STORAGE = "gemini-api-key-v1";
-const MODEL = "gemini-2.0-flash";
+// "latest" alias so the app keeps working when Google rotates models (the
+// pinned 2.x names already got deprecated). Lite is fast and cheap, which suits
+// classifying many photos within the free tier.
+const MODEL = "gemini-flash-lite-latest";
 // How many photos go in one Gemini request. Small batches stay within the free
 // tier's payload limits and let partial results come back sooner.
 const BATCH = 6;
