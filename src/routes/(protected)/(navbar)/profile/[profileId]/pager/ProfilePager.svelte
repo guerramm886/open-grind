@@ -24,7 +24,7 @@
 	const entry = $derived<ProfilePagerEntry>({
 		profileId: Number(page.params.profileId),
 		ourProfileId,
-		origin: page.state.profileOrigin ?? null,
+		origin: page.state.profileOrigin === "browse" ? "browse" : null,
 	});
 
 	const pager = untrack(

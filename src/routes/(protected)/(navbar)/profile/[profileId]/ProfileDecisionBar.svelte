@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from "$app/navigation";
+	import { page } from "$app/state";
 	import ArrowCounterClockwiseIcon from "phosphor-svelte/lib/ArrowCounterClockwiseIcon";
 	import StarIcon from "phosphor-svelte/lib/StarIcon";
 	import XIcon from "phosphor-svelte/lib/XIcon";
@@ -32,6 +33,16 @@
 		onNavigate(id);
 	}
 
+	// Where to go after a decision. From a chat, go back to the chat list; from
+	// Browse, move on to the next profile (or the grid when none are left).
+	function navigateAfterDecision(next: number | null) {
+		if (page.state.profileOrigin === "chat") {
+			void goto("/chat");
+			return;
+		}
+		navigateAfterDecision(next);
+	}
+
 	// The next profile to decide, worked out BEFORE we change anything (a cross
 	// removes the current one from the list, which would lose our place).
 	function goNext() {
@@ -39,8 +50,7 @@
 			gridState.profiles,
 			profileId,
 		);
-		if (next !== null) goToProfile(next);
-		else void goto("/");
+		navigateAfterDecision(next);
 	}
 
 	// The heart is Grindr's real favorite, so it also shows as a star in the
@@ -65,8 +75,7 @@
 			}
 			busy = false;
 		}
-		if (next !== null) goToProfile(next);
-		else void goto("/");
+		navigateAfterDecision(next);
 	}
 
 	async function cross() {
@@ -95,8 +104,7 @@
 		}
 		swipeDecisions.cross(profileId);
 		swipeDecisions.record({ id: profileId, action: "cross" });
-		if (next !== null) goToProfile(next);
-		else void goto("/");
+		navigateAfterDecision(next);
 	}
 
 	// Go back to the last profile acted on and undo that action, so it can be

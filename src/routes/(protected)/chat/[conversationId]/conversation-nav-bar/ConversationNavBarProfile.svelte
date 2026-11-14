@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { goto } from "$app/navigation";
+
 	import DisplayName from "$lib/components/profile/DisplayName.svelte";
 	import DistanceFormatted from "$lib/components/profile/DistanceFormatted.svelte";
 	import ProfileStatusIndicator from "$lib/components/profile/ProfileStatusIndicator.svelte";
@@ -10,7 +12,18 @@
 	let { profile }: { profile: ConversationProfile } = $props();
 </script>
 
-<a href="/profile/{profile.profileId}" class="flex-1 py-4 ps-0 pe-4">
+<a
+	href="/profile/{profile.profileId}"
+	class="flex-1 py-4 ps-0 pe-4"
+	onclick={(event) => {
+		// Remember we came from a chat, so crossing the profile returns to the
+		// chat list instead of the browse grid.
+		event.preventDefault();
+		void goto(`/profile/${profile.profileId}`, {
+			state: { profileOrigin: "chat" },
+		});
+	}}
+>
 	<Card.Header class="flex items-center gap-4 px-0">
 		<Avatar.Root class="size-avatar after:rounded-full">
 			<UserAvatar
