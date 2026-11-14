@@ -45,6 +45,34 @@ export async function getAlbumContent(albumId: number) {
 
 export type AlbumContentResponse = Awaited<ReturnType<typeof getAlbumContent>>;
 
+const sharedByProfileSchema = z.object({
+	albums: z
+		.array(
+			z.object({
+				albumId: z.number(),
+				albumViewable: z.boolean().nullish(),
+			}),
+		)
+		.nullish(),
+});
+
+/**
+ * Albums a profile is sharing with us right now, with whether each one can be
+ * opened. This is live, unlike the `isViewable` stored in an old chat message,
+ * and it doesn't depend on the album message being in the recent messages.
+ */
+export async function getAlbumsSharedByProfile(
+	profileId: number,
+): Promise<{ albumId: number; viewable: boolean }[]> {
+	const parsed = await fetchRest(`/v2/albums/shares/${profileId}`).then(
+		(res) => res.jsonParsed(sharedByProfileSchema),
+	);
+	return (parsed.albums ?? []).map((album) => ({
+		albumId: album.albumId,
+		viewable: album.albumViewable ?? false,
+	}));
+}
+
 export async function getMyAlbums() {
 	return await fetchRest("/v1/albums").then((res) =>
 		res.jsonParsed(myAlbumsResponseSchema),

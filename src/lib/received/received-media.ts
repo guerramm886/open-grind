@@ -2,7 +2,10 @@
 // sent you in a conversation, so they can be shown in one gallery and archived.
 // Album messages are expanded into their individual items.
 
-import { getAlbumContent, unshareAlbum } from "$lib/api/messaging/albums";
+import {
+	getAlbumContent,
+	getAlbumsSharedByProfile,
+} from "$lib/api/messaging/albums";
 import { getConversationMessages } from "$lib/api/messaging/messages";
 import { getProfile } from "$lib/api/users/profiles";
 import { isVideoContent } from "$lib/components/album/album";
@@ -217,26 +220,22 @@ function archivedOnlyItems(
 }
 
 /**
- * Save every photo and video of a received album into the app, and only once
- * ALL of them are safely stored, drop our access to it on Grindr's side. The
- * local copies keep showing in Recibidos.
- *
- * Grindr refuses DELETE on someone else's album (403), so this asks to be
- * removed from the album's shares instead.
+ * Make sure every photo and video of a received album is stored in the app.
+ * Returns how many files the album has. Grindr offers no way for this client
+ * to drop a received album (DELETE and unshare are both refused), so removing
+ * it is done from the official app once this says it is safe.
  */
-export async function keepAlbumOnlyLocally({
+export async function ensureAlbumSavedLocally({
 	conversationId,
 	albumId,
 	profileId,
-	ourProfileId,
 	sentAt,
 }: {
 	conversationId: string;
 	albumId: number;
 	profileId: number | null;
-	ourProfileId: number;
 	sentAt: number;
-}): Promise<void> {
+}): Promise<number> {
 	const items = await expandAlbum({
 		conversationId,
 		albumId,
@@ -252,27 +251,9 @@ export async function keepAlbumOnlyLocally({
 	).length;
 	if (missing > 0)
 		throw new Error(
-			`No se pudieron guardar ${missing} de ${savable.length} archivos; no se borró nada`,
+			`No se pudieron guardar ${missing} de ${savable.length} archivos`,
 		);
-	try {
-		await unshareAlbum({ albumId, profileIds: [ourProfileId] });
-	} catch (error) {
-		console.error("[received-media] unshare failed", error);
-		throw new Error(
-			"Grindr no permitió quitar este álbum. Lo guardado en la app sigue intacto.",
-			{ cause: error },
-		);
-	}
-	// Grindr may answer OK without doing anything: only call it done when the
-	// album really stopped being readable.
-	const stillThere = await getAlbumContent(albumId).then(
-		(album) => album.content.length > 0,
-		() => false,
-	);
-	if (stillThere)
-		throw new Error(
-			"Grindr aceptó el pedido pero el álbum sigue ahí. Lo guardado en la app sigue intacto.",
-		);
+	return savable.length;
 }
 
 export async function loadReceivedMedia({
@@ -386,6 +367,28 @@ export async function loadReceivedMedia({
 			default:
 				break;
 		}
+	}
+
+	// Albums they share with us that the recent messages don't show as
+	// viewable: the album message can be far back in the chat, or its stored
+	// "viewable" flag can be stale after an album got unlocked.
+	try {
+		const shared = await getAlbumsSharedByProfile(profile.profileId);
+		for (const album of shared) {
+			if (!album.viewable || seenAlbums.has(album.albumId)) continue;
+			seenAlbums.add(album.albumId);
+			albumJobs.push(
+				expandAlbum({
+					conversationId,
+					albumId: album.albumId,
+					profileId: profile.profileId,
+					// No send date here; a known one is kept when archiving.
+					timestamp: 0,
+				}),
+			);
+		}
+	} catch (error) {
+		console.error("[received-media] shared albums lookup failed", error);
 	}
 
 	const [fromAlbums, profilePhotos] = await Promise.all([

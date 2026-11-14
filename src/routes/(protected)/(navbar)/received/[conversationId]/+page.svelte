@@ -25,7 +25,7 @@
 	} from "$lib/received/received-cache";
 	import {
 		archivableFromItem,
-		keepAlbumOnlyLocally,
+		ensureAlbumSavedLocally,
 		loadReceivedMedia,
 		type ReceivedMediaResult,
 	} from "$lib/received/received-media";
@@ -81,29 +81,32 @@
 		return list;
 	});
 
-	// Stop keeping an album on Grindr: its content is (re)checked as saved in
-	// the app first, then our access is dropped. It keeps showing here.
+	// Grindr doesn't let this app drop a received album, so the button checks
+	// that the whole album is saved here; then it's safe to remove it from the
+	// official app to free one of the slots.
 	async function keepOnlyLocal(album: AlbumStatus) {
 		if (removingAlbum !== null) return;
 		const albumId = album.albumId;
 		removingAlbum = albumId;
 		confirmingAlbum = null;
 		try {
-			await keepAlbumOnlyLocally({
+			const count = await ensureAlbumSavedLocally({
 				conversationId,
 				albumId,
 				profileId: result?.profile?.profileId ?? null,
-				ourProfileId: data.ourProfileId,
 				sentAt: album.sentAt,
 			});
-			toast.success("Listo: ya no está en Grindr. Quedó guardado en la app.");
+			toast.success(
+				`Álbum completo guardado en la app (${count} archivos). Ya podés quitarlo desde Grindr.`,
+				{ duration: 8000 },
+			);
 			reloadTick += 1;
 		} catch (error) {
 			console.error(error);
 			toast.error(
 				error instanceof Error && error.message
 					? error.message
-					: "No se pudo quitar el álbum de Grindr",
+					: "No se pudo guardar el álbum completo",
 			);
 		} finally {
 			removingAlbum = null;
@@ -600,7 +603,7 @@
 											class="size-2 rounded-full bg-black/70"
 										></span>
 										{#if removingAlbum === album.albumId}
-											Álbum {i + 1} · quitando…
+											Álbum {i + 1} · guardando…
 										{:else}
 											Álbum {i + 1} · En Grindr
 										{/if}
@@ -620,12 +623,13 @@
 									class="flex flex-col gap-2 rounded-xl bg-secondary/60 p-2.5"
 								>
 									<p class="text-xs font-medium">
-										¿Dejar de guardar este álbum en Grindr?
+										Este álbum ocupa uno de tus lugares en Grindr.
 									</p>
 									<p class="text-2xs text-muted-foreground">
-										Queda guardado en la app y lo vas a seguir
-										viendo acá. En Grindr dejás de tenerlo (no se
-										puede deshacer).
+										Grindr no deja quitarlo desde esta app. Tocá
+										“Guardar copia completa” y, cuando confirme,
+										quitalo desde la app oficial de Grindr: acá lo
+										vas a seguir viendo.
 									</p>
 									<div class="flex justify-end gap-2">
 										<button
@@ -640,7 +644,7 @@
 											class="rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground"
 											onclick={() => void keepOnlyLocal(album)}
 										>
-											Dejar de guardar en Grindr
+											Guardar copia completa
 										</button>
 									</div>
 								</div>

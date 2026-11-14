@@ -5,9 +5,11 @@
 
 import { accountScoped } from "$lib/api/account-caches";
 import { getConversations } from "$lib/api/messaging/conversations";
+import { getSharedAlbumsFeed } from "$lib/api/messaging/shared-albums-feed";
 import { getProfile } from "$lib/api/users/profiles";
 import { swipeDecisions } from "$lib/grid/swipe-decisions.svelte";
 import { receivedArchive } from "$lib/received/archive.svelte";
+import { conversationIdWith } from "$lib/received/favorite-albums";
 import {
 	archivableFromItem,
 	detectReceivedMedia,
@@ -110,7 +112,79 @@ export class ReceivedPeople {
 		// Fill in / refresh in the background; the cached list shows instantly.
 		void this.scanMore();
 		// People cached by an older version have no send date yet.
-		void this.#recheck(this.senders.filter((p) => p.mediaAt === 0));
+		void this.#recheck(this.senders.filter((p) => p.mediaAt === 0)).then(
+			() => this.#syncSharedAlbums(),
+		);
+	}
+
+	// Grindr's own list of albums shared with us. It finds people whose album
+	// message is too far back in the chat for the scan to see (typical of an
+	// album that was just unlocked by freeing a slot), and it is the truth
+	// about who still has an album stored on Grindr (the yellow dot).
+	async #syncSharedAlbums(): Promise<void> {
+		let albums: Awaited<ReturnType<typeof getSharedAlbumsFeed>>;
+		try {
+			albums = await getSharedAlbumsFeed({ favoritesOnly: false });
+		} catch (error) {
+			console.error("[received] shared albums feed failed", error);
+			return;
+		}
+		// An empty answer may just mean the feed isn't what we expect: don't
+		// turn everyone's dot off because of it.
+		if (albums.length === 0) return;
+		const open = new Map<number, string | null>();
+		for (const album of albums)
+			if (album.viewable) open.set(album.ownerProfileId, album.ownerName);
+
+		for (const person of this.senders)
+			person.albumInApi = open.has(person.profileId);
+
+		const cleared = { ...this.#empty };
+		let emptyChanged = false;
+		for (const [profileId, name] of open) {
+			if (swipeDecisions.isNope(profileId)) continue;
+			const conversationId = conversationIdWith({
+				ourProfileId: this.#ourProfileId,
+				profileId,
+			});
+			if (cleared[conversationId]) {
+				delete cleared[conversationId];
+				emptyChanged = true;
+			}
+			const known = this.senders.find(
+				(p) => p.conversationId === conversationId,
+			);
+			if (known) {
+				known.hasAlbum = true;
+				void this.#archiveAlbums(known);
+				continue;
+			}
+			const saved = receivedArchive
+				.savedPeople()
+				.find((entry) => entry.conversationId === conversationId);
+			const person: Person = {
+				conversationId,
+				profileId,
+				name: name ?? saved?.name ?? "",
+				mediaHash: saved?.mediaHash ?? null,
+				distance: null,
+				favorite: false,
+				lastActivity: 0,
+				onlineUntil: 0,
+				hasAlbum: true,
+				hasDirect: false,
+				albumInApi: true,
+				mediaAt: saved?.lastSentAt ?? 0,
+			};
+			this.#seen.add(conversationId);
+			this.senders.push(person);
+			void this.#archiveAlbums(person);
+		}
+		if (emptyChanged) {
+			this.#empty = cleared;
+			this.#persistEmpty();
+		}
+		this.#persistSenders();
 	}
 
 	// Remember the scanned senders so reopening the app shows them at once
@@ -216,7 +290,11 @@ export class ReceivedPeople {
 		this.hasMore = true;
 		this.error = null;
 		void this.scanMore();
-		void this.#recheck([...this.senders]);
+		// A refresh must also re-save albums that changed since last time.
+		this.#albumArchivedFor.clear();
+		void this.#recheck([...this.senders]).then(() =>
+			this.#syncSharedAlbums(),
+		);
 	}
 
 	// Update what a known person has (album still on Grindr, last send date).
