@@ -14,6 +14,7 @@
 
 	let {
 		mediaHash = null,
+		imageSrc = null,
 		displayName = null,
 		age = null,
 		distance = null,
@@ -29,6 +30,8 @@
 		overlay,
 	}: {
 		mediaHash?: string | null;
+		/** Fallback image (e.g. a received photo) shown when there's no profile pic. */
+		imageSrc?: string | null;
 		displayName?: string | null;
 		age?: number | null;
 		distance?: number | null;
@@ -56,12 +59,16 @@
 
 {#snippet content()}
 	<div class="absolute size-full bg-stone-700">
-		<UserAvatar
-			{mediaHash}
-			class="size-full"
-			size="xl"
-			onload={() => (loadedMediaHash = mediaHash)}
-		/>
+		{#if mediaHash === null && imageSrc}
+			<img src={imageSrc} alt="" class="size-full object-cover" />
+		{:else}
+			<UserAvatar
+				{mediaHash}
+				class="size-full"
+				size="xl"
+				onload={() => (loadedMediaHash = mediaHash)}
+			/>
+		{/if}
 	</div>
 	{#if distance !== null}
 		<span class="profile-card-distance absolute top-1 right-1.5">

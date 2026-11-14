@@ -1,6 +1,5 @@
 <script lang="ts">
 	import ArrowClockwiseIcon from "phosphor-svelte/lib/ArrowClockwiseIcon";
-	import BookmarksSimpleIcon from "phosphor-svelte/lib/BookmarksSimpleIcon";
 	import HeartIcon from "phosphor-svelte/lib/HeartIcon";
 	import ImageIcon from "phosphor-svelte/lib/ImageIcon";
 	import ImagesIcon from "phosphor-svelte/lib/ImagesIcon";
@@ -23,6 +22,35 @@
 
 	// Remember the chosen sort/filters whenever they change.
 	$effect(() => people.savePrefs());
+
+	// For people with no profile photo (blocked, or none set), show their first
+	// locally-saved received photo as the tile instead of the grey placeholder.
+	let fallbackPhotos = $state<Record<string, string>>({});
+	$effect(() => {
+		const needing = shown.filter(
+			(person) =>
+				person.mediaHash === null &&
+				receivedArchive
+					.entriesFor(person.conversationId)
+					.some((entry) => entry.kind === "image"),
+		);
+		untrack(() => {
+			for (const person of needing) {
+				if (fallbackPhotos[person.conversationId]) continue;
+				const entry = receivedArchive
+					.entriesFor(person.conversationId)
+					.find((item) => item.kind === "image");
+				if (!entry) continue;
+				void receivedArchive.objectUrl(entry.id).then((url) => {
+					if (url && !fallbackPhotos[person.conversationId])
+						fallbackPhotos = {
+							...fallbackPhotos,
+							[person.conversationId]: url,
+						};
+				});
+			}
+		});
+	});
 
 	// Keep the scroll position when entering a profile and coming back, so the
 	// grid doesn't jump to the top. SvelteKit stores this with the history
@@ -70,13 +98,6 @@
 		>
 			<ArrowClockwiseIcon class="size-4" />
 		</button>
-		<a
-			href="/received/guardados"
-			class="inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium hover:bg-input/30"
-		>
-			<BookmarksSimpleIcon weight="fill" class="size-4 text-accent" />
-			Guardados
-		</a>
 	</div>
 	<div class="flex flex-wrap items-center gap-2">
 		<div class="inline-flex overflow-hidden rounded-full border">
@@ -209,6 +230,8 @@
 						)}
 						<ProfileMiniCard
 							mediaHash={person.mediaHash}
+							imageSrc={fallbackPhotos[person.conversationId] ??
+								null}
 							displayName={person.name}
 							age={people.ages[person.profileId] ?? null}
 							distance={person.distance}

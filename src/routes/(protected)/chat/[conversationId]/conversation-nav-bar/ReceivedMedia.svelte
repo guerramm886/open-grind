@@ -1,4 +1,6 @@
 <script lang="ts">
+	import CaretLeftIcon from "phosphor-svelte/lib/CaretLeftIcon";
+	import CaretRightIcon from "phosphor-svelte/lib/CaretRightIcon";
 	import DownloadSimpleIcon from "phosphor-svelte/lib/DownloadSimpleIcon";
 	import ImageIcon from "phosphor-svelte/lib/ImageIcon";
 	import { z } from "zod";
@@ -7,7 +9,6 @@
 	import { fetchRest } from "$lib/api/transport";
 	import { getProfile } from "$lib/api/users/profiles";
 	import { isVideoContent } from "$lib/components/album/album";
-	import AlbumPreview from "$lib/components/album/AlbumPreview.svelte";
 	import { Button } from "$lib/components/ui/button";
 	import * as Dialog from "$lib/components/ui/dialog";
 	import { mediaUrlSchema } from "$lib/model/media";
@@ -23,21 +24,23 @@
 	const albumSchema = z.object({
 		albumId: z.number(),
 		albumViewable: z.boolean(),
-		content: z.object({ coverUrl: mediaUrlSchema.nullable() }).nullish(),
-		contentCount: z
-			.object({ imageCount: z.number(), videoCount: z.number() })
-			.nullish(),
 	});
+
+	// One flat media item. `thumb` is what the grid shows (a video's cover),
+	// `src` is what the viewer opens, `rawUrl` is the https URL for downloading
+	// (null for a local-only copy that can't be re-fetched).
+	type MediaTile = {
+		thumb: string;
+		src: string;
+		rawUrl: string | null;
+		isVideo: boolean;
+	};
+
 	const conversation = $derived(getConversationState()());
 	let open = $state(false);
-	let images = $state<z.infer<typeof imageSchema>[] | null>(null);
-	let albums = $state<z.infer<typeof albumSchema>[] | null>(null);
-	let profilePhotos = $state<string[] | null>(null);
-	// Locally archived copies (OPFS) for this person, as blob: object URLs, so
-	// their photos keep showing even after Grindr locks the album.
-	let archivedUrls = $state<string[]>([]);
+	let tiles = $state<MediaTile[] | null>(null);
 	let failure = $state(false);
-	let activeImage = $state<string | null>(null);
+	let activeIndex = $state<number | null>(null);
 
 	// Download-all with a chosen name.
 	let downloadOpen = $state(false);
@@ -47,11 +50,23 @@
 	let savedTotal = $state(0);
 	let saveResult = $state<string | null>(null);
 
+	async function archivedTiles(
+		predicate: (albumId: number | null) => boolean,
+	): Promise<MediaTile[]> {
+		const out: MediaTile[] = [];
+		const entries = receivedArchive
+			.entriesFor(conversation.conversationId)
+			.filter((entry) => entry.kind === "image" && predicate(entry.albumId));
+		for (const entry of entries) {
+			const url = await receivedArchive.objectUrl(entry.id);
+			if (url) out.push({ thumb: url, src: url, rawUrl: null, isVideo: false });
+		}
+		return out;
+	}
+
 	async function load() {
 		if (!conversation.profile) return;
-		images = null;
-		albums = null;
-		profilePhotos = null;
+		tiles = null;
 		failure = false;
 		const [imageResult, albumResult, profileResult] =
 			await Promise.allSettled([
@@ -59,52 +74,148 @@
 					`/v5/chat/media/shared/images/with-me/${encodeURIComponent(conversation.conversationId)}`,
 				).then(
 					(res) =>
-						res.jsonParsed(
-							z.object({ images: z.array(imageSchema) }),
-						).images,
+						res.jsonParsed(z.object({ images: z.array(imageSchema) }))
+							.images,
 				),
 				fetchRest(
 					`/v2/albums/shares/${conversation.profile.profileId}`,
 				).then(
 					(res) =>
-						res.jsonParsed(
-							z.object({ albums: z.array(albumSchema) }),
-						).albums,
+						res.jsonParsed(z.object({ albums: z.array(albumSchema) }))
+							.albums,
 				),
 				getProfile(conversation.profile.profileId),
 			]);
-		images = imageResult.status === "fulfilled" ? imageResult.value : [];
-		albums = albumResult.status === "fulfilled" ? albumResult.value : [];
-		// Their public profile photos, shown alongside what they sent you.
-		profilePhotos =
-			profileResult.status === "fulfilled"
-				? profileResult.value.medias.map(
-						(media) =>
-							`https://cdns.grindr.com/images/profile/1024x1024/${media.mediaHash}`,
-					)
-				: [];
-		// Profile photos are a bonus; don't flag the whole view as failed if
-		// only that call fell over.
-		failure =
-			imageResult.status === "rejected" ||
-			albumResult.status === "rejected";
-		// Resolve the locally archived copies to blob URLs (images only).
-		const entries = receivedArchive
-			.entriesFor(conversation.conversationId)
-			.filter((entry) => entry.kind === "image");
-		const urls = await Promise.all(
-			entries.map((entry) => receivedArchive.objectUrl(entry.id)),
+
+		const built: MediaTile[] = [];
+
+		// 1. Direct photos they sent. If the live list is empty, fall back to
+		// the locally saved direct copies (albumId null).
+		const liveImages =
+			imageResult.status === "fulfilled" ? imageResult.value : [];
+		if (liveImages.length > 0) {
+			for (const img of liveImages)
+				built.push({
+					thumb: proxyMediaUrl(img.url),
+					src: proxyMediaUrl(img.url),
+					rawUrl: img.url,
+					isVideo: false,
+				});
+		} else {
+			built.push(...(await archivedTiles((albumId) => albumId === null)));
+		}
+
+		// 2. Albums, expanded into individual photos/videos (not album covers).
+		// A locked album falls back to its locally saved copies.
+		const liveAlbums =
+			albumResult.status === "fulfilled" ? albumResult.value : [];
+		for (const album of liveAlbums) {
+			if (!album.albumViewable) continue;
+			let added = 0;
+			try {
+				const detail = await getAlbumContent(album.albumId);
+				for (const content of detail.content) {
+					if (content.processing) continue;
+					const full = content.url || content.coverUrl || content.thumbUrl;
+					if (!full) continue;
+					const isVid = isVideoContent(content.contentType);
+					const cover = isVid
+						? content.coverUrl || content.thumbUrl || full
+						: full;
+					built.push({
+						thumb: proxyMediaUrl(cover),
+						src: proxyMediaUrl(full),
+						rawUrl: full,
+						isVideo: isVid,
+					});
+					added += 1;
+				}
+			} catch (error) {
+				console.error("[received-media] album expand failed", error);
+			}
+			if (added === 0)
+				built.push(
+					...(await archivedTiles((albumId) => albumId === album.albumId)),
+				);
+		}
+		// Saved copies of albums that are no longer in the share list at all.
+		built.push(
+			...(await archivedTiles(
+				(albumId) =>
+					albumId !== null &&
+					!liveAlbums.some((album) => album.albumId === albumId),
+			)),
 		);
-		archivedUrls = urls.filter((url): url is string => url !== null);
+
+		// 3. Their public profile photos.
+		if (profileResult.status === "fulfilled") {
+			for (const media of profileResult.value.medias) {
+				const url = `https://cdns.grindr.com/images/profile/1024x1024/${media.mediaHash}`;
+				built.push({
+					thumb: proxyMediaUrl(url),
+					src: proxyMediaUrl(url),
+					rawUrl: url,
+					isVideo: false,
+				});
+			}
+		}
+
+		tiles = built;
+		failure =
+			imageResult.status === "rejected" &&
+			albumResult.status === "rejected";
 	}
+
 	$effect(() => {
 		if (open) void load();
 		else {
-			activeImage = null;
+			activeIndex = null;
 			downloadOpen = false;
 			saveResult = null;
 		}
 	});
+
+	function go(delta: number) {
+		if (activeIndex === null || !tiles) return;
+		const next = activeIndex + delta;
+		if (next >= 0 && next < tiles.length) activeIndex = next;
+	}
+
+	let touchX: number | null = null;
+	let touchY = 0;
+	function onTouchStart(event: TouchEvent) {
+		const touch = event.changedTouches[0];
+		touchX = touch?.clientX ?? null;
+		touchY = touch?.clientY ?? 0;
+	}
+	function onTouchEnd(event: TouchEvent) {
+		if (touchX === null) return;
+		const touch = event.changedTouches[0];
+		const dx = (touch?.clientX ?? touchX) - touchX;
+		const dy = (touch?.clientY ?? touchY) - touchY;
+		touchX = null;
+		if (Math.abs(dx) < 50) return;
+		if (Math.abs(dx) < Math.abs(dy) * 1.3) return;
+		go(dx < 0 ? 1 : -1);
+	}
+
+	async function downloadCurrent() {
+		if (activeIndex === null || !tiles) return;
+		const tile = tiles[activeIndex];
+		if (!tile?.rawUrl) return;
+		try {
+			await saveUrlToDevice({
+				rawUrl: tile.rawUrl,
+				baseName: `grindr-${Date.now()}`,
+				isVideo: tile.isVideo,
+			});
+			saveResult = `✓ Guardado en Galería › ${GALLERY_FOLDER}`;
+		} catch (error) {
+			console.error("[received-media] save failed", error);
+			saveResult = "No se pudo guardar";
+		}
+		window.setTimeout(() => (saveResult = null), 3000);
+	}
 
 	async function openDownload() {
 		downloadOpen = true;
@@ -126,46 +237,6 @@
 		namePrefix = name;
 	}
 
-	// Everything this person shared with you: sent photos, album contents, and
-	// their profile photos.
-	async function collectTargets(): Promise<
-		{ rawUrl: string; isVideo: boolean }[]
-	> {
-		const targets: { rawUrl: string; isVideo: boolean }[] = [];
-		for (const img of images ?? []) {
-			targets.push({ rawUrl: img.url, isVideo: false });
-		}
-		for (const album of albums ?? []) {
-			if (!album.albumViewable) continue;
-			try {
-				const detail = await getAlbumContent(album.albumId);
-				for (const c of detail.content) {
-					if (c.processing) continue;
-					const isVid = isVideoContent(c.contentType);
-					const src = c.url || c.coverUrl || c.thumbUrl;
-					if (src) targets.push({ rawUrl: src, isVideo: isVid });
-				}
-			} catch (error) {
-				console.error("[received-media] album expand failed", error);
-			}
-		}
-		const pid = conversation.profile?.profileId;
-		if (pid !== undefined) {
-			try {
-				const profile = await getProfile(pid);
-				for (const media of profile.medias) {
-					targets.push({
-						rawUrl: `https://cdns.grindr.com/images/profile/1024x1024/${media.mediaHash}`,
-						isVideo: false,
-					});
-				}
-			} catch (error) {
-				console.error("[received-media] profile photos failed", error);
-			}
-		}
-		return targets;
-	}
-
 	async function runDownload() {
 		if (saving) return;
 		saving = true;
@@ -175,12 +246,8 @@
 		const prefix =
 			(namePrefix.trim() || "perfil").replace(/[^a-z0-9_-]/gi, "_") ||
 			"perfil";
-		let targets: { rawUrl: string; isVideo: boolean }[] = [];
-		try {
-			targets = await collectTargets();
-		} catch (error) {
-			console.error(error);
-		}
+		// Everything we have a real URL for (local-only copies can't be re-fetched).
+		const targets = (tiles ?? []).filter((tile) => tile.rawUrl !== null);
 		savedTotal = targets.length;
 		if (targets.length === 0) {
 			saving = false;
@@ -190,7 +257,7 @@
 		let failed = 0;
 		for (let i = 0; i < targets.length; i++) {
 			const target = targets[i];
-			if (!target) continue;
+			if (!target?.rawUrl) continue;
 			try {
 				await saveUrlToDevice({
 					rawUrl: target.rawUrl,
@@ -209,6 +276,10 @@
 				? `✓ ${savedTotal} guardados en Galería › ${GALLERY_FOLDER}`
 				: `Guardados ${savedTotal - failed}/${savedTotal} (fallaron ${failed})`;
 	}
+
+	const activeTile = $derived(
+		activeIndex !== null ? (tiles?.[activeIndex] ?? null) : null,
+	);
 </script>
 
 <Dialog.Root bind:open>
@@ -218,10 +289,10 @@
 	<Dialog.Content showCloseButton>
 		<Dialog.Title>Media recibida</Dialog.Title>
 		<Dialog.Description
-			>Fotos y álbumes que esta persona compartió con vos.</Dialog.Description
+			>Todo lo que esta persona compartió con vos.</Dialog.Description
 		>
 
-		{#if !activeImage}
+		{#if activeIndex === null}
 			<div class="flex flex-col gap-2 rounded-xl bg-secondary/40 p-2">
 				{#if !downloadOpen}
 					<Button size="sm" onclick={() => void openDownload()}>
@@ -238,8 +309,7 @@
 						class="w-full rounded-lg bg-background px-2 py-1.5 text-base"
 					/>
 					<p class="text-2xs text-muted-foreground">
-						Guarda fotos enviadas, álbumes y fotos de perfil en
-						Galería › {GALLERY_FOLDER}, como {namePrefix.trim() ||
+						Guarda todo en Galería › {GALLERY_FOLDER}, como {namePrefix.trim() ||
 							"perfil"}-1, -2, …
 					</p>
 					<div class="flex justify-end gap-2">
@@ -278,84 +348,110 @@
 			<p role="alert">No se pudo cargar toda la media.</p>
 			<button type="button" onclick={load}>Reintentar</button>
 		{/if}
-		{#if images === null || albums === null || profilePhotos === null}
+		{#if tiles === null}
 			<p>Cargando…</p>
-		{:else if activeImage}
-			<button type="button" onclick={() => (activeImage = null)}
-				>Volver a la media</button
+		{:else if activeTile}
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<div
+				class="relative"
+				ontouchstart={onTouchStart}
+				ontouchend={onTouchEnd}
 			>
-			<img
-				src={activeImage.startsWith("blob:")
-					? activeImage
-					: proxyMediaUrl(activeImage)}
-				alt="Foto recibida"
-				class="max-h-[70vh] w-full object-contain"
-			/>
+				{#if activeTile.isVideo}
+					<!-- svelte-ignore a11y_media_has_caption -->
+					<video
+						src={activeTile.src}
+						class="max-h-[70vh] w-full"
+						controls
+						autoplay
+						playsinline
+					></video>
+				{:else}
+					<img
+						src={activeTile.src}
+						alt=""
+						class="max-h-[70vh] w-full object-contain"
+					/>
+				{/if}
+				<!-- Tap the left/right half to change, so it doesn't fight the
+				phone's edge gestures. -->
+				{#if activeIndex !== null && activeIndex > 0}
+					<button
+						type="button"
+						aria-label="Anterior"
+						class="absolute inset-y-0 left-0 w-1/2"
+						onclick={() => go(-1)}
+					></button>
+					<span
+						class="pointer-events-none absolute top-1/2 left-1 flex size-8 -translate-y-1/2 items-center justify-center rounded-full bg-black/40 text-white"
+					>
+						<CaretLeftIcon class="size-5" />
+					</span>
+				{/if}
+				{#if activeIndex !== null && tiles && activeIndex < tiles.length - 1}
+					<button
+						type="button"
+						aria-label="Siguiente"
+						class="absolute inset-y-0 right-0 w-1/2"
+						onclick={() => go(1)}
+					></button>
+					<span
+						class="pointer-events-none absolute top-1/2 right-1 flex size-8 -translate-y-1/2 items-center justify-center rounded-full bg-black/40 text-white"
+					>
+						<CaretRightIcon class="size-5" />
+					</span>
+				{/if}
+			</div>
+			<div class="flex items-center justify-between gap-2">
+				<Button
+					variant="secondary"
+					size="sm"
+					onclick={() => (activeIndex = null)}
+				>
+					Volver
+				</Button>
+				<span class="text-2xs text-muted-foreground">
+					{(activeIndex ?? 0) + 1} / {tiles.length}
+				</span>
+				{#if activeTile.rawUrl}
+					<Button size="sm" onclick={() => void downloadCurrent()}>
+						<DownloadSimpleIcon weight="bold" class="size-4" />
+						Descargar
+					</Button>
+				{:else}
+					<span></span>
+				{/if}
+			</div>
+			{#if saveResult}
+				<p class="text-xs font-medium text-green-500">{saveResult}</p>
+			{/if}
 		{:else}
-			{#if !failure && !images.length && !albums.length && !profilePhotos.length && !archivedUrls.length}<p>
+			{#if !failure && tiles.length === 0}<p>
 					No hay media compartida disponible.
 				</p>{/if}
 			<div class="grid grid-cols-3 gap-2">
-				{#each images as item (item.mediaId)}
+				{#each tiles as tile, i (i)}
 					<button
 						type="button"
-						aria-label="Abrir foto recibida"
-						onclick={() => (activeImage = item.url)}
+						aria-label="Abrir contenido"
+						class="relative"
+						onclick={() => (activeIndex = i)}
 					>
 						<img
-							src={proxyMediaUrl(item.url)}
+							src={tile.thumb}
 							alt=""
 							class="aspect-square w-full rounded-lg object-cover"
 						/>
+						{#if tile.isVideo}
+							<span
+								class="absolute right-1 bottom-1 rounded bg-black/70 px-1 text-2xs font-semibold text-white"
+							>
+								▶
+							</span>
+						{/if}
 					</button>
-				{/each}
-				{#each profilePhotos as url (url)}
-					<button
-						type="button"
-						aria-label="Abrir foto de perfil"
-						onclick={() => (activeImage = url)}
-					>
-						<img
-							src={proxyMediaUrl(url)}
-							alt=""
-							class="aspect-square w-full rounded-lg object-cover"
-						/>
-					</button>
-				{/each}
-				{#each albums as album (album.albumId)}
-					{#if album.albumViewable}
-						<AlbumPreview
-							albumId={album.albumId}
-							coverUrl={album.content?.coverUrl ?? null}
-							hasPhoto={(album.contentCount?.imageCount ?? 0) > 0}
-							hasVideo={(album.contentCount?.videoCount ?? 0) > 0}
-							label="Abrir álbum recibido"
-							class="aspect-square w-full rounded-lg"
-						/>
-					{/if}
 				{/each}
 			</div>
-			{#if archivedUrls.length > 0}
-				<p class="mt-3 mb-1 text-2xs text-muted-foreground">
-					Guardadas en la app ({archivedUrls.length}) — siguen acá
-					aunque Grindr bloquee el álbum
-				</p>
-				<div class="grid grid-cols-3 gap-2">
-					{#each archivedUrls as url (url)}
-						<button
-							type="button"
-							aria-label="Abrir foto guardada"
-							onclick={() => (activeImage = url)}
-						>
-							<img
-								src={url}
-								alt=""
-								class="aspect-square w-full rounded-lg object-cover"
-							/>
-						</button>
-					{/each}
-				</div>
-			{/if}
 		{/if}
 	</Dialog.Content>
 </Dialog.Root>
