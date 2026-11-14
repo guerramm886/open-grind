@@ -1,4 +1,5 @@
 <script lang="ts">
+	import FolderIcon from "phosphor-svelte/lib/FolderIcon";
 	import ImageIcon from "phosphor-svelte/lib/ImageIcon";
 	import NavigationArrowIcon from "phosphor-svelte/lib/NavigationArrowIcon";
 	import TimerIcon from "phosphor-svelte/lib/TimerIcon";
@@ -18,9 +19,10 @@
 	import ComposerAlbumsTab from "./albums/ComposerAlbumsTab.svelte";
 	import ComposerLocationTab from "./location/ComposerLocationTab.svelte";
 	import ComposerMediaTab from "./media/ComposerMediaTab.svelte";
+	import ComposerSetsTab from "./sets/ComposerSetsTab.svelte";
 	import type { SelectionTab, Tab, TabSelection } from "./tabs";
 
-	const FULLSIZE_TABS: Tab[] = ["media", "albums"];
+	const FULLSIZE_TABS: Tab[] = ["media", "albums", "sets"];
 
 	let {
 		open = $bindable(),
@@ -100,6 +102,11 @@
 					onClose={() => (open = false)}
 				/>
 			</Tabs.Content>
+			<Tabs.Content value="sets">
+				{#if selectedTab === "sets"}
+					<ComposerSetsTab onClose={() => (open = false)} />
+				{/if}
+			</Tabs.Content>
 			<Tabs.Content value="location" aria-describedby={locationHintId}>
 				{#if selectedTab === "location"}
 					<ComposerLocationTab
@@ -155,6 +162,10 @@
 			<MediaSheetTab value="media">
 				<ImageIcon weight="fill" class="size-5" />
 				Media
+			</MediaSheetTab>
+			<MediaSheetTab value="sets">
+				<FolderIcon weight="fill" class="size-5" />
+				Sets
 			</MediaSheetTab>
 			<MediaSheetTab value="location">
 				<NavigationArrowIcon weight="fill" class="size-5" />

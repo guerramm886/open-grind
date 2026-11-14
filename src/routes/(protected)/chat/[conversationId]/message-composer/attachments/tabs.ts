@@ -1,4 +1,4 @@
-export type Tab = "media" | "albums" | "location";
+export type Tab = "media" | "albums" | "location" | "sets";
 
 export type TabSelection = { count: number; label: string };
 
