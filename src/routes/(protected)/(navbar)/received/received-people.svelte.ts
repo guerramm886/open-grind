@@ -74,6 +74,7 @@ export class ReceivedPeople {
 	readonly #ourProfileId: number;
 	readonly #prefsKey: string;
 	readonly #emptyKey: string;
+	readonly #sendersKey: string;
 	#page = 1;
 	// eslint-disable-next-line svelte/prefer-svelte-reactivity -- membership check, not reactive
 	#seen = new Set<string>();
@@ -86,9 +87,46 @@ export class ReceivedPeople {
 		this.#ourProfileId = ourProfileId;
 		this.#prefsKey = `received-prefs-${ourProfileId}`;
 		this.#emptyKey = `received-empty-${ourProfileId}`;
+		this.#sendersKey = `received-senders-${ourProfileId}`;
 		this.#loadPrefs();
 		this.#loadEmpty();
+		this.#loadSenders();
+		// Fill in / refresh in the background; the cached list shows instantly.
 		void this.scanMore();
+	}
+
+	// Remember the scanned senders so reopening the app shows them at once
+	// instead of probing every conversation again. A background scan then adds
+	// any new ones.
+	#loadSenders(): void {
+		try {
+			const raw = localStorage.getItem(this.#sendersKey);
+			const list: unknown = raw ? JSON.parse(raw) : [];
+			if (!Array.isArray(list)) return;
+			const cached = list.filter(
+				(person): person is Person =>
+					typeof person === "object" &&
+					person !== null &&
+					typeof (person as Person).conversationId === "string" &&
+					typeof (person as Person).profileId === "number",
+			);
+			this.senders = cached;
+			// Don't re-probe people we already know; the scan looks for new ones.
+			for (const person of cached) this.#seen.add(person.conversationId);
+		} catch {
+			/* ignore unreadable cache */
+		}
+	}
+
+	#persistSenders(): void {
+		try {
+			localStorage.setItem(
+				this.#sendersKey,
+				JSON.stringify(this.senders),
+			);
+		} catch {
+			/* storage full or unavailable */
+		}
 	}
 
 	#loadEmpty(): void {
@@ -138,6 +176,7 @@ export class ReceivedPeople {
 		this.#empty = {};
 		this.#persistEmpty();
 		this.senders = [];
+		this.#persistSenders();
 		this.#seen.clear();
 		this.#page = 1;
 		this.hasMore = true;
@@ -233,6 +272,7 @@ export class ReceivedPeople {
 		}
 		await this.#probe(candidates);
 		this.error = null;
+		this.#persistSenders();
 	}
 
 	async #probe(candidates: Person[]): Promise<void> {
