@@ -8,6 +8,7 @@
 	import { profileMediaUrl } from "$lib/util/media";
 	import {
 		applyPhotoSwipeBackGesture,
+		applyPhotoSwipeDownload,
 		applyPhotoSwipeErrorUi,
 		applyPhotoSwipeOpenTracking,
 		applyPhotoSwipeThumbDimensions,
@@ -54,6 +55,7 @@
 				applyPhotoSwipeThumbDimensions(lightbox);
 				applyPhotoSwipeViewportSync(lightbox);
 				applyPhotoSwipeBackGesture(lightbox);
+				applyPhotoSwipeDownload(lightbox);
 				stopOpenTracking = applyPhotoSwipeOpenTracking(lightbox);
 				lightbox.on("beforeOpen", () => {
 					raiseReach(medias.length - 1);

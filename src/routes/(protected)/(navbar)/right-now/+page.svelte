@@ -4,6 +4,7 @@
 	import LockSimpleIcon from "phosphor-svelte/lib/LockSimpleIcon";
 	import StarIcon from "phosphor-svelte/lib/StarIcon";
 	import XIcon from "phosphor-svelte/lib/XIcon";
+	import { toast } from "svelte-sonner";
 
 	import { showErrorToast } from "$lib/api/error-toast";
 	import {
@@ -15,6 +16,7 @@
 		addFavoriteUser,
 		removeFavoriteUser,
 	} from "$lib/api/users/favorites";
+	import { getProfile } from "$lib/api/users/profiles";
 	import DistanceFormatted from "$lib/components/profile/DistanceFormatted.svelte";
 	import UserAvatar from "$lib/components/profile/UserAvatar.svelte";
 	import ProgressiveBlur from "$lib/components/shared/ProgressiveBlur.svelte";
@@ -75,6 +77,43 @@
 			favorites = { ...favorites, [post.profileId]: !next };
 			showErrorToast({ label: "No se pudo cambiar el favorito", error: err });
 		}
+	}
+	// The feed doesn't say who is already a favorite, so ask each profile once
+	// (a few at a time) and light the star for the ones that are.
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity -- once-per-session guard, not reactive
+	const favoriteChecked = new Set<number>();
+	$effect(() => {
+		const pending = visible
+			.map((post) => post.profileId)
+			.filter((id) => !favoriteChecked.has(id));
+		if (pending.length === 0) return;
+		for (const id of pending) favoriteChecked.add(id);
+		const queue = [...pending];
+		const worker = async () => {
+			for (;;) {
+				const id = queue.shift();
+				if (id === undefined) return;
+				try {
+					const profile = await getProfile(id);
+					// Don't override a star the user just tapped.
+					if (profile.isFavorite && favorites[id] === undefined)
+						favorites = { ...favorites, [id]: true };
+				} catch {
+					/* leave the star off */
+				}
+			}
+		};
+		for (let i = 0; i < 3; i += 1) void worker();
+	});
+
+	function cross(post: RightNowPost) {
+		swipeDecisions.cross(post.profileId);
+		toast(`Cruzaste a ${post.displayName || "este perfil"}`, {
+			action: {
+				label: "Deshacer",
+				onClick: () => swipeDecisions.uncross(post.profileId),
+			},
+		});
 	}
 </script>
 
@@ -260,8 +299,7 @@
 									type="button"
 									aria-label="Cruzar"
 									class="flex size-7 items-center justify-center rounded-full bg-black/60 text-white transition active:scale-90"
-									onclick={() =>
-										swipeDecisions.cross(post.profileId)}
+									onclick={() => cross(post)}
 								>
 									<XIcon weight="bold" class="size-4" />
 								</button>

@@ -2,6 +2,7 @@ import type PhotoSwipeLightbox from "photoswipe/lightbox";
 
 import { backGestureEventHandlers } from "$lib/platform/back-gesture-event.svelte";
 import type { MediaDimensions } from "$lib/util/media-dimensions";
+import { applyPhotoSwipeDownload } from "./download";
 import { applyPhotoSwipeErrorUi } from "./error-ui";
 import {
 	applyPhotoSwipeLoadedSize,
@@ -11,6 +12,7 @@ import { applyPhotoSwipeVideo, type VideoSlide } from "./video";
 import "./photoswipe.css";
 
 export { applyPhotoSwipeComponent } from "./component";
+export { applyPhotoSwipeDownload } from "./download";
 export { applyPhotoSwipeErrorUi } from "./error-ui";
 export {
 	applyPhotoSwipeOpenTracking,
@@ -74,6 +76,9 @@ export async function openLightbox({
 	applyPhotoSwipeLoadedSize(lightbox);
 	applyPhotoSwipeBackGesture(lightbox);
 	if (videoAt !== undefined) applyPhotoSwipeVideo(lightbox, videoAt);
+	applyPhotoSwipeDownload(lightbox, {
+		videoSrcAt: (index) => videoAt?.(index)?.src,
+	});
 	configure?.(lightbox);
 	lightbox.on("closingAnimationEnd", onClosed);
 	signal.addEventListener("abort", () => lightbox.destroy(), { once: true });

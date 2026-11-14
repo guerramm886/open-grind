@@ -30,6 +30,37 @@ export function proxyMediaUrl(
 	return convertFileSrc(`${FETCHER_TAG[as]}${payload}`, MEDIA_SCHEME);
 }
 
+/**
+ * The original https URL behind a proxied one (what `proxyMediaUrl` wrapped),
+ * for the native commands that fetch the bytes themselves. Null when `src` is
+ * neither proxied nor a plain https URL.
+ */
+export function unproxyMediaUrl(
+	src: string,
+): { url: string; isVideo: boolean } | null {
+	let parsed: URL;
+	try {
+		parsed = new URL(src, location.href);
+	} catch {
+		return null;
+	}
+	if (!isProxiedMediaUrl(parsed))
+		return parsed.protocol === "https:"
+			? { url: parsed.href, isVideo: false }
+			: null;
+	try {
+		const token = decodeURIComponent(parsed.pathname.replace(/^\/+/, ""));
+		const b64 = token.slice(1).replace(/-/g, "+").replace(/_/g, "/");
+		const binary = atob(b64 + "=".repeat((4 - (b64.length % 4)) % 4));
+		const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+		const url = new TextDecoder().decode(bytes);
+		if (!url.startsWith("https://")) return null;
+		return { url, isVideo: token.startsWith(FETCHER_TAG.video) };
+	} catch {
+		return null;
+	}
+}
+
 export function isProxiedMediaUrl(url: URL): boolean {
 	return (
 		url.protocol === `${MEDIA_SCHEME}:` ||

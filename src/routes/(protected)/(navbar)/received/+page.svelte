@@ -15,6 +15,7 @@
 	import { Button } from "$lib/components/ui/button";
 	import { Skeleton } from "$lib/components/ui/skeleton";
 	import { receivedArchive } from "$lib/received/archive.svelte";
+	import { archiveFavoriteAlbums } from "$lib/received/favorite-albums";
 	import { observeIntersection } from "$lib/util/observe-intersection";
 	import { topChrome } from "$lib/util/screen-chrome.svelte";
 	import { getReceivedPeople } from "./received-people.svelte";
@@ -23,6 +24,11 @@
 
 	const people = untrack(() => getReceivedPeople(data.ourProfileId));
 	const shown = $derived(people.visible);
+
+	// Opening Recibidos also copies what favorites shared in their albums.
+	$effect(() => {
+		void archiveFavoriteAlbums(untrack(() => data.ourProfileId));
+	});
 
 	// Remember the chosen sort/filters whenever they change.
 	$effect(() => people.savePrefs());
@@ -238,6 +244,9 @@
 			onclick={() => (people.ageFilterOn = !people.ageFilterOn)}
 		>
 			Edad
+		</Button>
+		<Button variant="secondary" size="sm" href="/received/albums">
+			<ImagesSquareIcon weight="fill" class="size-3.5" /> Álbumes
 		</Button>
 		{#if people.ageFilterOn}
 			<div class="flex items-center gap-1 text-xs">

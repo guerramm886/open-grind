@@ -260,6 +260,14 @@
 		confirmingCross = false;
 		const profileId = result?.profile?.profileId;
 		if (profileId === undefined) return;
+		// With nothing saved the cross loses nothing, so it can be undone.
+		if (savedCount === 0)
+			toast(`Cruzaste a ${result?.profile?.name || "este perfil"}`, {
+				action: {
+					label: "Deshacer",
+					onClick: () => swipeDecisions.uncross(profileId),
+				},
+			});
 		// Crossing someone out wipes everything of theirs kept on this device.
 		void receivedArchive.forget(conversationId);
 		// Pick the next person BEFORE crossing removes the current one.

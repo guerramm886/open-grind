@@ -60,7 +60,7 @@ export function archivableFromItem(item: ReceivedItem): ArchivableItem {
 	};
 }
 
-async function expandAlbum({
+export async function expandAlbum({
 	conversationId,
 	albumId,
 	profileId,
