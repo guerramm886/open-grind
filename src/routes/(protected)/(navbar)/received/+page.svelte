@@ -245,6 +245,20 @@
 		>
 			Edad
 		</Button>
+		<Button
+			variant="secondary"
+			size="sm"
+			aria-pressed={people.inApiOnly}
+			title="Solo quienes tienen un álbum guardado en Grindr"
+			class={{
+				"bg-primary text-primary-foreground hover:bg-primary/90":
+					people.inApiOnly,
+			}}
+			onclick={() => (people.inApiOnly = !people.inApiOnly)}
+		>
+			<span class="size-2.5 rounded-full bg-[radial-gradient(circle_at_35%_35%,#fffbe6,#fde047_40%,#eab308)] shadow-[0_0_5px_2px_rgba(253,224,71,0.95),0_0_14px_6px_rgba(250,204,21,0.5)]"></span>
+			En Grindr
+		</Button>
 		<Button variant="secondary" size="sm" href="/received/albums">
 			<ImagesSquareIcon weight="fill" class="size-3.5" /> Álbumes
 		</Button>
@@ -294,6 +308,7 @@
 					{people.ageFilterOn ||
 					people.favoritesOnly ||
 					people.onlineOnly ||
+					people.inApiOnly ||
 					people.search.trim() !== ""
 						? "Nadie coincide con la búsqueda o el filtro."
 						: "Todavía nadie te envió fotos, videos ni álbumes."}
@@ -331,7 +346,7 @@
 									<!-- Its own corner spot, clear of the name
 									pill, the distance and the favorite star. -->
 									<span
-										class="absolute top-7 right-1.5 z-2 size-3.5 rounded-full bg-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.9)] ring-2 ring-black/80"
+										class="absolute top-7 right-2 z-2 size-2.5 animate-pulse rounded-full bg-[radial-gradient(circle_at_35%_35%,#fffbe6,#fde047_40%,#eab308)] shadow-[0_0_5px_2px_rgba(253,224,71,0.95),0_0_14px_6px_rgba(250,204,21,0.5)]"
 										title="Tiene un álbum guardado en Grindr"
 									></span>
 								{/if}

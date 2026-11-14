@@ -78,6 +78,8 @@ export class ReceivedPeople {
 	sort = $state<ReceivedSort>("recent");
 	favoritesOnly = $state(false);
 	onlineOnly = $state(false);
+	/** Only people with an album still stored on Grindr (the yellow light). */
+	inApiOnly = $state(false);
 	ageFilterOn = $state(false);
 	ageMin = $state(18);
 	ageMax = $state(99);
@@ -354,6 +356,7 @@ export class ReceivedPeople {
 				sort: ReceivedSort;
 				favoritesOnly: boolean;
 				onlineOnly: boolean;
+				inApiOnly: boolean;
 				ageFilterOn: boolean;
 				ageMin: number;
 				ageMax: number;
@@ -364,6 +367,7 @@ export class ReceivedPeople {
 				this.favoritesOnly = p.favoritesOnly;
 			if (typeof p.onlineOnly === "boolean")
 				this.onlineOnly = p.onlineOnly;
+			if (typeof p.inApiOnly === "boolean") this.inApiOnly = p.inApiOnly;
 			if (typeof p.ageFilterOn === "boolean")
 				this.ageFilterOn = p.ageFilterOn;
 			if (typeof p.ageMin === "number") this.ageMin = p.ageMin;
@@ -381,6 +385,7 @@ export class ReceivedPeople {
 					sort: this.sort,
 					favoritesOnly: this.favoritesOnly,
 					onlineOnly: this.onlineOnly,
+					inApiOnly: this.inApiOnly,
 					ageFilterOn: this.ageFilterOn,
 					ageMin: this.ageMin,
 					ageMax: this.ageMax,
@@ -557,6 +562,7 @@ export class ReceivedPeople {
 		if (query !== "")
 			list = list.filter((p) => normalize(p.name).includes(query));
 		if (this.favoritesOnly) list = list.filter((p) => p.favorite);
+		if (this.inApiOnly) list = list.filter((p) => p.albumInApi);
 		if (this.onlineOnly) {
 			const now = Date.now();
 			list = list.filter((p) => p.onlineUntil > now);
