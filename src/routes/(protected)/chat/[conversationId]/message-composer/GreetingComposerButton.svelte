@@ -2,6 +2,7 @@
 	import { showErrorToast } from "$lib/api/error-toast";
 	import { getMyAlbums, shareAlbum } from "$lib/api/messaging/albums";
 	import { addMediaToDrawer } from "$lib/api/messaging/chat-media";
+	import { getAllDrawerMedia } from "$lib/api/messaging/drawer";
 	import { getConversations } from "$lib/chat/conversations-context.svelte";
 	import { greeting } from "$lib/chat/greeting.svelte";
 	import { albumDisplayName } from "$lib/components/album/album";
@@ -25,6 +26,9 @@
 	let draftWrap = $state(false);
 	let draftPhotos = $state<DrawerMedia[]>([]);
 	let addingPhoto = $state(false);
+	let showDrawer = $state(false);
+	let drawerMedia = $state<DrawerMedia[] | null>(null);
+	let loadingDrawer = $state(false);
 	let myAlbums = $state<MyAlbum[]>([]);
 	let sending = $state(false);
 	let pressTimer: ReturnType<typeof setTimeout> | null = null;
@@ -37,6 +41,7 @@
 		draftAlbumId = greeting.albumId;
 		draftWrap = greeting.phrasesWrap;
 		draftPhotos = [...greeting.photos];
+		showDrawer = false;
 		configOpen = true;
 		void getMyAlbums()
 			.then((res) => {
@@ -74,6 +79,32 @@
 		} finally {
 			addingPhoto = false;
 		}
+	}
+
+	// Pick from the photos already uploaded to your account (Grindr's media
+	// drawer) — the ones you reuse often — instead of the phone.
+	async function toggleDrawerPicker() {
+		showDrawer = !showDrawer;
+		if (showDrawer && drawerMedia === null) {
+			loadingDrawer = true;
+			try {
+				drawerMedia = await getAllDrawerMedia();
+			} catch (error) {
+				showErrorToast({
+					label: "No se pudieron cargar tus fotos subidas",
+					error,
+				});
+				drawerMedia = [];
+			} finally {
+				loadingDrawer = false;
+			}
+		}
+	}
+
+	function toggleDrawerPhoto(item: DrawerMedia) {
+		if (draftPhotos.some((photo) => photo.id === item.id))
+			draftPhotos = draftPhotos.filter((photo) => photo.id !== item.id);
+		else draftPhotos = [...draftPhotos, item];
 	}
 
 	function targetProfileId(): number | undefined {
@@ -249,13 +280,62 @@
 			<button
 				type="button"
 				disabled={addingPhoto}
-				aria-label="Agregar foto"
+				aria-label="Agregar foto del teléfono"
 				class="flex size-16 items-center justify-center rounded-lg border border-dashed border-border text-2xl text-muted-foreground disabled:opacity-50"
 				onclick={() => void addGreetingPhotos()}
 			>
 				{addingPhoto ? "…" : "+"}
 			</button>
 		</div>
+		<button
+			type="button"
+			class="mt-1 text-xs font-medium text-accent"
+			onclick={() => void toggleDrawerPicker()}
+		>
+			{showDrawer
+				? "Ocultar fotos ya subidas"
+				: "Elegir de fotos ya subidas"}
+		</button>
+		{#if showDrawer}
+			{#if loadingDrawer}
+				<p class="text-2xs text-muted-foreground">Cargando…</p>
+			{:else if (drawerMedia?.length ?? 0) === 0}
+				<p class="text-2xs text-muted-foreground">
+					No tenés fotos subidas todavía.
+				</p>
+			{:else}
+				<div
+					class="mt-1 grid max-h-40 grid-cols-3 gap-1.5 overflow-y-auto"
+				>
+					{#each drawerMedia ?? [] as item (item.id)}
+						{@const selected = draftPhotos.some(
+							(photo) => photo.id === item.id,
+						)}
+						<button
+							type="button"
+							class={[
+								"relative overflow-hidden rounded-md",
+								{ "ring-2 ring-accent": selected },
+							]}
+							onclick={() => toggleDrawerPhoto(item)}
+						>
+							<img
+								src={proxyMediaUrl(item.url)}
+								alt=""
+								class="aspect-square w-full object-cover"
+							/>
+							{#if selected}
+								<span
+									class="absolute top-0.5 right-0.5 flex size-4 items-center justify-center rounded-full bg-accent text-2xs text-accent-foreground"
+								>
+									✓
+								</span>
+							{/if}
+						</button>
+					{/each}
+				</div>
+			{/if}
+		{/if}
 
 		<div class="mt-3 flex justify-end gap-2">
 			<Button
