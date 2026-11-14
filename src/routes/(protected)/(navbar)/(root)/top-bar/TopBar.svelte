@@ -7,7 +7,6 @@
 	import { topChrome } from "$lib/util/screen-chrome.svelte";
 	import GridFilters from "../GridFilters.svelte";
 	import LocationChange from "../LocationChange.svelte";
-	import ChooseDeckButton from "./ChooseDeckButton.svelte";
 	import QuickFilters from "./QuickFilters.svelte";
 
 	let openFilters = $state({ all: false, age: false, position: false });
@@ -23,7 +22,6 @@
 	{@attach topChrome}
 >
 	<div class="flex items-start gap-0.5 p-4 pt-0">
-		<ChooseDeckButton />
 		<button
 			type="button"
 			aria-label="Buscar perfiles"

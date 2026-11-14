@@ -1,4 +1,5 @@
 <script lang="ts">
+	import ImagesIcon from "phosphor-svelte/lib/ImagesIcon";
 	import StarIcon from "phosphor-svelte/lib/StarIcon";
 
 	import QuickFilterButton from "$lib/components/filters/QuickFilterButton.svelte";
@@ -57,6 +58,13 @@
 	{@attach !inert && topChrome}
 >
 	<div class="contents" inert={locked}>
+		<a
+			href="/received"
+			class="inline-flex h-9 shrink-0 items-center gap-1 rounded-full bg-secondary px-3 text-sm font-medium hover:bg-input/30"
+		>
+			<ImagesIcon weight="fill" class="size-4 text-accent" />
+			Recibidos
+		</a>
 		<input
 			type="search"
 			aria-label="Buscar chats"

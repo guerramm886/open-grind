@@ -1,6 +1,4 @@
 <script lang="ts">
-	import ImagesIcon from "phosphor-svelte/lib/ImagesIcon";
-
 	import ProgressiveBlur from "$lib/components/shared/ProgressiveBlur.svelte";
 	import { topChrome } from "$lib/util/screen-chrome.svelte";
 	import ViewsGrid from "./views/ViewsGrid.svelte";
@@ -19,12 +17,5 @@
 	{@attach topChrome}
 >
 	<h1 class="text-base font-semibold">Visitas</h1>
-	<a
-		href="/received"
-		class="ms-auto inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium hover:bg-input/30"
-	>
-		<ImagesIcon weight="fill" class="size-4 text-accent" />
-		Recibidos
-	</a>
 </ProgressiveBlur>
 <ViewsGrid ourProfileId={data.ourProfileId} />

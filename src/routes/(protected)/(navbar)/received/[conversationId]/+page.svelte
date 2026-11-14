@@ -3,8 +3,14 @@
 	import { page } from "$app/state";
 	import ArrowLeftIcon from "phosphor-svelte/lib/ArrowLeftIcon";
 	import DownloadSimpleIcon from "phosphor-svelte/lib/DownloadSimpleIcon";
+	import StarIcon from "phosphor-svelte/lib/StarIcon";
 	import XIcon from "phosphor-svelte/lib/XIcon";
 	import { untrack } from "svelte";
+
+	import {
+		addFavoriteUser,
+		removeFavoriteUser,
+	} from "$lib/api/users/favorites";
 
 	import DistanceFormatted from "$lib/components/profile/DistanceFormatted.svelte";
 	import UserAvatar from "$lib/components/profile/UserAvatar.svelte";
@@ -175,6 +181,36 @@
 		else void goto("/received");
 	}
 
+	// Favorite state (optimistic), seeded from the scanned person.
+	let favoriteOverride = $state<boolean | null>(null);
+	const isFavorite = $derived(
+		favoriteOverride ??
+			getReceivedPeople(data.ourProfileId).visible.find(
+				(person) => person.conversationId === conversationId,
+			)?.favorite ??
+			false,
+	);
+	let favoriting = $state(false);
+
+	// The star only toggles favorite — unlike the cross, it does NOT advance to
+	// the next person. You move on by swiping.
+	async function toggleFavorite() {
+		const profileId = result?.profile?.profileId;
+		if (profileId === undefined || favoriting) return;
+		const next = !isFavorite;
+		favoriting = true;
+		favoriteOverride = next;
+		try {
+			if (next) await addFavoriteUser({ profileId });
+			else await removeFavoriteUser({ profileId });
+		} catch (error) {
+			console.error("[received] favorite failed", error);
+			favoriteOverride = !next;
+		} finally {
+			favoriting = false;
+		}
+	}
+
 	let viewIndex = $state(-1);
 
 	// Swiping sideways on the photo GRID jumps to the adjacent person, landing
@@ -288,6 +324,20 @@
 		{#if savedCount > 0}
 			<span class="text-2xs text-green-400">{savedCount} guardados</span>
 		{/if}
+		<button
+			type="button"
+			aria-label={isFavorite ? "Quitar de favoritos" : "Agregar a favoritos"}
+			aria-checked={isFavorite}
+			role="switch"
+			disabled={!result?.profile || favoriting}
+			class="flex size-9 shrink-0 items-center justify-center rounded-full border-2 border-yellow-500/70 bg-card/70 transition active:scale-90 disabled:opacity-40"
+			onclick={() => void toggleFavorite()}
+		>
+			<StarIcon
+				weight={isFavorite ? "fill" : "bold"}
+				class={["size-5", isFavorite ? "text-yellow-400" : "text-white"]}
+			/>
+		</button>
 		<button
 			type="button"
 			aria-label="Cruzar y volver"
