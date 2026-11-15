@@ -12,7 +12,7 @@ const KEY_STORAGE = "gemini-api-key-v1";
 const MODEL = "gemini-flash-lite-latest";
 // How many photos go in one Gemini request. Small batches stay within the free
 // tier's payload limits and let partial results come back sooner.
-const BATCH = 6;
+export const GEMINI_BATCH = 6;
 
 function endpoint(key: string): string {
 	return `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${encodeURIComponent(key)}`;
@@ -80,58 +80,77 @@ function parseMatchNumbers(text: string): number[] {
 
 export type VisionCandidate = { id: number; mediaHash: string };
 
+export type BatchResult = {
+	/** Ids from the batch whose photo matches the query. */
+	matches: number[];
+	/** Some photo couldn't be fetched or the request failed. */
+	failed: boolean;
+	/** The key was rejected: no point in sending more batches. */
+	fatal: boolean;
+};
+
+function sleep(ms: number): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 /**
- * Ask Gemini which candidates' photos match `query`. Returns the matching ids.
- * `shouldStop` lets a newer search cancel this one between batches.
+ * Ask Gemini which photos of one batch (up to GEMINI_BATCH) match `query`.
+ * Waits and retries when the free tier's rate limit is hit; `shouldStop` lets
+ * the caller abandon that wait.
  */
-export async function geminiMatchPhotos({
+export async function geminiMatchBatch({
 	query,
-	candidates,
-	onProgress,
+	batch,
 	shouldStop,
 }: {
 	query: string;
-	candidates: VisionCandidate[];
-	onProgress?: (done: number, total: number) => void;
+	batch: VisionCandidate[];
 	shouldStop?: () => boolean;
-}): Promise<{ matches: Set<number>; failed: boolean }> {
-	const matches = new Set<number>();
-	let failed = false;
-	if (!gemini.configured || query.trim() === "")
-		return { matches, failed };
-
-	let done = 0;
-	for (let start = 0; start < candidates.length; start += BATCH) {
-		if (shouldStop?.()) break;
-		const batch = candidates.slice(start, start + BATCH);
-		const order: number[] = [];
-		const parts: unknown[] = [
-			{
-				text:
-					`Te muestro ${batch.length} fotos de perfil, numeradas del 1 al ${batch.length} en el orden en que aparecen. ` +
-					`Devolvé SOLO un array JSON con los números de las fotos que coincidan con esta descripción: "${query}". ` +
-					`Considerá lo que se ve en la imagen (personas, apariencia, rasgos, lugar, objetos). Si ninguna coincide, devolvé []. No expliques nada.`,
-			},
-		];
-		for (const candidate of batch) {
-			const data = await photoBase64(candidate.mediaHash);
-			if (!data) continue;
-			parts.push({ inlineData: { mimeType: "image/jpeg", data } });
-			order.push(candidate.id);
+}): Promise<BatchResult> {
+	const result: BatchResult = { matches: [], failed: false, fatal: false };
+	if (!gemini.configured) return { ...result, failed: true, fatal: true };
+	const order: number[] = [];
+	const images: unknown[] = [];
+	for (const candidate of batch) {
+		if (shouldStop?.()) return result;
+		const data = await photoBase64(candidate.mediaHash);
+		if (!data) {
+			result.failed = true;
+			continue;
 		}
-		done += batch.length;
-		onProgress?.(Math.min(done, candidates.length), candidates.length);
-		if (order.length === 0) continue;
+		images.push({ inlineData: { mimeType: "image/jpeg", data } });
+		order.push(candidate.id);
+	}
+	if (order.length === 0) return result;
+	const parts: unknown[] = [
+		{
+			text:
+				`Te muestro ${order.length} fotos de perfil, numeradas del 1 al ${order.length} en el orden en que aparecen. ` +
+				`Devolvé SOLO un array JSON con los números de las fotos que coincidan con esta descripción: "${query}". ` +
+				`Considerá lo que se ve en la imagen (personas, apariencia, rasgos, lugar, objetos). Si ninguna coincide, devolvé []. No expliques nada.`,
+		},
+		...images,
+	];
+	const body = JSON.stringify({ contents: [{ parts }] });
+	for (let attempt = 0; attempt < 4; attempt += 1) {
+		if (shouldStop?.()) return result;
 		try {
 			const response = await fetch(endpoint(gemini.apiKey), {
 				method: "POST",
 				headers: { "content-type": "application/json" },
-				body: JSON.stringify({ contents: [{ parts }] }),
+				body,
 			});
+			if (response.status === 429 || response.status === 503) {
+				// Rate limited / overloaded: the free tier recovers within a
+				// minute, so wait instead of losing the batch.
+				await sleep(20000);
+				continue;
+			}
 			if (!response.ok) {
 				console.error("[gemini] HTTP", response.status);
-				failed = true;
-				continue;
+				result.failed = true;
+				result.fatal = [400, 401, 403].includes(response.status);
+				return result;
 			}
 			const json: unknown = await response.json();
 			const text =
@@ -144,12 +163,15 @@ export async function geminiMatchPhotos({
 				)?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
 			for (const number of parseMatchNumbers(text)) {
 				const id = order[number - 1];
-				if (id !== undefined) matches.add(id);
+				if (id !== undefined) result.matches.push(id);
 			}
+			return result;
 		} catch (error) {
 			console.error("[gemini] request failed", error);
-			failed = true;
+			// Likely offline for a moment (e.g. the phone switching networks).
+			await sleep(5000);
 		}
 	}
-	return { matches, failed };
+	result.failed = true;
+	return result;
 }

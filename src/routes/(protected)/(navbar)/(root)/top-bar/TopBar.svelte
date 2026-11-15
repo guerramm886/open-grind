@@ -5,9 +5,11 @@
 	import ProgressiveBlur from "$lib/components/shared/ProgressiveBlur.svelte";
 	import { gridState } from "$lib/grid/grid-state.svelte";
 	import { gemini } from "$lib/search/gemini-search.svelte";
+	import { visionQueue } from "$lib/search/vision-queue.svelte";
 	import { topChrome } from "$lib/util/screen-chrome.svelte";
 	import GridFilters from "../GridFilters.svelte";
 	import LocationChange from "../LocationChange.svelte";
+	import PhotoSearchQueue from "./PhotoSearchQueue.svelte";
 	import QuickFilters from "./QuickFilters.svelte";
 
 	let openFilters = $state({ all: false, age: false, position: false });
@@ -27,9 +29,11 @@
 			type="button"
 			aria-label="Buscar perfiles"
 			aria-expanded={searchOpen}
-			class="rounded-full bg-secondary p-2.5"
+			class="relative rounded-full bg-secondary p-2.5"
 			onclick={() => (searchOpen = !searchOpen)}
-			><MagnifyingGlassIcon class="size-5" /></button
+			><MagnifyingGlassIcon class="size-5" />{#if visionQueue.pendingCount > 0}<span
+					class="absolute top-0.5 right-0.5 size-3 animate-spin rounded-full border-2 border-muted-foreground/40 border-t-accent"
+				></span>{/if}</button
 		>
 		<div
 			data-scroll-intent="x"
@@ -50,25 +54,7 @@
 				class="w-full rounded-xl bg-card px-4 py-3 text-foreground"
 			/>
 			{#if gemini.configured}
-				<button
-					type="button"
-					disabled={gridState.searchingVision ||
-						gridState.searchText.trim() === ""}
-					class="self-start rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-50"
-					onclick={() => void gridState.searchPhotosWithGemini()}
-				>
-					{#if gridState.searchingVision}
-						Mirando fotos… {gridState.visionProgress?.done ??
-							0}/{gridState.visionProgress?.total ?? 0}
-					{:else}
-						🔍 Buscar en fotos (20 km)
-					{/if}
-				</button>
-				{#if gridState.visionSearchErrors}
-					<span class="text-2xs text-amber-400">
-						Algunas fotos no se pudieron analizar.
-					</span>
-				{/if}
+				<PhotoSearchQueue />
 			{:else}
 				<a href="/settings/app" class="self-start text-2xs text-accent underline">
 					Activá la búsqueda en fotos (Gemini) en Configuración

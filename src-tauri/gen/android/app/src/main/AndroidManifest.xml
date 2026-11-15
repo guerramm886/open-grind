@@ -67,6 +67,12 @@
 			android:stopWithTask="true"
 			android:foregroundServiceType="dataSync" />
 
+		<service
+			android:name="org.opengrind.search.SearchKeepAliveService"
+			android:exported="false"
+			android:stopWithTask="true"
+			android:foregroundServiceType="dataSync" />
+
 		<receiver
 			android:name="org.opengrind.update.InstallResultReceiver"
 			android:exported="false" />

@@ -25,6 +25,7 @@ mod predecessor;
 #[cfg(any(target_os = "android", test))]
 mod push_poll;
 mod scroll_phase;
+mod search_keepalive;
 mod state;
 mod storage;
 mod upload;
@@ -178,6 +179,7 @@ pub fn run() {
         .plugin(api::facebook_oauth::plugin())
         .plugin(api::update::plugin())
         .plugin(app_settings::plugin())
+        .plugin(search_keepalive::plugin())
         .plugin(media_picker::plugin())
         .manage(AppState {
             client: OnceLock::new(),
@@ -258,6 +260,8 @@ pub fn run() {
             api::update::commands::updater_open_install_permission_settings,
             api::update::commands::updater_discard,
             app_settings::open_app_settings,
+            search_keepalive::search_keepalive_hold,
+            search_keepalive::search_keepalive_release,
             media_picker::pick_android_media,
             appearance::backdrop_filter_renders,
             appearance::webview_engine,
