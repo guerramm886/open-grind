@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { bottomChrome } from "$lib/util/screen-chrome.svelte";
 	import OpenConversationButton from "./OpenConversationButton.svelte";
+	import ProfileGreetingButton from "./ProfileGreetingButton.svelte";
 
 	let {
 		ourProfileId,
@@ -22,6 +23,7 @@
 			class="flex flex-row items-center gap-2 rounded-full bg-muted p-2 shadow-xl"
 		>
 			<OpenConversationButton {profileId} {ourProfileId} />
+			<ProfileGreetingButton {profileId} />
 		</nav>
 	</div>
 {/if}

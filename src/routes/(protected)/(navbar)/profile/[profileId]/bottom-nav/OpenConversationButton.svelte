@@ -17,5 +17,5 @@
 	class="flex-1 justify-start bg-input/20!"
 	href="/chat/{conversationId}"
 >
-	<span class="font-normal text-muted-foreground">Write a message...</span>
+	<span class="font-normal text-muted-foreground">Escribí un mensaje…</span>
 </Button>
