@@ -23,39 +23,150 @@
 	import { Button } from "$lib/components/ui/button";
 	import { Skeleton } from "$lib/components/ui/skeleton";
 	import { swipeDecisions } from "$lib/grid/swipe-decisions.svelte";
+	import { SexualPosition } from "$lib/model/users/profiles";
 	import { proxyMediaUrl } from "$lib/util/media";
 	import { topChrome } from "$lib/util/screen-chrome.svelte";
 
 	let posts = $state<RightNowPost[]>([]);
 	let loading = $state(true);
 	let error = $state(false);
-	let sort = $state<RightNowSort>("DISTANCE");
-	let hostingOnly = $state(false);
 	let favorites = $state<Record<number, boolean>>({});
 
-	async function load(currentSort: RightNowSort, currentHosting: boolean) {
+	// Filters are remembered between visits.
+	const FILTERS_STORAGE = "right-now-filters-v1";
+	type Hosting = "any" | "yes" | "no";
+	type Filters = {
+		sort: RightNowSort;
+		hosting: Hosting;
+		positions: number[];
+		ageMin: number | null;
+		ageMax: number | null;
+		favoritesOnly: boolean;
+		withPhotoOnly: boolean;
+	};
+	const DEFAULT_FILTERS: Filters = {
+		sort: "DISTANCE",
+		hosting: "any",
+		positions: [],
+		ageMin: null,
+		ageMax: null,
+		favoritesOnly: false,
+		withPhotoOnly: false,
+	};
+	function loadFilters(): Filters {
+		try {
+			const saved: unknown = JSON.parse(
+				localStorage.getItem(FILTERS_STORAGE) ?? "{}",
+			);
+			return { ...DEFAULT_FILTERS, ...(saved as Partial<Filters>) };
+		} catch {
+			return { ...DEFAULT_FILTERS };
+		}
+	}
+	const saved = loadFilters();
+	let sort = $state<RightNowSort>(saved.sort);
+	let hosting = $state<Hosting>(saved.hosting);
+	let positions = $state<number[]>(saved.positions);
+	let ageMin = $state<number | null>(saved.ageMin);
+	let ageMax = $state<number | null>(saved.ageMax);
+	let favoritesOnly = $state(saved.favoritesOnly);
+	let withPhotoOnly = $state(saved.withPhotoOnly);
+	let openPanel = $state<"position" | "age" | null>(null);
+
+	const POSITION_CHOICES = [
+		{ id: SexualPosition.Top, label: "Activo" },
+		{ id: SexualPosition.VersTop, label: "Vers activo" },
+		{ id: SexualPosition.Versatile, label: "Versátil" },
+		{ id: SexualPosition.VersBottom, label: "Vers pasivo" },
+		{ id: SexualPosition.Bottom, label: "Pasivo" },
+		{ id: SexualPosition.Side, label: "Side" },
+		{ id: -1, label: "Sin especificar" },
+	];
+
+	function togglePosition(id: number) {
+		positions = positions.includes(id)
+			? positions.filter((value) => value !== id)
+			: [...positions, id];
+	}
+
+	function parseAge(value: string): number | null {
+		const age = Math.round(Number(value));
+		return Number.isFinite(age) && age >= 18 && age <= 99 ? age : null;
+	}
+
+	const activeFilters = $derived(
+		(hosting !== "any" ? 1 : 0) +
+			(positions.length > 0 ? 1 : 0) +
+			(ageMin !== null || ageMax !== null ? 1 : 0) +
+			(favoritesOnly ? 1 : 0) +
+			(withPhotoOnly ? 1 : 0),
+	);
+
+	function clearFilters() {
+		hosting = "any";
+		positions = [];
+		ageMin = null;
+		ageMax = null;
+		favoritesOnly = false;
+		withPhotoOnly = false;
+		openPanel = null;
+	}
+
+	// Only the latest request may fill the list (filters can change mid-load).
+	let loadToken = 0;
+	async function load() {
+		const token = ++loadToken;
 		loading = true;
 		error = false;
 		try {
-			posts = await getRightNowFeed({
-				sort: currentSort,
-				hosting: currentHosting || undefined,
+			const result = await getRightNowFeed({
+				sort,
+				hosting: hosting === "any" ? undefined : hosting === "yes",
+				positions,
+				ageMin: ageMin ?? undefined,
+				ageMax: ageMax ?? undefined,
 			});
+			if (token !== loadToken) return;
+			posts = result;
 		} catch (err) {
+			if (token !== loadToken) return;
 			console.error(err);
 			error = true;
 		} finally {
-			loading = false;
+			if (token === loadToken) loading = false;
 		}
 	}
 
-	// Reload whenever the sort or hosting filter changes.
+	// Reload whenever a filter Grindr applies changes, and remember them all.
 	$effect(() => {
-		void load(sort, hostingOnly);
+		const filters: Filters = {
+			sort,
+			hosting,
+			positions,
+			ageMin,
+			ageMax,
+			favoritesOnly,
+			withPhotoOnly,
+		};
+		try {
+			localStorage.setItem(FILTERS_STORAGE, JSON.stringify(filters));
+		} catch {
+			/* storage unavailable */
+		}
+	});
+	$effect(() => {
+		// Touch every server-side filter so the effect re-runs on each.
+		void [sort, hosting, positions, ageMin, ageMax];
+		void load();
 	});
 
 	const visible = $derived(
-		posts.filter((post) => !swipeDecisions.isNope(post.profileId)),
+		posts.filter(
+			(post) =>
+				!swipeDecisions.isNope(post.profileId) &&
+				(!favoritesOnly || isFavorite(post)) &&
+				(!withPhotoOnly || photoOf(post) !== null),
+		),
 	);
 
 	function photoOf(post: RightNowPost): string | null {
@@ -83,7 +194,9 @@
 	// eslint-disable-next-line svelte/prefer-svelte-reactivity -- once-per-session guard, not reactive
 	const favoriteChecked = new Set<number>();
 	$effect(() => {
-		const pending = visible
+		// All loaded posts, not just the visible ones: the favorites filter
+		// needs to know about the ones it is hiding.
+		const pending = posts
 			.map((post) => post.profileId)
 			.filter((id) => !favoriteChecked.has(id));
 		if (pending.length === 0) return;
@@ -105,6 +218,8 @@
 		};
 		for (let i = 0; i < 3; i += 1) void worker();
 	});
+
+	const LIT = "bg-primary text-primary-foreground hover:bg-primary/90";
 
 	function cross(post: RightNowPost) {
 		swipeDecisions.cross(post.profileId);
@@ -138,7 +253,7 @@
 			type="button"
 			aria-label="Refrescar"
 			class="ms-auto flex size-8 items-center justify-center rounded-full hover:bg-input/30"
-			onclick={() => void load(sort, hostingOnly)}
+			onclick={() => void load()}
 		>
 			<ArrowClockwiseIcon class="size-4" />
 		</button>
@@ -175,16 +290,120 @@
 		<Button
 			variant="secondary"
 			size="sm"
-			aria-pressed={hostingOnly}
-			class={{
-				"bg-primary text-primary-foreground hover:bg-primary/90":
-					hostingOnly,
-			}}
-			onclick={() => (hostingOnly = !hostingOnly)}
+			aria-label="Hospedaje: {hosting === 'yes'
+				? 'solo los que hospedan'
+				: hosting === 'no'
+					? 'solo los que no hospedan'
+					: 'todos'}"
+			class={hosting !== "any" ? LIT : ""}
+			onclick={() =>
+				(hosting =
+					hosting === "any" ? "yes" : hosting === "yes" ? "no" : "any")}
 		>
-			<HouseIcon weight="fill" class="size-3.5" /> Hospedan
+			<HouseIcon weight="fill" class="size-3.5" />
+			{hosting === "no" ? "No hospedan" : "Hospedan"}
 		</Button>
+		<Button
+			variant="secondary"
+			size="sm"
+			aria-expanded={openPanel === "position"}
+			class={positions.length > 0 ? LIT : ""}
+			onclick={() =>
+				(openPanel = openPanel === "position" ? null : "position")}
+		>
+			Posición{positions.length > 0 ? ` (${positions.length})` : ""}
+		</Button>
+		<Button
+			variant="secondary"
+			size="sm"
+			aria-expanded={openPanel === "age"}
+			class={ageMin !== null || ageMax !== null ? LIT : ""}
+			onclick={() => (openPanel = openPanel === "age" ? null : "age")}
+		>
+			{ageMin !== null || ageMax !== null
+				? `${ageMin ?? 18}–${ageMax ?? 99} años`
+				: "Edad"}
+		</Button>
+		<Button
+			variant="secondary"
+			size="sm"
+			aria-pressed={favoritesOnly}
+			class={favoritesOnly ? LIT : ""}
+			onclick={() => (favoritesOnly = !favoritesOnly)}
+		>
+			<StarIcon weight="fill" class="size-3.5" /> Favoritos
+		</Button>
+		<Button
+			variant="secondary"
+			size="sm"
+			aria-pressed={withPhotoOnly}
+			class={withPhotoOnly ? LIT : ""}
+			onclick={() => (withPhotoOnly = !withPhotoOnly)}
+		>
+			Con foto
+		</Button>
+		{#if activeFilters > 0}
+			<button
+				type="button"
+				class="px-1 text-xs text-muted-foreground underline"
+				onclick={clearFilters}
+			>
+				Limpiar
+			</button>
+		{/if}
 	</div>
+	{#if openPanel === "position"}
+		<div class="flex flex-wrap gap-1.5 rounded-xl bg-card p-2">
+			{#each POSITION_CHOICES as choice (choice.id)}
+				{@const on = positions.includes(choice.id)}
+				<button
+					type="button"
+					aria-pressed={on}
+					class={[
+						"rounded-full border px-2.5 py-1 text-xs font-medium",
+						on
+							? "border-primary bg-primary text-primary-foreground"
+							: "text-muted-foreground",
+					]}
+					onclick={() => togglePosition(choice.id)}
+				>
+					{choice.label}
+				</button>
+			{/each}
+		</div>
+	{:else if openPanel === "age"}
+		<div class="flex items-center gap-2 rounded-xl bg-card p-2 text-xs">
+			<label class="flex items-center gap-1">
+				Desde
+				<input
+					type="number"
+					inputmode="numeric"
+					min="18"
+					max="99"
+					placeholder="18"
+					value={ageMin ?? ""}
+					class="w-14 rounded-lg bg-input/30 px-2 py-1 text-foreground"
+					onchange={(event) =>
+						(ageMin = parseAge(event.currentTarget.value))}
+				/>
+			</label>
+			<label class="flex items-center gap-1">
+				hasta
+				<input
+					type="number"
+					inputmode="numeric"
+					min="18"
+					max="99"
+					placeholder="99"
+					value={ageMax ?? ""}
+					class="w-14 rounded-lg bg-input/30 px-2 py-1 text-foreground"
+					onchange={(event) =>
+						(ageMax = parseAge(event.currentTarget.value))}
+				/>
+			</label>
+			<span class="text-muted-foreground">años</span>
+		</div>
+	{/if}
 </ProgressiveBlur>
 
 <main class="screen-nav-host">
@@ -202,7 +421,7 @@
 				<p class="py-8 text-center text-sm text-muted-foreground">
 					No se pudo cargar Right Now. <button
 						class="underline"
-						onclick={() => void load(sort, hostingOnly)}>Reintentar</button
+						onclick={() => void load()}>Reintentar</button
 					>
 				</p>
 			{:else if visible.length === 0}

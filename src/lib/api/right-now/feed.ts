@@ -44,10 +44,24 @@ export type RightNowSort = "DISTANCE" | "NEWEST";
 export async function getRightNowFeed({
 	sort = "DISTANCE",
 	hosting,
-}: { sort?: RightNowSort; hosting?: boolean } = {}): Promise<RightNowPost[]> {
+	positions,
+	ageMin,
+	ageMax,
+}: {
+	sort?: RightNowSort;
+	hosting?: boolean;
+	/** Sexual position ids; -1 means "not specified". Several = any of them. */
+	positions?: number[];
+	ageMin?: number;
+	ageMax?: number;
+} = {}): Promise<RightNowPost[]> {
 	const params = new URLSearchParams();
 	params.set("sort", sort);
 	if (hosting !== undefined) params.set("hosting", String(hosting));
+	if (positions && positions.length > 0)
+		params.set("sexualPositions", positions.join(","));
+	if (ageMin !== undefined) params.set("ageMin", String(ageMin));
+	if (ageMax !== undefined) params.set("ageMax", String(ageMax));
 	const feed = await fetchRest(
 		`/v5/rightnow/feed?${params.toString()}`,
 	).then((res) => res.jsonParsed(feedSchema));
