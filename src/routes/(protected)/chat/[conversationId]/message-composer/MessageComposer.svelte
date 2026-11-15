@@ -2,9 +2,12 @@
 	import { onNavigate } from "$app/navigation";
 	import { onDestroy, tick, untrack } from "svelte";
 
+	import { toast } from "svelte-sonner";
+
 	import { showErrorToast } from "$lib/api/error-toast";
 	import { getConversations } from "$lib/chat/conversations-context.svelte";
 	import { greeting } from "$lib/chat/greeting.svelte";
+	import { usedPhrases } from "$lib/chat/used-phrases.svelte";
 	import { draftFromMessage } from "$lib/model/messaging/messages";
 	import { dismissOnBackGesture } from "$lib/platform/back-gesture-event.svelte";
 	import { below } from "$lib/util/breakpoints.svelte";
@@ -66,10 +69,50 @@
 		}
 	}
 
+	// Phrases already sent in this chat: remembered on the device, plus any
+	// loaded message of ours with that exact text (e.g. sent before this
+	// feature existed, or typed by hand).
+	const conversationState = getConversationState();
+	const sentTexts = $derived.by(() => {
+		const conversation = conversationState();
+		const texts = new Set<string>();
+		for (const message of conversation.messages) {
+			if (message.senderId !== conversation.ourProfileId) continue;
+			const text = (message.body as { text?: unknown } | null)?.text;
+			if (typeof text === "string") texts.add(text.trim());
+		}
+		return texts;
+	});
+	function phraseUsed(phrase: string): boolean {
+		return (
+			usedPhrases.has(conversationId, phrase) || sentTexts.has(phrase.trim())
+		);
+	}
+	// Unused phrases first, so the ones still to send are at hand.
+	const orderedPhrases = $derived(
+		[...greeting.phrases].sort(
+			(a, b) => Number(phraseUsed(a)) - Number(phraseUsed(b)),
+		),
+	);
+
+	function tapPhrase(phrase: string) {
+		if (!phraseUsed(phrase)) {
+			void sendPhrase(phrase);
+			return;
+		}
+		toast("Esa frase ya la mandaste en este chat.", {
+			action: {
+				label: "Enviar igual",
+				onClick: () => void sendPhrase(phrase),
+			},
+		});
+	}
+
 	async function sendPhrase(text: string) {
 		if (disabled) return;
 		try {
 			await onSend([draftFromMessage({ type: "Text", body: { text } })]);
+			usedPhrases.mark(conversationId, text);
 		} catch (error) {
 			console.error(error);
 			showErrorToast({ label: "Failed to send message", error });
@@ -166,15 +209,20 @@
 				},
 			]}
 		>
-			{#each greeting.phrases as phrase (phrase)}
+			{#each orderedPhrases as phrase (phrase)}
+				{@const used = phraseUsed(phrase)}
 				<button
 					type="button"
 					{disabled}
+					aria-label={used ? `${phrase} (ya enviada)` : phrase}
 					class={[
 						"rounded-full bg-secondary px-3 py-1 text-sm text-foreground disabled:opacity-50",
-						{ "shrink-0": !greeting.phrasesWrap },
+						{
+							"shrink-0": !greeting.phrasesWrap,
+							"line-through opacity-50": used,
+						},
 					]}
-					onclick={() => void sendPhrase(phrase)}
+					onclick={() => tapPhrase(phrase)}
 				>
 					{phrase}
 				</button>
