@@ -2,6 +2,7 @@
 	import { onMount } from "svelte";
 
 	import CommandCenter from "$lib/components/command-center/CommandCenter.svelte";
+	import GeminiBubble from "$lib/components/gemini/GeminiBubble.svelte";
 	import MediaDropOverlay from "$lib/components/shared/MediaDropOverlay.svelte";
 	import { restoreStrandedLocation } from "$lib/entitlements/honduras-hold";
 	import { listenForKeyboardMedia } from "$lib/platform/keyboard-media.svelte";
@@ -29,3 +30,4 @@
 {@render children()}
 <CommandCenter />
 <MediaDropOverlay />
+<GeminiBubble />

@@ -13,8 +13,10 @@ const MODEL = "gemini-flash-lite-latest";
 // How many photos go in one Gemini request. Small batches stay within the free
 // tier's payload limits and let partial results come back sooner.
 export const GEMINI_BATCH = 6;
+// Thumbnails are small, so more of them fit in one request.
+export const GEMINI_THUMB_BATCH = 12;
 
-function endpoint(key: string): string {
+export function geminiEndpoint(key: string): string {
 	return `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${encodeURIComponent(key)}`;
 }
 
@@ -48,8 +50,14 @@ export const gemini = new GeminiSettings();
 
 // Fetch a profile photo and return it base64-encoded. On Tauri the webview can't
 // fetch Grindr media directly (mixed content), so the native command does it.
-async function photoBase64(mediaHash: string): Promise<string | null> {
-	const url = `https://cdns.grindr.com/images/profile/1024x1024/${mediaHash}`;
+async function photoBase64(
+	mediaHash: string,
+	thumb = false,
+): Promise<string | null> {
+	// The thumbnail is what the grid shows: much lighter, enough for an overview.
+	const url = thumb
+		? `https://cdns.grindr.com/images/thumb/320x320/${mediaHash}`
+		: `https://cdns.grindr.com/images/profile/1024x1024/${mediaHash}`;
 	try {
 		if (isTauri()) {
 			return await invoke<string>("fetch_media_b64", {
@@ -101,10 +109,13 @@ function sleep(ms: number): Promise<void> {
 export async function geminiMatchBatch({
 	query,
 	batch,
+	thumbs = false,
 	shouldStop,
 }: {
 	query: string;
 	batch: VisionCandidate[];
+	/** Look at the grid thumbnails instead of the full-size photo. */
+	thumbs?: boolean;
 	shouldStop?: () => boolean;
 }): Promise<BatchResult> {
 	const result: BatchResult = { matches: [], failed: false, fatal: false };
@@ -113,7 +124,7 @@ export async function geminiMatchBatch({
 	const images: unknown[] = [];
 	for (const candidate of batch) {
 		if (shouldStop?.()) return result;
-		const data = await photoBase64(candidate.mediaHash);
+		const data = await photoBase64(candidate.mediaHash, thumbs);
 		if (!data) {
 			result.failed = true;
 			continue;
@@ -135,7 +146,7 @@ export async function geminiMatchBatch({
 	for (let attempt = 0; attempt < 4; attempt += 1) {
 		if (shouldStop?.()) return result;
 		try {
-			const response = await fetch(endpoint(gemini.apiKey), {
+			const response = await fetch(geminiEndpoint(gemini.apiKey), {
 				method: "POST",
 				headers: { "content-type": "application/json" },
 				body,

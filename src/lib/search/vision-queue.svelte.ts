@@ -7,6 +7,7 @@ import { toast } from "svelte-sonner";
 
 import {
 	GEMINI_BATCH,
+	GEMINI_THUMB_BATCH,
 	geminiMatchBatch,
 	type VisionCandidate,
 } from "./gemini-search.svelte";
@@ -29,6 +30,8 @@ export type VisionJob = {
 	/** Some photos couldn't be analysed. */
 	failed: boolean;
 	createdAt: number;
+	/** Overview search over the grid thumbnails (asked from the bubble). */
+	thumbs?: boolean;
 };
 
 function queryKey(query: string): string {
@@ -96,9 +99,11 @@ class VisionQueue {
 	enqueue({
 		query,
 		candidates,
+		thumbs = false,
 	}: {
 		query: string;
 		candidates: VisionCandidate[];
+		thumbs?: boolean;
 	}): "added" | "duplicate" | "nothing" {
 		const text = query.trim();
 		if (text === "") return "nothing";
@@ -115,6 +120,7 @@ class VisionQueue {
 			matches: [],
 			failed: false,
 			createdAt: Date.now(),
+			thumbs,
 		};
 		// A new search for the same text replaces its old result.
 		this.#set([
@@ -194,10 +200,14 @@ class VisionQueue {
 					`«${job.query}» · ${job.done}/${job.total}` +
 					(waiting > 0 ? ` · ${waiting} en cola` : ""),
 			});
-			const batch = job.candidates.slice(job.done, job.done + GEMINI_BATCH);
+			const batch = job.candidates.slice(
+				job.done,
+				job.done + (job.thumbs ? GEMINI_THUMB_BATCH : GEMINI_BATCH),
+			);
 			const result = await geminiMatchBatch({
 				query: job.query,
 				batch,
+				thumbs: job.thumbs ?? false,
 				shouldStop: () => !this.#get(id),
 			});
 			const current = this.#get(id);

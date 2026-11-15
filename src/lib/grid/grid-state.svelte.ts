@@ -335,18 +335,28 @@ class GridState {
 	// Queue a search by what's in the profile photos, limited to a radius
 	// (metres), using the user's Gemini key. It runs in the background; its
 	// matches show up in the grid whenever the search text equals its query.
-	queuePhotoSearch(radiusMetres = 20000): "added" | "duplicate" | "nothing" {
+	queuePhotoSearch({
+		query = this.searchText,
+		radiusMetres = 20000,
+		thumbs = false,
+	}: {
+		query?: string;
+		/** null = every loaded profile, whatever the distance. */
+		radiusMetres?: number | null;
+		thumbs?: boolean;
+	} = {}): "added" | "duplicate" | "nothing" {
 		const candidates: VisionCandidate[] = dedupeGridProfiles(this.items)
 			.map((profile) =>
 				profile.type === "rendered" &&
-				profile.distance !== null &&
-				profile.distance <= radiusMetres &&
+				(radiusMetres === null ||
+					(profile.distance !== null &&
+						profile.distance <= radiusMetres)) &&
 				profile.profilePhotosHashes?.[0]
 					? { id: profile.id, mediaHash: profile.profilePhotosHashes[0] }
 					: null,
 			)
 			.filter((candidate): candidate is VisionCandidate => candidate !== null);
-		return visionQueue.enqueue({ query: this.searchText, candidates });
+		return visionQueue.enqueue({ query, candidates, thumbs });
 	}
 
 	async #loadPage(page: number): Promise<void> {
