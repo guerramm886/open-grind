@@ -5,6 +5,7 @@
 
 	import { showErrorToast } from "$lib/api/error-toast";
 	import { getSingleMessage } from "$lib/api/messaging/messages";
+	import { keepExpiringMedia } from "$lib/received/keep-expiring";
 	import { proxyMediaUrl } from "$lib/util/media";
 	import { openLightbox } from "$lib/util/photoswipe";
 	import type { VideoMessage } from "$lib/model/messaging/messages";
@@ -20,12 +21,16 @@
 		message,
 		delivered,
 		isOut = false,
+		senderId = null,
+		sentAt = null,
 	}: {
 		conversationId: string;
 		messageId: string;
 		message: VideoBody;
 		delivered: boolean;
 		isOut?: boolean;
+		senderId?: number | null;
+		sentAt?: number | null;
 	} = $props();
 
 	const media = new MessageMediaState();
@@ -81,6 +86,18 @@
 		}
 		const src = proxyMediaUrl(refetched.body.url, { as: "video" });
 		if (src === null) return null;
+		// Received expiring video: keep it with the rest of what they sent.
+		if (!isOut && refetched.body.url) {
+			keepExpiringMedia({
+				conversationId,
+				senderId,
+				sentAt,
+				kind: "video",
+				mediaKey: refetched.body.mediaId ?? messageId,
+				rawUrl: refetched.body.url,
+				contentType: refetched.body.contentType,
+			});
+		}
 		return {
 			video: { src, loop: refetched.body.looping === true },
 			viewsLeft: refetched.body.viewsRemaining ?? 0,

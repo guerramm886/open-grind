@@ -275,6 +275,8 @@
 				conversationId={message.conversationId}
 				messageId={message.messageId}
 				{isOut}
+				senderId={message.senderId}
+				sentAt={message.timestamp}
 			/>
 		{:else if message.type === "Album" || message.type === "ExpiringAlbum" || message.type === "ExpiringAlbumV2"}
 			<AlbumMessage message={message.body} />
@@ -285,6 +287,8 @@
 				messageId={message.messageId}
 				delivered={status !== "pending" && status !== "error"}
 				{isOut}
+				senderId={message.senderId}
+				sentAt={message.timestamp}
 			/>
 		{:else if message.type === "Gaymoji"}
 			<GaymojiMessage message={message.body} />

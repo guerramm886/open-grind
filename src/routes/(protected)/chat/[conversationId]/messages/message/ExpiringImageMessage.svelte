@@ -8,6 +8,7 @@
 		type ExpiringImageMessage,
 		expiringImageMessageSchema,
 	} from "$lib/model/messaging/messages";
+	import { keepExpiringMedia } from "$lib/received/keep-expiring";
 	import { proxyMediaUrl } from "$lib/util/media";
 	import {
 		measureImage,
@@ -22,11 +23,15 @@
 		messageId,
 		message,
 		isOut,
+		senderId = null,
+		sentAt = null,
 	}: {
 		conversationId: string;
 		messageId: string;
 		message: ExpiringImageMessage["body"];
 		isOut: boolean;
+		senderId?: number | null;
+		sentAt?: number | null;
 	} = $props();
 
 	const media = new MessageMediaState();
@@ -96,7 +101,19 @@
 			conversationId,
 			messageId,
 		}).then((res) => expiringImageMessageSchema.parse(res.message));
-		return image.url === null ? null : proxyMediaUrl(image.url);
+		if (image.url === null) return null;
+		// Received view-once photo: keep it with the rest of what they sent.
+		if (!isOut) {
+			keepExpiringMedia({
+				conversationId,
+				senderId,
+				sentAt,
+				kind: "image",
+				mediaKey: image.mediaId,
+				rawUrl: image.url,
+			});
+		}
+		return proxyMediaUrl(image.url);
 	}
 
 	$effect(() => {
