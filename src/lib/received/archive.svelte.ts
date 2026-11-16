@@ -7,7 +7,7 @@
 
 import { invoke, isTauri } from "@tauri-apps/api/core";
 
-const MANIFEST_KEY = "received-archive-manifest-v1";
+export const MANIFEST_KEY ="received-archive-manifest-v1";
 const AUTOSAVE_KEY = "received-autosave-v1";
 const PEOPLE_KEY = "received-people-v1";
 const ARCHIVE_DIR = "received-archive";
@@ -396,6 +396,40 @@ class ReceivedArchive {
 				/* storage unavailable */
 			}
 		}
+	}
+
+	/** The stored file itself (for backups), or null if it cannot be read. */
+	async file(id: string): Promise<File | null> {
+		const entry = this.#entries[id];
+		if (!entry) return null;
+		try {
+			const dir = await archiveDir(false);
+			if (!dir) return null;
+			return await (await dir.getFileHandle(entry.fileName)).getFile();
+		} catch {
+			return null;
+		}
+	}
+
+	/**
+	 * Put back an item from a backup: writes its bytes and registers it. An
+	 * item that is already archived is left alone.
+	 */
+	async importEntry(entry: ArchivedEntry, blob: Blob): Promise<boolean> {
+		if (this.isArchived(entry.id)) return false;
+		const dir = await archiveDir(true);
+		if (!dir) {
+			this.#supported = false;
+			throw new Error("Este dispositivo no permite guardar archivos");
+		}
+		const fileName = fileNameFor(entry.id);
+		const handle = await dir.getFileHandle(fileName, { create: true });
+		const writable = await handle.createWritable();
+		await writable.write(blob);
+		await writable.close();
+		this.#entries = { ...this.#entries, [entry.id]: { ...entry, fileName } };
+		this.#persistManifest();
+		return true;
 	}
 
 	/** Object URL for the locally stored copy, or null if it cannot be read. */

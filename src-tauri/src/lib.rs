@@ -3,6 +3,7 @@ mod app_data;
 mod app_origin;
 mod app_settings;
 mod appearance;
+mod backup;
 mod appimage;
 mod context_menu;
 mod desktop_entry;
@@ -270,6 +271,7 @@ pub fn run() {
             app_data::remove_app_data,
             gallery::save_media_to_gallery,
             gallery::fetch_media_b64,
+            backup::export_backup_to_downloads,
         ])
         .setup(|app| {
             scroll_phase::install_scroll_gesture_bridge(app.handle());
