@@ -39,6 +39,8 @@
 	let configOpen = $state(false);
 	let draft = $state("");
 	let draftPhrases = $state<string[]>([]);
+	// Parallel to draftPhrases: strike the phrase once it was sent in a chat.
+	let draftStrike = $state<boolean[]>([]);
 	let draftAlbumId = $state<number | null>(null);
 	let draftWrap = $state(false);
 	let draftPhotos = $state<DrawerMedia[]>([]);
@@ -55,6 +57,9 @@
 		draft = greeting.message;
 		draftPhrases =
 			greeting.phrases.length > 0 ? [...greeting.phrases] : [""];
+		draftStrike = draftPhrases.map(
+			(phrase) => !greeting.isReusable(phrase),
+		);
 		draftAlbumId = greeting.albumId;
 		draftWrap = greeting.phrasesWrap;
 		draftPhotos = [...greeting.photos];
@@ -70,6 +75,9 @@
 	function saveConfig() {
 		greeting.save(draft.trim());
 		greeting.savePhrases(draftPhrases);
+		greeting.saveReusable(
+			draftPhrases.filter((_, index) => draftStrike[index] === false),
+		);
 		greeting.saveAlbum(draftAlbumId);
 		greeting.saveWrap(draftWrap);
 		greeting.savePhotos(draftPhotos);
@@ -224,12 +232,27 @@
 						placeholder="Escribí una frase"
 						class="min-w-0 flex-1 rounded-lg bg-secondary px-2 py-1.5 text-base text-foreground"
 					/>
+					<label
+						class="flex shrink-0 items-center gap-1 text-2xs text-muted-foreground"
+					>
+						<input
+							type="checkbox"
+							checked={draftStrike[i] ?? true}
+							onchange={(event) =>
+								(draftStrike[i] = event.currentTarget.checked)}
+							class="size-4"
+						/>
+						Tachar
+					</label>
 					<button
 						type="button"
 						aria-label="Quitar frase"
 						class="flex size-7 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-input/40"
 						onclick={() =>
-							(draftPhrases = draftPhrases.toSpliced(i, 1))}
+							{
+								draftPhrases = draftPhrases.toSpliced(i, 1);
+								draftStrike = draftStrike.toSpliced(i, 1);
+							}}
 					>
 						✕
 					</button>
@@ -239,10 +262,17 @@
 		<button
 			type="button"
 			class="mt-1 text-xs font-medium text-accent"
-			onclick={() => (draftPhrases = [...draftPhrases, ""])}
+			onclick={() => {
+				draftPhrases = [...draftPhrases, ""];
+				draftStrike = [...draftStrike, true];
+			}}
 		>
 			+ Agregar frase
 		</button>
+		<p class="mt-1 text-2xs text-muted-foreground">
+			"Tachar" tildado: la frase se tacha en un chat cuando ya la mandaste
+			ahí. Destildalo en las que quieras seguir usando siempre.
+		</p>
 
 		<label class="mt-3 flex items-start gap-2 text-xs font-medium">
 			<input

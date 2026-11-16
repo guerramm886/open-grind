@@ -84,6 +84,8 @@
 		return texts;
 	});
 	function phraseUsed(phrase: string): boolean {
+		// Phrases marked as reusable in the settings are never struck.
+		if (greeting.isReusable(phrase)) return false;
 		return (
 			usedPhrases.has(conversationId, phrase) || sentTexts.has(phrase.trim())
 		);

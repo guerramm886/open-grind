@@ -8,6 +8,7 @@ const PHRASES_KEY = "greeting-phrases-v1";
 const ALBUM_KEY = "greeting-album-v1";
 const WRAP_KEY = "greeting-phrases-wrap-v1";
 const PHOTOS_KEY = "greeting-photos-v1";
+const REUSABLE_KEY = "greeting-phrases-reusable-v1";
 
 class Greeting {
 	message = $state(load());
@@ -18,6 +19,30 @@ class Greeting {
 	phrasesWrap = $state<boolean>(loadWrap());
 	/** Photos (from your reusable media drawer) sent along with the greeting. */
 	photos = $state<DrawerMedia[]>(loadPhotos());
+	/** Phrases that are never struck through after use: sent again at will. */
+	reusablePhrases = $state<string[]>(loadReusable());
+
+	isReusable(phrase: string): boolean {
+		return this.reusablePhrases.includes(phrase.trim());
+	}
+
+	saveReusable(phrases: string[]): void {
+		this.reusablePhrases = [
+			...new Set(
+				phrases
+					.map((phrase) => phrase.trim())
+					.filter((phrase) => phrase !== ""),
+			),
+		];
+		try {
+			localStorage.setItem(
+				REUSABLE_KEY,
+				JSON.stringify(this.reusablePhrases),
+			);
+		} catch (error) {
+			console.error(error);
+		}
+	}
 
 	get configured(): boolean {
 		return this.message.trim() !== "";
@@ -106,6 +131,19 @@ function load(): string {
 		return localStorage.getItem(STORAGE_KEY) ?? "";
 	} catch {
 		return "";
+	}
+}
+
+function loadReusable(): string[] {
+	try {
+		const list: unknown = JSON.parse(
+			localStorage.getItem(REUSABLE_KEY) ?? "[]",
+		);
+		return Array.isArray(list)
+			? list.filter((item): item is string => typeof item === "string")
+			: [];
+	} catch {
+		return [];
 	}
 }
 
