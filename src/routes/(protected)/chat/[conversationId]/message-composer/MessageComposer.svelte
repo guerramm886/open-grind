@@ -90,12 +90,6 @@
 			usedPhrases.has(conversationId, phrase) || sentTexts.has(phrase.trim())
 		);
 	}
-	// Unused phrases first, so the ones still to send are at hand.
-	const orderedPhrases = $derived(
-		[...greeting.phrases].sort(
-			(a, b) => Number(phraseUsed(a)) - Number(phraseUsed(b)),
-		),
-	);
 
 	function tapPhrase(phrase: string) {
 		if (!phraseUsed(phrase)) {
@@ -211,7 +205,9 @@
 				},
 			]}
 		>
-			{#each orderedPhrases as phrase (phrase)}
+			<!-- Always in the configured order: a phrase keeps its place on
+			     screen even after it is struck. -->
+			{#each greeting.phrases as phrase (phrase)}
 				{@const used = phraseUsed(phrase)}
 				<button
 					type="button"
