@@ -4,6 +4,7 @@
 	import AccountSettingsLink from "./AccountSettingsLink.svelte";
 	import AlbumsLink from "./AlbumsLink.svelte";
 	import AppSettingsLink from "./AppSettingsLink.svelte";
+	import IncognitoSetting from "./IncognitoSetting.svelte";
 	import ProfileLink from "./ProfileLink.svelte";
 	import SignOutButton from "./SignOutButton.svelte";
 	import Socials from "./Socials.svelte";
@@ -19,6 +20,7 @@
 		<div class="flex w-full p-4 pb-nav-clear">
 			<div class="m-auto flex w-full max-w-120 flex-col gap-3">
 				<ProfileLink id={data.ourProfileId} />
+				<IncognitoSetting />
 				<AlbumsLink ourProfileId={data.ourProfileId} />
 				<span role="separator"></span>
 				<AccountSettingsLink />
