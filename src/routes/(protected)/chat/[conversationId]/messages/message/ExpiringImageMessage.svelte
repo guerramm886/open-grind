@@ -75,6 +75,15 @@
 		}
 	});
 
+	// On a photo we sent, the server tells whether the other person opened it.
+	const seenLabel = $derived.by(() => {
+		if (!isOut) return null;
+		if (message.viewed === true || message.viewsRemaining === 0)
+			return "Vista";
+		if (message.viewed === false) return "Sin ver";
+		return null;
+	});
+
 	function openImage() {
 		imageState =
 			cachedImage === null
@@ -142,6 +151,17 @@
 {#snippet bubbleContent()}
 	<ImagesIcon size={24} weight="fill" class="shrink-0" />
 	<span>Expiring image</span>
+	{#if seenLabel}
+		<span
+			data-slot="expiring-image-seen"
+			class={[
+				"text-xs font-semibold",
+				seenLabel === "Vista" ? "text-primary" : "text-muted-foreground",
+			]}
+		>
+			· {seenLabel}
+		</span>
+	{/if}
 	{@render media.adornments?.()}
 {/snippet}
 

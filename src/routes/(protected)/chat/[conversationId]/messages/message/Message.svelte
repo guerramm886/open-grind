@@ -38,6 +38,7 @@
 		message,
 		isOut,
 		isRead,
+		readAt = null,
 		indexInStack,
 		stackLength,
 		dayStart,
@@ -53,6 +54,7 @@
 		message: ApiResponseMessage;
 		isOut: boolean;
 		isRead: boolean | null;
+		readAt?: number | null;
 		indexInStack: number;
 		stackLength: number;
 		dayStart?: number;
@@ -282,6 +284,7 @@
 				conversationId={message.conversationId}
 				messageId={message.messageId}
 				delivered={status !== "pending" && status !== "error"}
+				{isOut}
 			/>
 		{:else if message.type === "Gaymoji"}
 			<GaymojiMessage message={message.body} />
@@ -409,7 +412,7 @@
 			{/if}
 		</div>
 	</div>
-	{#if lastInStack}
+	{#if lastInStack || isRead === true}
 		<span
 			class={[
 				"mx-3 mt-0.5 text-xs text-muted-foreground",
@@ -423,9 +426,17 @@
 			{:else}
 				{#if isRead !== null}
 					{#if isRead}
-						Read
+						<span class="font-semibold text-primary">
+							✓✓ Visto{readAt === null
+								? ""
+								: ` ${new Date(readAt).toLocaleTimeString("es-AR", {
+										hour: "2-digit",
+										minute: "2-digit",
+									})}`}
+						</span>
+						·
 					{:else}
-						Sent
+						✓ Enviado ·
 					{/if}
 				{/if}
 				<MessageTime />

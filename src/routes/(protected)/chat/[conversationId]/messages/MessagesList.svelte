@@ -6,6 +6,7 @@
 		deleteMessageForMe,
 		unsendMessage,
 	} from "$lib/api/messaging/messages";
+	import { readTimes } from "$lib/chat/read-times.svelte";
 	import ReportSheet from "$lib/components/report/ReportSheet.svelte";
 	import {
 		offerEntitlementBypass,
@@ -41,6 +42,28 @@
 
 	const conversationState = $derived(getConversationState()());
 	setMediaRenewal(() => conversationState.dynamicRefresh.renewMedia());
+
+	// Grindr reports one read position per chat. "Visto" goes on the newest
+	// of our messages at or before it, "Enviado" on our newest one after it.
+	const readMarks = $derived.by(() => {
+		const lastRead = conversationState.lastReadTimestamp;
+		let newestSent: string | null = null;
+		let newestRead: string | null = null;
+		for (const message of conversationState.messages) {
+			if (message.senderId !== conversationState.ourProfileId) continue;
+			if (message.status !== "sent") continue;
+			newestSent ??= message.messageId;
+			if (lastRead !== null && message.timestamp <= lastRead) {
+				newestRead = message.messageId;
+				break;
+			}
+		}
+		return {
+			read: newestRead,
+			sent: newestSent === newestRead ? null : newestSent,
+			readAt: readTimes.at(conversationState.conversationId, lastRead),
+		};
+	});
 
 	const layoutByMessageId = $derived(
 		new Map(
@@ -116,9 +139,11 @@
 	{@const stackLength = layout?.stackLength ?? 1}
 	{@const dayStart = layout?.dayStart}
 	{@const isRead =
-		isOut && message.messageId === conversationState.messages[0]?.messageId
-			? conversationState.lastReadTimestamp === message.timestamp
-			: null}
+		message.messageId === readMarks.read
+			? true
+			: message.messageId === readMarks.sent
+				? false
+				: null}
 	<Message
 		{message}
 		{isOut}
@@ -127,6 +152,7 @@
 		{dayStart}
 		status={message.status}
 		{isRead}
+		readAt={isRead === true ? readMarks.readAt : null}
 		onVisible={!isOut
 			? () => {
 					seenMessageIds.add(message.messageId);

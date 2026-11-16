@@ -19,11 +19,13 @@
 		messageId,
 		message,
 		delivered,
+		isOut = false,
 	}: {
 		conversationId: string;
 		messageId: string;
 		message: VideoBody;
 		delivered: boolean;
+		isOut?: boolean;
 	} = $props();
 
 	const media = new MessageMediaState();
@@ -31,6 +33,25 @@
 	let viewsRemaining = $derived(message.viewsRemaining ?? 0);
 
 	const playable = $derived(delivered && viewsRemaining > 0);
+
+	// On a video we sent: how many times the other person played it, when the
+	// server reports a count, or at least whether any view was used up.
+	const seenLabel = $derived.by(() => {
+		if (!isOut || !delivered) return null;
+		const count = (message as { viewCount?: number | null }).viewCount;
+		if (typeof count === "number") {
+			if (count === 0) return "Sin ver";
+			return count === 1 ? "Visto 1 vez" : `Visto ${count} veces`;
+		}
+		const max = message.maxViews;
+		const left = message.viewsRemaining;
+		if (typeof max === "number" && typeof left === "number" && max > 0) {
+			const used = max - left;
+			if (used <= 0) return "Sin ver";
+			return used === 1 ? "Visto 1 vez" : `Visto ${used} veces`;
+		}
+		return null;
+	});
 
 	type PlayerState =
 		| { status: "idle" }
@@ -118,6 +139,17 @@
 {#snippet bubbleContent()}
 	<VideoCameraIcon size={24} weight="fill" class="shrink-0" />
 	<span>Expiring video</span>
+	{#if seenLabel}
+		<span
+			data-slot="video-seen"
+			class={[
+				"text-xs font-semibold",
+				seenLabel === "Sin ver" ? "text-muted-foreground" : "text-primary",
+			]}
+		>
+			· {seenLabel}
+		</span>
+	{/if}
 	{@render media.adornments?.()}
 {/snippet}
 

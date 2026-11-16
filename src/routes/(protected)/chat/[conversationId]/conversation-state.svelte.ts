@@ -39,6 +39,7 @@ import {
 	sentMessages,
 } from "./merge-messages";
 import { getConversation } from "./messages";
+import { readTimes } from "$lib/chat/read-times.svelte";
 import { ReadReceiptQueue } from "./read-receipts";
 
 export type { OptimisticMessage };
@@ -170,8 +171,13 @@ export class ConversationState {
 					if (event.payload.conversationId !== this.conversationId)
 						return;
 					if (event.payload.profileId === this.ourProfileId) return;
-					if (this.#advanceLastRead(event.payload.timestamp))
+					if (this.#advanceLastRead(event.payload.timestamp)) {
+						readTimes.note(
+							this.conversationId,
+							event.payload.timestamp,
+						);
 						this.#syncCache();
+					}
 				},
 			),
 			ws.on(
