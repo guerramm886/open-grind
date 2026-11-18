@@ -55,6 +55,16 @@ type WrittenEntry = {
 
 export type ZipSink = (bytes: Uint8Array) => Promise<void>;
 
+/**
+ * Anything that can hand out byte ranges: a Blob/File, or a file that lives
+ * outside the webview and is read piece by piece.
+ */
+export interface ByteSource {
+	readonly size: number;
+	slice(start?: number, end?: number): ByteSource;
+	arrayBuffer(): Promise<ArrayBuffer>;
+}
+
 export class ZipWriter {
 	#sink: ZipSink;
 	#offset = 0;
@@ -75,17 +85,18 @@ export class ZipWriter {
 
 	async add(
 		name: string,
-		data: Blob | Uint8Array | string,
+		data: ByteSource | Uint8Array | string,
 		modified: Date = new Date(),
 	): Promise<void> {
 		const content = typeof data === "string" ? encoder.encode(data) : data;
-		const size = content instanceof Blob ? content.size : content.length;
+		const size =
+			content instanceof Uint8Array ? content.length : content.size;
 		if (size >= MAX_32) throw new Error(`"${name}" es demasiado grande`);
 
 		// The header carries the checksum, so a file is read once to compute
 		// it and once more to copy it.
 		let crc = MAX_32;
-		if (content instanceof Blob) {
+		if (!(content instanceof Uint8Array)) {
 			for (let at = 0; at < size; at += READ_CHUNK)
 				crc = crcUpdate(
 					crc,
@@ -115,7 +126,7 @@ export class ZipWriter {
 		header.set(nameBytes, 30);
 		await this.#write(header);
 
-		if (content instanceof Blob) {
+		if (!(content instanceof Uint8Array)) {
 			for (let at = 0; at < size; at += READ_CHUNK)
 				await this.#write(
 					new Uint8Array(
@@ -221,12 +232,14 @@ export type ZipEntry = {
 	offset: number;
 };
 
-async function bytesOf(file: Blob, start: number, end: number) {
+async function bytesOf(file: ByteSource, start: number, end: number) {
 	return new Uint8Array(await file.slice(start, end).arrayBuffer());
 }
 
 /** Lists the entries of a zip without reading its contents. */
-export async function readZipEntries(file: Blob): Promise<ZipEntry[]> {
+export async function readZipEntries(
+	file: ByteSource,
+): Promise<ZipEntry[]> {
 	const tailStart = Math.max(0, file.size - (22 + MAX_16 + 20));
 	const tail = await bytesOf(file, tailStart, file.size);
 	const tailView = new DataView(tail.buffer);
@@ -334,6 +347,30 @@ export async function zipEntryBlob(
 	throw new Error(`"${entry.name}" usa una compresión no soportada`);
 }
 
-export async function zipEntryText(file: Blob, entry: ZipEntry) {
-	return (await zipEntryBlob(file, entry)).text();
+/** Like `zipEntryBlob`, for any byte source; keeps stored entries lazy. */
+export async function zipEntrySource(
+	file: ByteSource,
+	entry: ZipEntry,
+): Promise<ByteSource> {
+	const header = await bytesOf(file, entry.offset, entry.offset + 30);
+	const view = new DataView(header.buffer);
+	if (header.length < 30 || view.getUint32(0, true) !== 0x04034b50)
+		throw new Error(`"${entry.name}" está dañado dentro del zip`);
+	const start =
+		entry.offset + 30 + view.getUint16(26, true) + view.getUint16(28, true);
+	const raw = file.slice(start, start + entry.compressedSize);
+	if (entry.method === 0) return raw;
+	if (entry.method === 8)
+		return await new Response(
+			new Blob([await raw.arrayBuffer()])
+				.stream()
+				.pipeThrough(new DecompressionStream("deflate-raw")),
+		).blob();
+	throw new Error(`"${entry.name}" usa una compresión no soportada`);
+}
+
+export async function zipEntryText(file: ByteSource, entry: ZipEntry) {
+	return decoder.decode(
+		await (await zipEntrySource(file, entry)).arrayBuffer(),
+	);
 }

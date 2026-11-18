@@ -272,6 +272,10 @@ pub fn run() {
             gallery::save_media_to_gallery,
             gallery::fetch_media_b64,
             backup::export_backup_to_downloads,
+            backup::pick_backup_destination,
+            backup::write_backup_to_uri,
+            backup::stage_backup_from_uri,
+            backup::read_staged_range,
         ])
         .setup(|app| {
             scroll_phase::install_scroll_gesture_bridge(app.handle());

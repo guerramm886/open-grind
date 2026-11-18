@@ -20,11 +20,13 @@ import {
 	MANIFEST_KEY,
 	receivedArchive,
 } from "$lib/received/archive.svelte";
-import { toBase64 } from "$lib/util/base64";
+import { fromBase64, toBase64 } from "$lib/util/base64";
 import {
+	type ByteSource,
 	readZipEntries,
 	type ZipEntry,
 	zipEntryBlob,
+	zipEntrySource,
 	zipEntryText,
 	type ZipSink,
 	ZipWriter,
@@ -35,6 +37,10 @@ const STAGE_CHUNK = 3 * 1024 * 1024;
 const REQUEST_PAUSE_MS = 200;
 const MAX_INBOX_PAGES = 300;
 const MAX_MESSAGE_PAGES = 400;
+const RANGE_CHUNK = 4 * 1024 * 1024;
+const TARGET_KEY = "backup-target-v1";
+/** Suggested name for a backup meant to be updated in place. */
+const UPDATABLE_NAME = "backup-martins-grindr.zip";
 
 // Never written to a backup: secrets, per-device state, and the archive
 // manifest (rebuilt entry by entry on restore).
@@ -42,6 +48,7 @@ const SKIPPED_SETTINGS = new Set([
 	MANIFEST_KEY,
 	"gemini-api-key-v1",
 	"vision-queue-v1",
+	TARGET_KEY,
 ]);
 const SKIPPED_SETTING_PREFIX = "open-grind:app-data:";
 
@@ -101,10 +108,103 @@ function keepAlive(command: string, args: Record<string, unknown>) {
 	});
 }
 
+/** The file the last backup went to, so it can be updated in place. */
+export type BackupTarget = {
+	/** Opaque native handle; null for a plain browser download. */
+	uri: string | null;
+	/** Where it is, in words. */
+	label: string;
+	name: string;
+	updatedAt: number;
+};
+
+function loadTarget(): BackupTarget | null {
+	try {
+		const raw: unknown = JSON.parse(localStorage.getItem(TARGET_KEY) ?? "null");
+		if (typeof raw !== "object" || raw === null) return null;
+		const value = raw as Partial<BackupTarget>;
+		if (typeof value.label !== "string" || typeof value.name !== "string")
+			return null;
+		return {
+			uri: typeof value.uri === "string" ? value.uri : null,
+			label: value.label,
+			name: value.name,
+			updatedAt: typeof value.updatedAt === "number" ? value.updatedAt : 0,
+		};
+	} catch {
+		return null;
+	}
+}
+
+type NativeTarget = { uri: string; label: string; name: string };
+
+export type BackupDestination = "downloads" | "pick" | "update";
+
+type Close =
+	| { kind: "downloads"; fileName: string }
+	| { kind: "uri"; uri: string };
+
 type Sink = {
 	write: ZipSink;
-	close: (fileName: string) => Promise<string>;
+	close: (where: Close) => Promise<{ uri: string | null; label: string; name: string }>;
 	abort: () => Promise<void>;
+};
+
+/** A file copied into the native staging cache, read in pieces on demand. */
+class StagedSource implements ByteSource {
+	readonly #id: string;
+	readonly #start: number;
+	readonly size: number;
+
+	constructor(id: string, start: number, size: number) {
+		this.#id = id;
+		this.#start = start;
+		this.size = size;
+	}
+
+	slice(start = 0, end = this.size): ByteSource {
+		const from = Math.min(Math.max(start, 0), this.size);
+		const to = Math.min(Math.max(end, from), this.size);
+		return new StagedSource(this.#id, this.#start + from, to - from);
+	}
+
+	async arrayBuffer(): Promise<ArrayBuffer> {
+		const out = new Uint8Array(this.size);
+		let filled = 0;
+		while (filled < this.size) {
+			const chunk = fromBase64(
+				String(
+					await invoke("read_staged_range", {
+						id: this.#id,
+						offset: this.#start + filled,
+						length: Math.min(RANGE_CHUNK, this.size - filled),
+					}),
+				),
+			);
+			if (chunk.length === 0) break;
+			out.set(chunk, filled);
+			filled += chunk.length;
+		}
+		return out.buffer;
+	}
+}
+
+async function discardStaged(id: string): Promise<void> {
+	try {
+		await invoke("discard_staged_media", { id });
+	} catch {
+		/* cleared on the next app start anyway */
+	}
+}
+
+/** What an earlier backup holds, for carrying it over into an update. */
+type OldBackup = {
+	stagedId: string;
+	file: ByteSource;
+	prefix: string;
+	entries: ZipEntry[];
+	byName: Map<string, ZipEntry>;
+	items: IndexedItem[];
 };
 
 // The zip is streamed into a native temp file in small pieces, then moved to
@@ -132,19 +232,19 @@ async function nativeSink(): Promise<Sink> {
 				if (used === STAGE_CHUNK) await flush();
 			}
 		},
-		close: async (fileName) => {
+		close: async (where) => {
 			await flush();
-			return String(
-				await invoke("export_backup_to_downloads", { id, fileName }),
-			);
+			return where.kind === "downloads"
+				? await invoke<NativeTarget>("export_backup_to_downloads", {
+						id,
+						fileName: where.fileName,
+					})
+				: await invoke<NativeTarget>("write_backup_to_uri", {
+						id,
+						uri: where.uri,
+					});
 		},
-		abort: async () => {
-			try {
-				await invoke("discard_staged_media", { id });
-			} catch {
-				/* cleared on the next app start anyway */
-			}
-		},
+		abort: () => discardStaged(id),
 	};
 }
 
@@ -155,7 +255,9 @@ function webSink(): Sink {
 			parts.push(new Blob([bytes.slice().buffer as ArrayBuffer]));
 			return Promise.resolve();
 		},
-		close: (fileName) => {
+		close: (where) => {
+			const fileName =
+				where.kind === "downloads" ? where.fileName : UPDATABLE_NAME;
 			const url = URL.createObjectURL(
 				new Blob(parts, { type: "application/zip" }),
 			);
@@ -164,7 +266,11 @@ function webSink(): Sink {
 			link.download = fileName;
 			link.click();
 			setTimeout(() => URL.revokeObjectURL(url), 60_000);
-			return Promise.resolve(fileName);
+			return Promise.resolve({
+				uri: null,
+				label: "las descargas del navegador",
+				name: fileName,
+			});
 		},
 		abort: () => Promise.resolve(),
 	};
@@ -357,6 +463,13 @@ function parseItems(raw: unknown): IndexedItem[] {
 	return items;
 }
 
+type ChatsState = {
+	index: { name: string; file: string; count: number }[];
+	usedFiles: Set<string>;
+	/** Conversations already written. */
+	done: Set<string>;
+};
+
 class Backup {
 	running = $state<"export" | "restore" | null>(null);
 	step = $state("");
@@ -365,6 +478,8 @@ class Backup {
 	/** Where the last backup was written, or how the last restore went. */
 	lastResult = $state<string | null>(null);
 	pending = $state.raw<PendingRestore | null>(null);
+	/** The file the last backup went to, offered for updating. */
+	target = $state<BackupTarget | null>(loadTarget());
 	#cancelled = false;
 
 	cancel(): void {
@@ -381,19 +496,51 @@ class Backup {
 		this.total = total;
 	}
 
-	async exportAll({ includeChats }: { includeChats: boolean }): Promise<void> {
+	async exportAll({
+		includeChats,
+		destination,
+	}: {
+		includeChats: boolean;
+		destination: BackupDestination;
+	}): Promise<void> {
 		if (this.running) return;
+		const now = new Date();
+		const previous = this.target;
+		if (destination === "update" && previous?.uri == null) return;
+
+		// Ask where to save before the long part, not after it.
+		let chosen: NativeTarget | null = null;
+		if (destination === "pick") {
+			try {
+				chosen = await invoke<NativeTarget | null>(
+					"pick_backup_destination",
+					{ fileName: UPDATABLE_NAME },
+				);
+			} catch (error) {
+				console.error("[backup] picker failed", error);
+				this.lastResult = `No se pudo abrir el selector: ${error instanceof Error ? error.message : String(error)}`;
+				return;
+			}
+			if (!chosen) return;
+		}
+
 		this.running = "export";
 		this.#cancelled = false;
 		this.lastResult = null;
 		this.#progress("Preparando…", 0, 0);
 		keepAlive("search_keepalive_hold", { text: "Armando el backup…" });
 		let sink: Sink | null = null;
+		let old: OldBackup | null = null;
+		let oldUnreadable = false;
 		let finished = false;
 		try {
+			if (destination === "update" && previous?.uri) {
+				this.#progress("Leyendo el backup anterior…", 0, 0);
+				old = await this.#openOld(previous.uri);
+				oldUnreadable = old === null;
+			}
 			sink = isTauri() ? await nativeSink() : webSink();
 			const zip = new ZipWriter(sink.write);
-			const now = new Date();
 
 			// 1. Received media, one folder per person.
 			const people = new Map(
@@ -404,6 +551,16 @@ class Backup {
 			const entries = receivedArchive.all;
 			const items: IndexedItem[] = [];
 			const usedPaths = new Set<string>();
+			const uniquePath = (wanted: string) => {
+				const dot = wanted.lastIndexOf(".");
+				const base = dot > 0 ? wanted.slice(0, dot) : wanted;
+				const extension = dot > 0 ? wanted.slice(dot) : "";
+				let path = wanted;
+				for (let copy = 2; usedPaths.has(path); copy += 1)
+					path = `${base}_${copy}${extension}`;
+				usedPaths.add(path);
+				return path;
+			};
 			let unreadable = 0;
 			for (const [index, entry] of entries.entries()) {
 				this.#checkpoint();
@@ -422,14 +579,42 @@ class Backup {
 						"chat",
 					);
 				const when = new Date(entry.sentAt ?? entry.savedAt);
-				const base = `recibidos/${folder}/${fileStamp(when)}`;
-				const extension = extensionFor(entry);
-				let path = `${base}.${extension}`;
-				for (let copy = 2; usedPaths.has(path); copy += 1)
-					path = `${base}_${copy}.${extension}`;
-				usedPaths.add(path);
+				const path = uniquePath(
+					`recibidos/${folder}/${fileStamp(when)}.${extensionFor(entry)}`,
+				);
 				await zip.add(path, file, when);
 				items.push({ entry, path });
+			}
+
+			// 1b. Updating: keep what the earlier backup had that this phone
+			// no longer does, so an update never loses anything.
+			let carried = 0;
+			if (old) {
+				const have = new Set(items.map((item) => item.entry.id));
+				const todo = old.items.filter((item) => !have.has(item.entry.id));
+				for (const [index, item] of todo.entries()) {
+					this.#checkpoint();
+					this.#progress(
+						"Conservando lo del backup anterior",
+						index,
+						todo.length,
+					);
+					const zipped = old.byName.get(old.prefix + item.path);
+					if (!zipped) continue;
+					try {
+						const path = uniquePath(item.path);
+						await zip.add(
+							path,
+							await zipEntrySource(old.file, zipped),
+							new Date(item.entry.sentAt ?? item.entry.savedAt),
+						);
+						items.push({ entry: item.entry, path });
+						have.add(item.entry.id);
+						carried += 1;
+					} catch (error) {
+						console.error("[backup] carry-over failed", item.path, error);
+					}
+				}
 			}
 			await zip.add("datos/recibidos.json", JSON.stringify(items));
 
@@ -444,18 +629,26 @@ class Backup {
 			await zip.add("datos/ajustes.json", JSON.stringify(settings));
 
 			// 3. Chats, as pages to read.
-			let chatCount = 0;
+			const mediaByChat = new Map<string, IndexedItem[]>();
+			for (const item of items) {
+				const list = mediaByChat.get(item.entry.conversationId) ?? [];
+				list.push(item);
+				mediaByChat.set(item.entry.conversationId, list);
+			}
+			const chats: ChatsState = {
+				index: [],
+				usedFiles: new Set(),
+				done: new Set(),
+			};
 			let chatsIncomplete = false;
 			if (includeChats) {
-				const mediaByChat = new Map<string, IndexedItem[]>();
-				for (const item of items) {
-					const list = mediaByChat.get(item.entry.conversationId) ?? [];
-					list.push(item);
-					mediaByChat.set(item.entry.conversationId, list);
-				}
-				const result = await this.#exportChats(zip, mediaByChat);
-				chatCount = result.count;
-				chatsIncomplete = result.incomplete;
+				chatsIncomplete = await this.#exportChats(zip, mediaByChat, chats);
+			}
+			let chatsCarried = 0;
+			if (old) chatsCarried = await this.#carryChats(zip, old, mediaByChat, chats);
+			if (chats.index.length > 0) {
+				chats.index.sort((a, b) => a.name.localeCompare(b.name));
+				await zip.add("chats/_indice.html", indexPage(chats.index));
 			}
 
 			await zip.add("LEEME.txt", README);
@@ -466,38 +659,62 @@ class Backup {
 					version: 1,
 					createdAt: now.getTime(),
 					received: items.length,
-					chats: chatCount,
+					chats: chats.index.length,
 				}),
 			);
 			this.#checkpoint();
-			this.#progress("Copiando el archivo a Descargas…", 0, 0);
+			this.#progress("Guardando el archivo…", 0, 0);
 			const size = await zip.finish();
-			const where = await sink.close(
-				`backup-martins-grindr-${fileStamp(now)}.zip`,
+			const written = await sink.close(
+				destination === "downloads"
+					? {
+							kind: "downloads",
+							fileName: `backup-martins-grindr-${fileStamp(now)}.zip`,
+						}
+					: {
+							kind: "uri",
+							uri: (chosen?.uri ?? previous?.uri) as string,
+						},
 			);
 			finished = true;
+			this.#saveTarget({ ...written, updatedAt: now.getTime() });
 			const megabytes = Math.max(1, Math.round(size / (1024 * 1024)));
+			const where = `${written.label} → ${written.name}`;
 			this.lastResult =
-				`Backup guardado en ${where} (${megabytes} MB): ${items.length} fotos/videos` +
-				(includeChats ? `, ${chatCount} chats` : "") +
+				(destination === "update" ? "Backup actualizado" : "Backup guardado") +
+				` en ${where} (${megabytes} MB): ${items.length} fotos/videos` +
+				(chats.index.length > 0 ? `, ${chats.index.length} chats` : "") +
 				"." +
+				(carried + chatsCarried > 0
+					? ` Se conservaron del backup anterior ${carried} fotos/videos y ${chatsCarried} chats que ya no estaban en el teléfono.`
+					: "") +
+				(oldUnreadable
+					? " No se pudo leer el backup anterior, así que se guardó solo lo que hay ahora."
+					: "") +
 				(unreadable > 0
 					? ` ${unreadable} archivos no se pudieron leer.`
 					: "") +
 				(chatsIncomplete
 					? " Grindr cortó la descarga de chats antes de terminar; faltan algunos."
 					: "");
-			toast.success("Backup listo", { description: where });
+			toast.success(
+				destination === "update" ? "Backup actualizado" : "Backup listo",
+				{ description: where },
+			);
 		} catch (error) {
 			if (error instanceof Cancelled) {
-				this.lastResult = "Backup cancelado.";
+				this.lastResult =
+					destination === "update"
+						? "Actualización cancelada; el backup anterior quedó como estaba."
+						: "Backup cancelado.";
 			} else {
 				console.error("[backup] export failed", error);
-				this.lastResult = `No se pudo crear el backup: ${error instanceof Error ? error.message : String(error)}`;
-				toast.error("No se pudo crear el backup");
+				this.lastResult = `No se pudo ${destination === "update" ? "actualizar" : "crear"} el backup: ${error instanceof Error ? error.message : String(error)}`;
+				toast.error("No se pudo guardar el backup");
 			}
 		} finally {
 			if (!finished) await sink?.abort();
+			if (old) await discardStaged(old.stagedId);
 			keepAlive("search_keepalive_release", {
 				doneText: finished ? "Backup listo" : null,
 			});
@@ -505,10 +722,145 @@ class Backup {
 		}
 	}
 
+	#saveTarget(target: BackupTarget): void {
+		this.target = target;
+		try {
+			localStorage.setItem(TARGET_KEY, JSON.stringify(target));
+		} catch {
+			/* storage unavailable: it just won't be offered for updating */
+		}
+	}
+
+	/** Stop offering to update the last backup (the file stays where it is). */
+	forgetTarget(): void {
+		this.target = null;
+		try {
+			localStorage.removeItem(TARGET_KEY);
+		} catch {
+			/* ignore */
+		}
+	}
+
+	async #openOld(uri: string): Promise<OldBackup | null> {
+		const staged = await invoke<{ id: string; size: number } | null>(
+			"stage_backup_from_uri",
+			{ uri },
+		).catch(() => null);
+		if (!staged) return null;
+		try {
+			const file = new StagedSource(staged.id, 0, staged.size);
+			const entries = await readZipEntries(file);
+			const marker = entries.find((entry) =>
+				entry.name.endsWith("datos/backup.json"),
+			);
+			if (!marker) throw new Error("not a backup");
+			const prefix = marker.name.slice(0, -"datos/backup.json".length);
+			const byName = new Map(entries.map((entry) => [entry.name, entry]));
+			const itemsEntry = byName.get(`${prefix}datos/recibidos.json`);
+			const items = itemsEntry
+				? parseItems(JSON.parse(await zipEntryText(file, itemsEntry)))
+				: [];
+			return { stagedId: staged.id, file, prefix, entries, byName, items };
+		} catch (error) {
+			console.error("[backup] earlier backup unreadable", error);
+			await discardStaged(staged.id);
+			return null;
+		}
+	}
+
+	/** Chats the earlier backup had and this one didn't download. */
+	async #carryChats(
+		zip: ZipWriter,
+		old: OldBackup,
+		mediaByChat: Map<string, IndexedItem[]>,
+		chats: ChatsState,
+	): Promise<number> {
+		const folder = `${old.prefix}datos/chats/`;
+		const candidates = old.entries.filter(
+			(entry) => entry.name.startsWith(folder) && entry.name.endsWith(".json"),
+		);
+		let carried = 0;
+		for (const [index, entry] of candidates.entries()) {
+			this.#checkpoint();
+			this.#progress("Conservando chats del backup anterior", index, candidates.length);
+			try {
+				const saved = JSON.parse(await zipEntryText(old.file, entry)) as {
+					conversationId?: unknown;
+					name?: unknown;
+					profileId?: unknown;
+					messages?: unknown;
+				};
+				if (typeof saved.conversationId !== "string") continue;
+				if (chats.done.has(saved.conversationId)) continue;
+				await this.#writeChat(zip, chats, {
+					conversationId: saved.conversationId,
+					name: typeof saved.name === "string" ? saved.name : "Sin nombre",
+					otherId:
+						typeof saved.profileId === "number" ? saved.profileId : null,
+					messages: Array.isArray(saved.messages)
+						? (saved.messages as ChatMessage[])
+						: [],
+					media: mediaByChat.get(saved.conversationId) ?? [],
+				});
+				carried += 1;
+			} catch (error) {
+				console.error("[backup] old chat unreadable", entry.name, error);
+			}
+		}
+		return carried;
+	}
+
+	async #writeChat(
+		zip: ZipWriter,
+		chats: ChatsState,
+		chat: {
+			conversationId: string;
+			name: string;
+			otherId: number | null;
+			messages: ChatMessage[];
+			media: IndexedItem[];
+		},
+	): Promise<void> {
+		const base =
+			safeName(chat.name, "chat") +
+			"_" +
+			safeName(String(chat.otherId ?? chat.conversationId), "id");
+		let file = `${base}.html`;
+		for (let copy = 2; chats.usedFiles.has(file); copy += 1)
+			file = `${base}_${copy}.html`;
+		chats.usedFiles.add(file);
+		await zip.add(
+			`chats/${file}`,
+			chatPage({
+				name: chat.name,
+				otherId: chat.otherId,
+				messages: chat.messages,
+				media: chat.media,
+			}),
+		);
+		await zip.add(
+			`datos/chats/${safeName(chat.conversationId, "chat")}.json`,
+			JSON.stringify({
+				conversationId: chat.conversationId,
+				name: chat.name,
+				profileId: chat.otherId,
+				messages: chat.messages,
+			}),
+		);
+		chats.index.push({
+			name: chat.name,
+			file,
+			count: chat.messages.length,
+		});
+		chats.done.add(chat.conversationId);
+	}
+
+	/** Downloads every chat into the zip. Returns whether some were missed. */
 	async #exportChats(
 		zip: ZipWriter,
 		mediaByChat: Map<string, IndexedItem[]>,
-	): Promise<{ count: number; incomplete: boolean }> {
+		chats: ChatsState,
+	): Promise<boolean> {
 		// The inbox first, so there is a total to show progress against.
 		const inbox: { conversationId: string; name: string }[] = [];
 		let incomplete = false;
@@ -535,8 +887,6 @@ class Backup {
 			incomplete = true;
 		}
 
-		const index: { name: string; file: string; count: number }[] = [];
-		const usedFiles = new Set<string>();
 		let failuresInARow = 0;
 		for (const [position, chat] of inbox.entries()) {
 			this.#checkpoint();
@@ -546,34 +896,13 @@ class Backup {
 					chat.conversationId,
 				);
 				failuresInARow = 0;
-				const name = chat.name || otherName || "Sin nombre";
-				const base =
-					safeName(name, "chat") +
-					"_" +
-					safeName(String(otherId ?? chat.conversationId), "id");
-				let file = `${base}.html`;
-				for (let copy = 2; usedFiles.has(file); copy += 1)
-					file = `${base}_${copy}.html`;
-				usedFiles.add(file);
-				await zip.add(
-					`chats/${file}`,
-					chatPage({
-						name,
-						otherId,
-						messages,
-						media: mediaByChat.get(chat.conversationId) ?? [],
-					}),
-				);
-				await zip.add(
-					`datos/chats/${safeName(chat.conversationId, "chat")}.json`,
-					JSON.stringify({
-						conversationId: chat.conversationId,
-						name,
-						profileId: otherId,
-						messages,
-					}),
-				);
-				index.push({ name, file, count: messages.length });
+				await this.#writeChat(zip, chats, {
+					conversationId: chat.conversationId,
+					name: chat.name || otherName || "Sin nombre",
+					otherId,
+					messages,
+					media: mediaByChat.get(chat.conversationId) ?? [],
+				});
 			} catch (error) {
 				if (error instanceof Cancelled) throw error;
 				if (error instanceof ConversationUnavailableError) continue;
@@ -586,11 +915,8 @@ class Backup {
 				await sleep(5_000);
 			}
 		}
-		index.sort((a, b) => a.name.localeCompare(b.name));
-		await zip.add("chats/_indice.html", indexPage(index));
-		return { count: index.length, incomplete };
+		return incomplete;
 	}
-
 	async #allMessages(conversationId: string): Promise<{
 		messages: ChatMessage[];
 		otherId: number | null;

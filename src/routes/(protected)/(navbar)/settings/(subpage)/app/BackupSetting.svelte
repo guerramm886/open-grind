@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { isTauri } from "@tauri-apps/api/core";
+
 	import { backup } from "$lib/backup/backup.svelte";
 	import { Button } from "$lib/components/ui/button";
 	import { receivedArchive } from "$lib/received/archive.svelte";
@@ -9,6 +11,10 @@
 	const percent = $derived(
 		backup.total > 0 ? Math.round((backup.done / backup.total) * 100) : null,
 	);
+
+	const native = isTauri();
+	const target = $derived(backup.target);
+	const canUpdate = $derived(native && target?.uri != null);
 </script>
 
 <div class="rounded-xl border p-4">
@@ -16,10 +22,22 @@
 	<p class="mt-1 text-2xs text-muted-foreground">
 		Guarda en un archivo .zip las fotos y videos recibidos ({receivedArchive
 			.all.length}), los ajustes de la app (notas, frases, saludo,
-		descartados, filtros) y una copia de los chats para leer. Queda en
-		Descargas → Martins Grindr y se puede abrir con cualquier administrador
-		de archivos. Si reinstalás la app, lo restaurás desde acá.
+		descartados, filtros) y una copia de los chats para leer. Se puede
+		abrir con cualquier administrador de archivos. Si reinstalás la app, lo
+		restaurás desde acá.
 	</p>
+
+	{#if target}
+		<div class="mt-3 rounded-lg bg-secondary p-3 text-sm">
+			<p class="font-semibold">Tu backup</p>
+			<p class="mt-1 break-all">{target.name}</p>
+			<p class="text-2xs text-muted-foreground">
+				En {target.label}{target.updatedAt
+					? ` · ${new Date(target.updatedAt).toLocaleString("es-AR")}`
+					: ""}
+			</p>
+		</div>
+	{/if}
 
 	{#if backup.running}
 		<div class="mt-3 rounded-lg bg-secondary p-3">
@@ -81,13 +99,34 @@
 			<input type="checkbox" bind:checked={includeChats} class="size-4" />
 			Incluir el texto de los chats (tarda más)
 		</label>
-		<div class="mt-3 flex flex-wrap gap-2">
+		<div class="mt-3 flex flex-col gap-2">
+			{#if canUpdate}
+				<Button
+					size="sm"
+					onclick={() =>
+						void backup.exportAll({ includeChats, destination: "update" })}
+				>
+					Actualizar este backup
+				</Button>
+			{/if}
 			<Button
 				size="sm"
-				onclick={() => void backup.exportAll({ includeChats })}
+				variant={canUpdate ? "secondary" : "default"}
+				onclick={() =>
+					void backup.exportAll({ includeChats, destination: "downloads" })}
 			>
-				Crear backup
+				Nuevo backup en Descargas
 			</Button>
+			{#if native}
+				<Button
+					size="sm"
+					variant="secondary"
+					onclick={() =>
+						void backup.exportAll({ includeChats, destination: "pick" })}
+				>
+					Elegir dónde guardarlo (Drive, otra carpeta…)
+				</Button>
+			{/if}
 			<Button
 				size="sm"
 				variant="secondary"
@@ -96,6 +135,33 @@
 				Restaurar backup
 			</Button>
 		</div>
+		<ul
+			class="mt-3 list-disc space-y-1 pl-4 text-2xs text-muted-foreground"
+		>
+			{#if canUpdate}
+				<li>
+					<b>Actualizar</b>: reemplaza ese mismo archivo por uno al día,
+					sin crear otro. Conserva las fotos y chats que tenía aunque ya
+					no estén en el teléfono.
+				</li>
+			{/if}
+			<li>
+				<b>Descargas</b>: crea un archivo nuevo llamado
+				backup-martins-grindr-FECHA.zip en Descargas → Martins Grindr.
+			</li>
+			{#if native}
+				<li>
+					<b>Elegir dónde</b>: abre el selector de Android. Ahí podés
+					elegir Google Drive (con la app de Drive instalada y tu cuenta
+					de Gmail), otra carpeta, y cambiar el nombre. Si elegís un
+					archivo que ya existe, se reemplaza.
+				</li>
+			{/if}
+			<li>
+				El último archivo que guardes queda como "tu backup" para
+				actualizarlo después.
+			</li>
+		</ul>
 	{/if}
 
 	{#if backup.lastResult && !backup.running}
