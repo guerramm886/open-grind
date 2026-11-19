@@ -23,39 +23,138 @@
 	import { formatDistance } from "$lib/util/units";
 
 	const RANGE_KEY = "radar-range-v1";
-	const RANGES: { label: string; metres: number | null }[] = [
-		{ label: "1 km", metres: 1_000 },
-		{ label: "3 km", metres: 3_000 },
-		{ label: "10 km", metres: 10_000 },
-		{ label: "Todos", metres: null },
+	const FILTERS_KEY = "radar-filters-v1";
+	/** Radius steps, 1 to 10 km; past the last one the radar shows everyone. */
+	const STEPS_M = [
+		1_000, 2_000, 3_000, 4_000, 5_000, 6_000, 7_000, 8_000, 9_000, 10_000,
 	];
+	const ALL_STEP = STEPS_M.length;
+	/** How much the fingers must open or close to move one step. */
+	const PINCH_STEP_RATIO = 1.18;
+
+	type Who = "all" | "favorites" | "others";
+	type Filters = { who: Who; onlineOnly: boolean; photoOnly: boolean };
 	const MAX_LAZY_RESOLVE = 120;
 
 	const preferencesHydrated = hydratePreferences();
 	const geohash = $derived(preferencesSnapshot().geohash);
 	const units = $derived(preferencesSnapshot().units);
 
-	function loadRange(): number | null {
+	function loadStep(): number {
 		try {
 			const raw = localStorage.getItem(RANGE_KEY);
-			if (raw === null) return 3_000;
-			const value = Number(raw);
-			return value > 0 ? value : null;
+			if (raw === null) return 2;
+			const metres = Number(raw);
+			if (!(metres > 0)) return ALL_STEP;
+			const index = STEPS_M.findIndex((step) => step >= metres);
+			return index === -1 ? STEPS_M.length - 1 : index;
 		} catch {
-			return 3_000;
+			return 2;
 		}
 	}
 
-	let range = $state<number | null>(loadRange());
-	let width = $state(0);
-
-	function chooseRange(metres: number | null) {
-		range = metres;
+	function loadFilters(): Filters {
+		const fallback: Filters = {
+			who: "all",
+			onlineOnly: false,
+			photoOnly: false,
+		};
 		try {
-			localStorage.setItem(RANGE_KEY, String(metres ?? 0));
+			const raw: unknown = JSON.parse(
+				localStorage.getItem(FILTERS_KEY) ?? "null",
+			);
+			if (typeof raw !== "object" || raw === null) return fallback;
+			const value = raw as Partial<Filters>;
+			return {
+				who:
+					value.who === "favorites" || value.who === "others"
+						? value.who
+						: "all",
+				onlineOnly: value.onlineOnly === true,
+				photoOnly: value.photoOnly === true,
+			};
+		} catch {
+			return fallback;
+		}
+	}
+
+	let step = $state(loadStep());
+	let filters = $state<Filters>(loadFilters());
+	let width = $state(0);
+	const range = $derived(step >= ALL_STEP ? null : (STEPS_M[step] ?? null));
+
+	function chooseStep(next: number) {
+		step = Math.min(Math.max(Math.round(next), 0), ALL_STEP);
+		try {
+			localStorage.setItem(
+				RANGE_KEY,
+				String(step >= ALL_STEP ? 0 : (STEPS_M[step] ?? 0)),
+			);
 		} catch {
 			/* only a convenience */
 		}
+	}
+
+	function setFilters(patch: Partial<Filters>) {
+		filters = { ...filters, ...patch };
+		try {
+			localStorage.setItem(FILTERS_KEY, JSON.stringify(filters));
+		} catch {
+			/* only a convenience */
+		}
+	}
+
+	// Two fingers on the radar: opening them shows less distance (zoom in),
+	// closing them shows more.
+	let pinchStartGap = 0;
+	let pinchStartStep = 0;
+	let pinching = $state(false);
+
+	function fingerGap(event: TouchEvent): number | null {
+		const [a, b] = Array.from(event.touches);
+		if (!a || !b) return null;
+		return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+	}
+
+	function pinchStart(event: TouchEvent) {
+		const gap = fingerGap(event);
+		if (gap === null || gap < 10) return;
+		pinchStartGap = gap;
+		pinchStartStep = step;
+		pinching = true;
+	}
+
+	function pinchMove(event: TouchEvent) {
+		if (!pinching) return;
+		const gap = fingerGap(event);
+		if (gap === null) return;
+		event.preventDefault();
+		const steps =
+			Math.log(gap / pinchStartGap) / Math.log(PINCH_STEP_RATIO);
+		const next = Math.min(
+			Math.max(Math.round(pinchStartStep - steps), 0),
+			ALL_STEP,
+		);
+		if (next !== step) chooseStep(next);
+	}
+
+	function pinchEnd(event: TouchEvent) {
+		if (event.touches.length < 2) pinching = false;
+	}
+
+	// Not passive, so a pinch can stop the page from scrolling under it.
+	function pinchable(element: HTMLElement) {
+		const options = { passive: false };
+		element.addEventListener("touchstart", pinchStart, options);
+		element.addEventListener("touchmove", pinchMove, options);
+		element.addEventListener("touchend", pinchEnd);
+		element.addEventListener("touchcancel", pinchEnd);
+		return () => {
+			element.removeEventListener("touchstart", pinchStart);
+			element.removeEventListener("touchmove", pinchMove);
+			element.removeEventListener("touchend", pinchEnd);
+			element.removeEventListener("touchcancel", pinchEnd);
+		};
 	}
 
 	$effect.pre(() => {
@@ -83,13 +182,25 @@
 				profile.type === "rendered",
 		),
 	);
+	const filtered = $derived(
+		rendered.filter((profile) => {
+			if (filters.who === "favorites" && !profile.isFavorite) return false;
+			if (filters.who === "others" && profile.isFavorite) return false;
+			if (filters.onlineOnly && !((profile.onlineUntil ?? 0) > getNow()))
+				return false;
+			if (filters.photoOnly && !profile.profilePhotosHashes?.[0])
+				return false;
+			return true;
+		}),
+	);
 	const withDistance = $derived(
-		rendered.filter(
+		filtered.filter(
 			(profile): profile is RenderedGridProfile & { distance: number } =>
 				profile.distance !== null,
 		),
 	);
-	const hiddenDistance = $derived(rendered.length - withDistance.length);
+	const hiddenDistance = $derived(filtered.length - withDistance.length);
+	const filteredOut = $derived(rendered.length - filtered.length);
 	const farthest = $derived(
 		withDistance.reduce((max, profile) => Math.max(max, profile.distance), 0),
 	);
@@ -159,29 +270,93 @@
 		<CrosshairIcon weight="bold" class="size-5 text-accent" />
 		<h1 class="text-base font-semibold">Radar de cercanía</h1>
 	</div>
-	<div class="flex gap-1.5" role="group" aria-label="Distancia máxima">
-		{#each RANGES as option (option.label)}
+	<div
+		class="flex items-center gap-1.5"
+		role="group"
+		aria-label="Distancia máxima"
+	>
+		<button
+			type="button"
+			aria-label="Menos distancia"
+			class="flex size-8 items-center justify-center rounded-full bg-secondary text-lg leading-none disabled:opacity-40"
+			disabled={step <= 0}
+			onclick={() => chooseStep(step - 1)}>−</button
+		>
+		<span class="min-w-16 text-center text-sm font-semibold">
+			{range === null ? "Todos" : formatDistance(range, units)}
+		</span>
+		<button
+			type="button"
+			aria-label="Más distancia"
+			class="flex size-8 items-center justify-center rounded-full bg-secondary text-lg leading-none disabled:opacity-40"
+			disabled={step >= ALL_STEP}
+			onclick={() => chooseStep(step + 1)}>+</button
+		>
+		<input
+			type="range"
+			min="0"
+			max={ALL_STEP}
+			step="1"
+			value={step}
+			aria-label="Distancia máxima"
+			class="min-w-0 flex-1 accent-primary"
+			oninput={(event) => chooseStep(Number(event.currentTarget.value))}
+		/>
+	</div>
+	<div
+		data-scroll-intent="x"
+		class="no-scrollbar flex gap-1.5 overflow-x-auto"
+		role="group"
+		aria-label="Filtros"
+	>
+		{#each [{ who: "all", label: "Todos" }, { who: "favorites", label: "♥ Favoritos" }, { who: "others", label: "Sin favoritos" }] as option (option.who)}
 			<button
 				type="button"
-				aria-pressed={range === option.metres}
+				aria-pressed={filters.who === option.who}
 				class={[
-					"rounded-full px-3 py-1.5 text-sm",
-					range === option.metres
+					"shrink-0 rounded-full px-3 py-1.5 text-sm",
+					filters.who === option.who
 						? "bg-primary text-primary-foreground"
 						: "bg-secondary",
 				]}
-				onclick={() => chooseRange(option.metres)}
+				onclick={() => setFilters({ who: option.who as Who })}
 			>
 				{option.label}
 			</button>
 		{/each}
+		<button
+			type="button"
+			aria-pressed={filters.onlineOnly}
+			class={[
+				"shrink-0 rounded-full px-3 py-1.5 text-sm",
+				filters.onlineOnly
+					? "bg-primary text-primary-foreground"
+					: "bg-secondary",
+			]}
+			onclick={() => setFilters({ onlineOnly: !filters.onlineOnly })}
+		>
+			● Online
+		</button>
+		<button
+			type="button"
+			aria-pressed={filters.photoOnly}
+			class={[
+				"shrink-0 rounded-full px-3 py-1.5 text-sm",
+				filters.photoOnly
+					? "bg-primary text-primary-foreground"
+					: "bg-secondary",
+			]}
+			onclick={() => setFilters({ photoOnly: !filters.photoOnly })}
+		>
+			Con foto
+		</button>
 	</div>
 </ProgressiveBlur>
 
 <main class="screen-nav-host">
 	<div class="pull-scroller">
 		<div
-			class="mx-auto mt-24 flex min-h-overscrollable w-full max-w-160 flex-col gap-4 px-4 pt-header-clear-16 pb-nav-clear"
+			class="mx-auto mt-36 flex min-h-overscrollable w-full max-w-160 flex-col gap-4 px-4 pt-header-clear-16 pb-nav-clear"
 		>
 			{#await preferencesHydrated then}
 				{#if geohash === null}
@@ -194,6 +369,10 @@
 							class="relative mx-auto overflow-hidden rounded-full border border-border bg-card"
 							style:width="{size}px"
 							style:height="{size}px"
+							style:touch-action="pan-y"
+							role="application"
+							aria-label="Radar: pellizcá para cambiar la distancia"
+							{@attach pinchable}
 						>
 							{#each rings as ring (ring.distance)}
 								<div
@@ -261,9 +440,10 @@
 					</div>
 
 					<p class="text-center text-xs text-muted-foreground">
-						Cada anillo es la distancia que muestra Grindr. La dirección
-						no es real: Grindr no la da, así que cada persona queda en un
-						lugar fijo de su anillo.
+						Pellizcá el radar con dos dedos para cambiar la distancia
+						(abrir = menos, cerrar = más). Cada anillo es la distancia que
+						muestra Grindr. La dirección no es real: Grindr no la da, así
+						que cada persona queda en un lugar fijo de su anillo.
 					</p>
 
 					<p class="text-center text-xs text-muted-foreground">
@@ -271,6 +451,8 @@
 							? ` · ${outside} más lejos`
 							: ""}{hiddenDistance > 0
 							? ` · ${hiddenDistance} no muestran distancia`
+							: ""}{filteredOut > 0
+							? ` · ${filteredOut} ocultos por los filtros`
 							: ""}
 						{#if gridState.loading || gridState.paging.running}
 							· cargando…
