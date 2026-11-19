@@ -1,4 +1,5 @@
 <script lang="ts">
+	import CrosshairIcon from "phosphor-svelte/lib/CrosshairIcon";
 	import MagnifyingGlassIcon from "phosphor-svelte/lib/MagnifyingGlassIcon";
 
 	import CommandCenterTrigger from "$lib/components/command-center/CommandCenterTrigger.svelte";
@@ -34,6 +35,12 @@
 			><MagnifyingGlassIcon class="size-5" />{#if visionQueue.pendingCount > 0}<span
 					class="absolute top-0.5 right-0.5 size-3 animate-spin rounded-full border-2 border-muted-foreground/40 border-t-accent"
 				></span>{/if}</button
+		>
+		<a
+			href="/radar"
+			aria-label="Radar de cercanía"
+			class="rounded-full bg-secondary p-2.5"
+			><CrosshairIcon class="size-5" /></a
 		>
 		<div
 			data-scroll-intent="x"
