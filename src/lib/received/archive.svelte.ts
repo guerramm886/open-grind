@@ -19,6 +19,9 @@ const AUTOSAVE_KEY = "received-autosave-v1";
 const PEOPLE_KEY = "received-people-v1";
 const ARCHIVE_DIR = "received-archive";
 const GALLERY_VISIBLE_KEY = "gallery-visible-v1";
+/** Ids already copied to the gallery. Kept apart from the manifest so the
+ *  copying doesn't rewrite (and re-render) the whole list once per file. */
+const GALLERY_DONE_KEY = "received-gallery-done-v1";
 const READ_CHUNK = 4 * 1024 * 1024;
 const STAGE_CHUNK = 3 * 1024 * 1024;
 
@@ -248,6 +251,7 @@ class ReceivedArchive {
 	/** Whether the Martins Grindr gallery folders show in Gallery/Photos. */
 	galleryVisible = $state(false);
 	galleryProblem = $state<string | null>(null);
+	#galleryDone = new Set<string>();
 	/** Copies to the gallery waiting to be written, one at a time. */
 	#galleryQueue: string[] = [];
 	#galleryRunning = false;
@@ -282,6 +286,16 @@ class ReceivedArchive {
 						})
 						.then(() => {
 							// Everything already saved also goes to the gallery.
+							try {
+								const raw: unknown = JSON.parse(
+									localStorage.getItem(GALLERY_DONE_KEY) ?? "[]",
+								);
+								if (Array.isArray(raw))
+									for (const id of raw)
+										if (typeof id === "string") this.#galleryDone.add(id);
+							} catch {
+								/* start over: worst case a few copies repeat */
+							}
 							for (const entry of Object.values(this.#entries))
 								if (!entry.inGallery) this.#queueGallery(entry.id);
 						});
@@ -318,17 +332,35 @@ class ReceivedArchive {
 	}
 
 	#queueGallery(id: string): void {
-		if (!this.#native || this.#galleryQueue.includes(id)) return;
+		if (!this.#native || this.#galleryDone.has(id)) return;
+		if (this.#galleryQueue.includes(id)) return;
 		this.#galleryQueue.push(id);
 		if (!this.#galleryRunning) void this.#drainGallery();
 	}
 
 	async #drainGallery(): Promise<void> {
 		this.#galleryRunning = true;
+		let unsaved = 0;
+		const persist = () => {
+			unsaved = 0;
+			try {
+				localStorage.setItem(
+					GALLERY_DONE_KEY,
+					JSON.stringify([...this.#galleryDone]),
+				);
+			} catch {
+				/* storage full: copies may repeat next time */
+			}
+		};
 		try {
 			for (let id = this.#galleryQueue.shift(); id; id = this.#galleryQueue.shift()) {
 				const entry = this.#entries[id];
-				if (!entry || entry.inGallery || !this.#stored.has(entry.fileName))
+				if (
+					!entry ||
+					entry.inGallery ||
+					this.#galleryDone.has(id) ||
+					!this.#stored.has(entry.fileName)
+				)
 					continue;
 				const person = this.#people[entry.conversationId]?.name ?? entry.name;
 				const folder =
@@ -348,19 +380,16 @@ class ReceivedArchive {
 						isVideo: entry.kind === "video",
 						contentType: entry.contentType || null,
 					});
-					const current = this.#entries[id];
-					if (current) {
-						this.#entries = {
-							...this.#entries,
-							[id]: { ...current, inGallery: true },
-						};
-						this.#persistManifest();
-					}
+					this.#galleryDone.add(id);
+					if (++unsaved >= 25) persist();
 				} catch (error) {
 					console.error("[received-archive] gallery copy failed", error);
 				}
+				// Let the app breathe between files.
+				await new Promise((resolve) => setTimeout(resolve, 30));
 			}
 		} finally {
+			if (unsaved > 0) persist();
 			this.#galleryRunning = false;
 		}
 	}
@@ -712,7 +741,7 @@ class ReceivedArchive {
 		}
 		this.#entries = {
 			...this.#entries,
-			[entry.id]: { ...entry, fileName, inGallery: false },
+			[entry.id]: { ...entry, fileName },
 		};
 		this.#persistManifest();
 		this.#queueGallery(entry.id);
