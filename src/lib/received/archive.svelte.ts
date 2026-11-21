@@ -1,16 +1,79 @@
-// Persistent local archive for media other people sent you. Bytes are fetched
-// natively (the webview can't fetch the proxied media: http scheme vs the https
-// app = mixed content) and stored in the Origin Private File System, so a saved
-// copy survives the sender deleting the content, unsending it, deleting their
-// profile, or Grindr locking an album. It is only lost if the app is
-// uninstalled or its data is cleared. Metadata lives in localStorage.
+// Persistent local archive for media other people sent you, so a saved copy
+// survives the sender deleting the content, unsending it, deleting their
+// profile, or Grindr locking an album. Metadata lives in localStorage.
+//
+// In the app, the bytes live in a folder of the app's own data directory
+// (see src-tauri/src/archive_store.rs), fetched there natively. They used to
+// live in the webview's Origin Private File System, which Android may clear
+// to free space; at startup anything still there is moved over, and entries
+// whose file is gone are dropped from the list so they can be fetched again
+// or restored from a backup. The browser build keeps using OPFS.
 
 import { invoke, isTauri } from "@tauri-apps/api/core";
+
+import type { ByteSource } from "$lib/backup/zip";
+import { fromBase64, toBase64 } from "$lib/util/base64";
 
 export const MANIFEST_KEY ="received-archive-manifest-v1";
 const AUTOSAVE_KEY = "received-autosave-v1";
 const PEOPLE_KEY = "received-people-v1";
 const ARCHIVE_DIR = "received-archive";
+const READ_CHUNK = 4 * 1024 * 1024;
+const STAGE_CHUNK = 3 * 1024 * 1024;
+
+/** A file in the native store, read in pieces on demand. */
+class StoredSource implements ByteSource {
+	readonly #fileName: string;
+	readonly #start: number;
+	readonly size: number;
+
+	constructor(fileName: string, start: number, size: number) {
+		this.#fileName = fileName;
+		this.#start = start;
+		this.size = size;
+	}
+
+	slice(start = 0, end = this.size): ByteSource {
+		const from = Math.min(Math.max(start, 0), this.size);
+		const to = Math.min(Math.max(end, from), this.size);
+		return new StoredSource(this.#fileName, this.#start + from, to - from);
+	}
+
+	async arrayBuffer(): Promise<ArrayBuffer> {
+		const out = new Uint8Array(this.size);
+		let filled = 0;
+		while (filled < this.size) {
+			const chunk = fromBase64(
+				await invoke<string>("archive_store_read", {
+					fileName: this.#fileName,
+					offset: this.#start + filled,
+					length: Math.min(READ_CHUNK, this.size - filled),
+				}),
+			);
+			if (chunk.length === 0) break;
+			out.set(chunk, filled);
+			filled += chunk.length;
+		}
+		return out.buffer;
+	}
+}
+
+/** Copy bytes into a native staged file; returns its id. */
+async function stageBytes(source: ByteSource): Promise<string> {
+	const id = String(await invoke("stage_media"));
+	try {
+		for (let at = 0; at < source.size; at += STAGE_CHUNK) {
+			const bytes = new Uint8Array(
+				await source.slice(at, at + STAGE_CHUNK).arrayBuffer(),
+			);
+			await invoke("append_staged_media", { id, chunk: toBase64(bytes) });
+		}
+		return id;
+	} catch (error) {
+		await invoke("discard_staged_media", { id }).catch(() => undefined);
+		throw error;
+	}
+}
 
 export type ArchivedPerson = {
 	conversationId: string;
@@ -121,6 +184,18 @@ function readPeople(): Record<string, PersonRecord> {
 	}
 }
 
+async function opfsFile(
+	dir: FileSystemDirectoryHandle | null,
+	fileName: string,
+): Promise<File | null> {
+	if (!dir) return null;
+	try {
+		return await (await dir.getFileHandle(fileName)).getFile();
+	} catch {
+		return null;
+	}
+}
+
 function fileNameFor(id: string): string {
 	return id.replace(/[^a-zA-Z0-9._-]/g, "_");
 }
@@ -141,6 +216,14 @@ async function archiveDir(
 }
 
 class ReceivedArchive {
+	/** Native store in the app; OPFS in a plain browser. */
+	readonly #native = typeof window !== "undefined" && isTauri();
+	/** Native store: file name -> size, for files known to be there. */
+	#stored = new Map<string, number>();
+	/** Settles once saved files were checked (and moved off OPFS). */
+	readonly ready: Promise<void>;
+	/** Saved items whose file had disappeared, found at startup. */
+	lost = $state(0);
 	#entries = $state<Record<string, ArchivedEntry>>({});
 	#autoSave = $state<Record<string, true>>({});
 	#saving = $state<Record<string, true>>({});
@@ -157,10 +240,72 @@ class ReceivedArchive {
 			this.#people = readPeople();
 		}
 		this.#supported =
-			typeof navigator !== "undefined" &&
-			typeof (navigator.storage as { getDirectory?: unknown } | undefined)
-				?.getDirectory === "function";
+			this.#native ||
+			(typeof navigator !== "undefined" &&
+				typeof (navigator.storage as { getDirectory?: unknown } | undefined)
+					?.getDirectory === "function");
 		void this.#requestPersistence();
+		this.ready =
+			typeof window === "undefined"
+				? Promise.resolve()
+				: this.#reconcile().catch((error: unknown) => {
+						console.error("[received-archive] check failed", error);
+					});
+	}
+
+	/**
+	 * Make the list match the files: move anything still in OPFS into the
+	 * native store, and drop entries whose file is gone, so they are fetched
+	 * again (if still on Grindr) or restored from a backup. Nothing is dropped
+	 * unless the store could be listed.
+	 */
+	async #reconcile(): Promise<void> {
+		const entries = Object.values(this.#entries);
+		if (entries.length === 0 && !this.#native) return;
+		const opfs = await archiveDir(false);
+		const missing: string[] = [];
+		if (this.#native) {
+			const files = await invoke<{ name: string; size: number }[]>(
+				"archive_store_list",
+			);
+			this.#stored = new Map(files.map((file) => [file.name, file.size]));
+			for (const entry of entries) {
+				if (this.#stored.has(entry.fileName)) continue;
+				const old = await opfsFile(opfs, entry.fileName);
+				if (old && old.size > 0) {
+					try {
+						const id = await stageBytes(old);
+						const size = await invoke<number>("archive_store_staged", {
+							id,
+							fileName: entry.fileName,
+						});
+						this.#stored.set(entry.fileName, size);
+						await opfs?.removeEntry(entry.fileName).catch(() => undefined);
+						continue;
+					} catch (error) {
+						// Keep it listed: the OPFS copy is still there to retry.
+						console.error("[received-archive] move failed", error);
+						continue;
+					}
+				}
+				missing.push(entry.id);
+			}
+		} else {
+			if (!opfs) return;
+			for (const entry of entries) {
+				const file = await opfsFile(opfs, entry.fileName);
+				if (!file || file.size === 0) missing.push(entry.id);
+			}
+		}
+		if (missing.length === 0) return;
+		const next = { ...this.#entries };
+		for (const id of missing) delete next[id];
+		this.#entries = next;
+		this.#persistManifest();
+		this.lost = missing.length;
+		console.warn(
+			`[received-archive] ${missing.length} saved files were missing; unlisted so they can be saved again`,
+		);
 	}
 
 	get supported(): boolean {
@@ -311,23 +456,35 @@ class ReceivedArchive {
 		if (!this.#supported) return false;
 		this.#saving = { ...this.#saving, [item.id]: true };
 		try {
-			const blob = await fetchArchiveBlob(item);
-			const dir = await archiveDir(true);
-			if (!dir) {
-				this.#supported = false;
-				return false;
-			}
 			const fileName = fileNameFor(item.id);
-			const handle = await dir.getFileHandle(fileName, { create: true });
-			const writable = await handle.createWritable();
-			await writable.write(blob);
-			await writable.close();
+			let contentType = item.contentType;
+			if (this.#native) {
+				const size = await invoke<number>("archive_store_url", {
+					url: item.rawUrl,
+					isVideo: item.kind === "video",
+					fileName,
+				});
+				this.#stored.set(fileName, size);
+			} else {
+				const blob = await fetchArchiveBlob(item);
+				const dir = await archiveDir(true);
+				if (!dir) {
+					this.#supported = false;
+					return false;
+				}
+				const handle = await dir.getFileHandle(fileName, { create: true });
+				const writable = await handle.createWritable();
+				await writable.write(blob);
+				await writable.close();
+				contentType ||= blob.type;
+			}
 			const entry: ArchivedEntry = {
 				id: item.id,
 				conversationId: item.conversationId,
 				profileId: item.profileId,
 				kind: item.kind,
-				contentType: item.contentType || blob.type,
+				contentType:
+					contentType || (item.kind === "video" ? "video/mp4" : "image/jpeg"),
 				name: item.name,
 				albumId: item.albumId,
 				savedAt: Date.now(),
@@ -360,8 +517,13 @@ class ReceivedArchive {
 		const entry = this.#entries[id];
 		if (!entry) return;
 		try {
-			const dir = await archiveDir(false);
-			await dir?.removeEntry(entry.fileName);
+			if (this.#native) {
+				await invoke("archive_store_remove", { fileName: entry.fileName });
+				this.#stored.delete(entry.fileName);
+			} else {
+				const dir = await archiveDir(false);
+				await dir?.removeEntry(entry.fileName);
+			}
 		} catch {
 			/* file may already be gone */
 		}
@@ -399,16 +561,15 @@ class ReceivedArchive {
 	}
 
 	/** The stored file itself (for backups), or null if it cannot be read. */
-	async file(id: string): Promise<File | null> {
+	async file(id: string): Promise<ByteSource | null> {
+		await this.ready;
 		const entry = this.#entries[id];
 		if (!entry) return null;
-		try {
-			const dir = await archiveDir(false);
-			if (!dir) return null;
-			return await (await dir.getFileHandle(entry.fileName)).getFile();
-		} catch {
-			return null;
+		if (this.#native) {
+			const size = this.#stored.get(entry.fileName);
+			return size ? new StoredSource(entry.fileName, 0, size) : null;
 		}
+		return await opfsFile(await archiveDir(false), entry.fileName);
 	}
 
 	/**
@@ -417,16 +578,25 @@ class ReceivedArchive {
 	 */
 	async importEntry(entry: ArchivedEntry, blob: Blob): Promise<boolean> {
 		if (this.isArchived(entry.id)) return false;
-		const dir = await archiveDir(true);
-		if (!dir) {
-			this.#supported = false;
-			throw new Error("Este dispositivo no permite guardar archivos");
-		}
 		const fileName = fileNameFor(entry.id);
-		const handle = await dir.getFileHandle(fileName, { create: true });
-		const writable = await handle.createWritable();
-		await writable.write(blob);
-		await writable.close();
+		if (this.#native) {
+			const id = await stageBytes(blob);
+			const size = await invoke<number>("archive_store_staged", {
+				id,
+				fileName,
+			});
+			this.#stored.set(fileName, size);
+		} else {
+			const dir = await archiveDir(true);
+			if (!dir) {
+				this.#supported = false;
+				throw new Error("Este dispositivo no permite guardar archivos");
+			}
+			const handle = await dir.getFileHandle(fileName, { create: true });
+			const writable = await handle.createWritable();
+			await writable.write(blob);
+			await writable.close();
+		}
 		this.#entries = { ...this.#entries, [entry.id]: { ...entry, fileName } };
 		this.#persistManifest();
 		return true;
@@ -439,11 +609,21 @@ class ReceivedArchive {
 		const entry = this.#entries[id];
 		if (!entry) return null;
 		try {
-			const dir = await archiveDir(false);
-			if (!dir) return null;
-			const handle = await dir.getFileHandle(entry.fileName);
-			const file = await handle.getFile();
-			const url = URL.createObjectURL(file);
+			await this.ready;
+			let blob: Blob | null;
+			if (this.#native) {
+				const size = this.#stored.get(entry.fileName);
+				blob = size
+					? new Blob(
+							[await new StoredSource(entry.fileName, 0, size).arrayBuffer()],
+							{ type: entry.contentType },
+						)
+					: null;
+			} else {
+				blob = await opfsFile(await archiveDir(false), entry.fileName);
+			}
+			if (!blob) return null;
+			const url = URL.createObjectURL(blob);
 			this.#urls.set(id, url);
 			return url;
 		} catch {

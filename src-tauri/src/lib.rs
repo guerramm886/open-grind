@@ -2,6 +2,7 @@ pub mod api;
 mod app_data;
 mod app_origin;
 mod app_settings;
+mod archive_store;
 mod appearance;
 mod backup;
 mod appimage;
@@ -276,6 +277,11 @@ pub fn run() {
             backup::write_backup_to_uri,
             backup::stage_backup_from_uri,
             backup::read_staged_range,
+            archive_store::archive_store_url,
+            archive_store::archive_store_staged,
+            archive_store::archive_store_list,
+            archive_store::archive_store_read,
+            archive_store::archive_store_remove,
         ])
         .setup(|app| {
             scroll_phase::install_scroll_gesture_bridge(app.handle());

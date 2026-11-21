@@ -539,6 +539,7 @@ class Backup {
 				old = await this.#openOld(previous.uri);
 				oldUnreadable = old === null;
 			}
+			await receivedArchive.ready;
 			sink = isTauri() ? await nativeSink() : webSink();
 			const zip = new ZipWriter(sink.write);
 
@@ -965,6 +966,7 @@ class Backup {
 		this.pending = null;
 		this.lastResult = null;
 		try {
+			await receivedArchive.ready;
 			const entries = await readZipEntries(file);
 			// Tolerate a zip that was unpacked and packed again inside a folder.
 			const marker = entries.find((entry) =>

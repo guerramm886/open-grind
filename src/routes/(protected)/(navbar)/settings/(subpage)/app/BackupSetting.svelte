@@ -27,6 +27,21 @@
 		restaurás desde acá.
 	</p>
 
+	{#if receivedArchive.lost > 0}
+		<div class="mt-3 rounded-lg border border-destructive/50 p-3 text-sm">
+			<p class="font-semibold text-destructive">
+				Faltaban {receivedArchive.lost} fotos/videos guardados
+			</p>
+			<p class="mt-1 text-2xs text-muted-foreground">
+				Sus archivos ya no estaban en el teléfono. Las que siguen en Grindr
+				se vuelven a guardar al entrar a cada persona en Recibidos. Si tenés
+				un backup que las incluya, "Restaurar backup" las recupera. Desde
+				esta versión se guardan en un lugar que Android no borra para
+				liberar espacio.
+			</p>
+		</div>
+	{/if}
+
 	{#if target}
 		<div class="mt-3 rounded-lg bg-secondary p-3 text-sm">
 			<p class="font-semibold">Tu backup</p>
