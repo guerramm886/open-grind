@@ -2,6 +2,7 @@
 	import SiFacebook from "@icons-pack/svelte-simple-icons/icons/SiFacebook";
 	import SiGoogle from "@icons-pack/svelte-simple-icons/icons/SiGoogle";
 	import { goto } from "$app/navigation";
+	import { isWebServer } from "$lib/platform/os";
 	import { toast } from "svelte-sonner";
 	import z from "zod";
 
@@ -175,6 +176,11 @@
 
 	async function signInWith(provider: OauthProvider) {
 		if (submitting) return;
+		// In the browser there is no Google companion app: paste the token.
+		if (provider === "google" && isWebServer()) {
+			void goto("/auth/sign-in/google?paste");
+			return;
+		}
 		submitting = provider;
 		const { method, label, failures } = oauthProviders[provider];
 		try {

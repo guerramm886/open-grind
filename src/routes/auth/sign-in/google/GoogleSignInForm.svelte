@@ -22,7 +22,7 @@
 	import { Spinner } from "$lib/components/ui/spinner";
 	import { Textarea } from "$lib/components/ui/textarea";
 	import { openExternalLink } from "$lib/platform/link-opener";
-	import { isAndroidPlatform } from "$lib/platform/os";
+	import { isAndroidPlatform, isWebServer } from "$lib/platform/os";
 	import { isPlayBuild } from "$lib/platform/store";
 	import { getInstalledVersion, GOOGLE_OAUTH_COMPONENT } from "$lib/updates";
 	import {
@@ -40,13 +40,14 @@
 	} from "./google-sign-in-view";
 
 	const companionHref = manualInstallHref(GOOGLE_OAUTH_COMPONENT);
-	const automated = isAndroidPlatform();
+	// The web version can't reach the companion app: always paste the token.
+	const automated = isAndroidPlatform() && !isWebServer();
 
 	let token = $state("");
 	let submitting = $state(false);
 	let continuing = $state(false);
 	let starting = $state(false);
-	let pasting = $state(page.url.searchParams.has("paste"));
+	let pasting = $state(page.url.searchParams.has("paste") || isWebServer());
 	let installed = $state(false);
 	let launchFailed = $state(false);
 	let probes = 0;

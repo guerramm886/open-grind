@@ -8,6 +8,10 @@ on:
     branches: [orden-por-distancia]
     paths:
       - "server/**"
+      - "src/**"
+      - "static/**"
+      - "package.json"
+      - "bun.lock"
       - "martins_grindr/**"
       - ".github/workflows/web-server.yml"
   workflow_dispatch:

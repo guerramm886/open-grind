@@ -28,6 +28,17 @@ export function isLinuxPlatform(): boolean {
 	return isTauri() && platform() === "linux";
 }
 
+/**
+ * The web version (server/, opened in a browser): Tauri is stood in for by
+ * the server's shim, so phone-only helpers (companion apps) aren't there.
+ */
+export function isWebServer(): boolean {
+	return (
+		typeof window !== "undefined" &&
+		(window as { __OG_WEB__?: boolean }).__OG_WEB__ === true
+	);
+}
+
 export function isMacosPlatform(): boolean {
 	return isTauri() && platform() === "macos";
 }
