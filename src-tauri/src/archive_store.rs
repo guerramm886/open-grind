@@ -173,8 +173,11 @@ pub async fn archive_store_read(
 }
 
 /// Put a copy of a stored file in the phone's gallery, under
-/// Pictures (or Movies)/Martins Grindr/`base_name`, so it can be seen and kept
-/// outside the app. `base_name` may contain one sub-folder (the person).
+/// Pictures/Martins Grindr/`base_name`, photos and videos together, so it can
+/// be seen and kept outside the app. `base_name` may contain one sub-folder
+/// (the person). Written by path (Android indexes it on its own); if that is
+/// refused, it falls back to the MediaStore route, which keeps videos apart
+/// in Movies.
 #[tauri::command]
 pub async fn archive_store_to_gallery(
 	app: AppHandle,
@@ -193,8 +196,35 @@ pub async fn archive_store_to_gallery(
 	}
 	let base = parts.join("/");
 	tauri::async_runtime::spawn_blocking(move || {
-		let bytes = fs::read(path_of(&app, &file_name)?).map_err(text_error)?;
-		crate::gallery::save(&app, &bytes, &base, content_type.as_deref(), is_video)
+		let source = path_of(&app, &file_name)?;
+		let (ext, _mime) = crate::gallery::ext_and_mime(content_type.as_deref(), is_video);
+		let target_base = std::path::Path::new("/storage/emulated/0/Pictures/Martins Grindr")
+			.join(&base);
+		let direct = (|| -> io::Result<()> {
+			if let Some(parent) = target_base.parent() {
+				fs::create_dir_all(parent)?;
+			}
+			let mut target = target_base.with_extension(ext);
+			for copy in 2..100 {
+				if !target.exists() {
+					break;
+				}
+				let name = format!(
+					"{}_{copy}",
+					target_base.file_name().unwrap_or_default().to_string_lossy()
+				);
+				target = target_base.with_file_name(name).with_extension(ext);
+			}
+			fs::copy(&source, &target).map(drop)
+		})();
+		match direct {
+			Ok(()) => Ok(()),
+			Err(error) => {
+				tracing::warn!("[archive] gallery copy by path failed: {error}");
+				let bytes = fs::read(&source).map_err(text_error)?;
+				crate::gallery::save(&app, &bytes, &base, content_type.as_deref(), is_video)
+			}
+		}
 	})
 	.await
 	.map_err(text_error)?

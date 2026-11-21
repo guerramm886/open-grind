@@ -34,7 +34,10 @@ pub async fn save_media_to_gallery(
 	save(&app, &bytes, &base_name, content_type.as_deref(), is_video)
 }
 
-fn ext_and_mime(content_type: Option<&str>, is_video: bool) -> (&'static str, String) {
+pub(crate) fn ext_and_mime(
+	content_type: Option<&str>,
+	is_video: bool,
+) -> (&'static str, String) {
 	let ct = content_type.unwrap_or("").to_ascii_lowercase();
 	if is_video || ct.starts_with("video/") {
 		let ext = if ct.contains("webm") { "webm" } else { "mp4" };
