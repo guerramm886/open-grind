@@ -30,6 +30,9 @@ fn to_json(value: impl Serialize) -> Result<Value, AppError> {
 }
 
 pub async fn run(app: &App, command: &str, args: Value) -> Result<Value, AppError> {
+	if let Some(result) = crate::archive::run(app, command, &args).await {
+		return result.map_err(AppError::Http);
+	}
 	let client = &app.client;
 	match command {
 		"backend_ready" => Ok(json!(true)),

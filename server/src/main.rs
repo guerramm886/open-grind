@@ -8,7 +8,9 @@
 //! - `OG_WEB_DIR`   the built pages (default `./web`)
 //! - `OG_PORT`      port (default 8099)
 //! - `OG_PASSWORD`  if set, the page asks for it once per browser
+//! - `OG_MEDIA_DIR` where saved photos are copied as normal files (default `/media`)
 
+mod archive;
 mod commands;
 mod error;
 mod gate;
@@ -52,6 +54,9 @@ pub struct AppInner {
 	pub foreground: AtomicBool,
 	pub gate: gate::Gate,
 	pub web_dir: PathBuf,
+	pub data_dir: PathBuf,
+	/// Where saved photos are copied as normal files (`<media>/Martins Grindr`).
+	pub media_dir: PathBuf,
 }
 
 pub type App = Arc<AppInner>;
@@ -137,6 +142,8 @@ async fn main() {
 		foreground: AtomicBool::new(true),
 		gate: gate::Gate::new(&store, password(&data_dir)),
 		web_dir: web_dir.clone(),
+		data_dir: data_dir.clone(),
+		media_dir: PathBuf::from(env_or("OG_MEDIA_DIR", "/media")),
 	});
 	tasks::spawn_all(app.clone(), credentials);
 

@@ -13,7 +13,7 @@ use crate::App;
 
 const MAX_MEDIA_BYTES: usize = 300 * 1024 * 1024;
 
-fn sniff(bytes: &[u8]) -> &'static str {
+pub fn sniff(bytes: &[u8]) -> &'static str {
 	match bytes {
 		[0xFF, 0xD8, 0xFF, ..] => "image/jpeg",
 		[0x89, b'P', b'N', b'G', ..] => "image/png",
@@ -52,6 +52,38 @@ fn requested_range(headers: &HeaderMap, len: usize) -> Option<(usize, usize)> {
 		(start, end) => (start.parse().ok()?, end.parse::<usize>().ok()?.min(len.checked_sub(1)?)),
 	};
 	(start <= end && end < len).then_some((start, end))
+}
+
+/// The whole file behind a Grindr media URL, with its sniffed content type.
+pub async fn fetch_bytes(
+	app: &App,
+	url: &str,
+	is_video: bool,
+) -> Result<(Vec<u8>, &'static str), String> {
+	if !url.starts_with("https://") {
+		return Err(format!("dirección no válida: {url}"));
+	}
+	let fetcher = if is_video {
+		grindr::MediaFetcher::MediaPlayer
+	} else {
+		grindr::MediaFetcher::ImageLoader
+	};
+	let response = app
+		.client
+		.fetch_media(grindr::MediaRequest {
+			url,
+			range: None,
+			max_bytes: MAX_MEDIA_BYTES,
+			fetcher,
+		})
+		.await
+		.map_err(|e| e.to_string())?;
+	if !(200..300).contains(&response.status) {
+		return Err(format!("Grindr respondió {}", response.status));
+	}
+	let body = Vec::from(response.body);
+	let content_type = sniff(&body);
+	Ok((body, content_type))
 }
 
 pub async fn serve(
