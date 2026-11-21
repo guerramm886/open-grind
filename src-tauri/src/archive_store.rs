@@ -172,6 +172,73 @@ pub async fn archive_store_read(
 	.map_err(text_error)?
 }
 
+/// Put a copy of a stored file in the phone's gallery, under
+/// Pictures (or Movies)/Martins Grindr/`base_name`, so it can be seen and kept
+/// outside the app. `base_name` may contain one sub-folder (the person).
+#[tauri::command]
+pub async fn archive_store_to_gallery(
+	app: AppHandle,
+	file_name: String,
+	base_name: String,
+	is_video: bool,
+	content_type: Option<String>,
+) -> Result<(), String> {
+	let clean: String = base_name
+		.chars()
+		.filter(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '/'))
+		.collect();
+	let parts: Vec<&str> = clean.split('/').filter(|part| !part.is_empty()).collect();
+	if parts.is_empty() || parts.len() > 2 {
+		return Err(format!("nombre no válido: {base_name}"));
+	}
+	let base = parts.join("/");
+	tauri::async_runtime::spawn_blocking(move || {
+		let bytes = fs::read(path_of(&app, &file_name)?).map_err(text_error)?;
+		crate::gallery::save(&app, &bytes, &base, content_type.as_deref(), is_video)
+	})
+	.await
+	.map_err(text_error)?
+}
+
+/// Show or hide the gallery copies: a `.nomedia` file in each Martins Grindr
+/// folder keeps Gallery and Google Photos from listing them; the files stay
+/// where they are, visible to a file manager.
+#[tauri::command]
+pub async fn gallery_folder_visibility(visible: bool) -> Result<(), String> {
+	tauri::async_runtime::spawn_blocking(move || {
+		let root = std::path::Path::new("/storage/emulated/0");
+		let mut problems = Vec::new();
+		for folder in ["Pictures/Martins Grindr", "Movies/Martins Grindr"] {
+			let dir = root.join(folder);
+			let marker = dir.join(".nomedia");
+			let outcome = if visible {
+				match fs::remove_file(&marker) {
+					Err(error) if error.kind() != io::ErrorKind::NotFound => Err(error),
+					_ => Ok(()),
+				}
+			} else {
+				fs::create_dir_all(&dir).and_then(|()| {
+					if marker.exists() {
+						Ok(())
+					} else {
+						fs::File::create(&marker).map(drop)
+					}
+				})
+			};
+			if let Err(error) = outcome {
+				problems.push(format!("{folder}: {error}"));
+			}
+		}
+		if problems.is_empty() {
+			Ok(())
+		} else {
+			Err(problems.join("; "))
+		}
+	})
+	.await
+	.map_err(text_error)?
+}
+
 #[tauri::command]
 pub async fn archive_store_remove(app: AppHandle, file_name: String) -> Result<(), String> {
 	tauri::async_runtime::spawn_blocking(move || {

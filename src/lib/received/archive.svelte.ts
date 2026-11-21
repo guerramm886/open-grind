@@ -18,6 +18,7 @@ export const MANIFEST_KEY ="received-archive-manifest-v1";
 const AUTOSAVE_KEY = "received-autosave-v1";
 const PEOPLE_KEY = "received-people-v1";
 const ARCHIVE_DIR = "received-archive";
+const GALLERY_VISIBLE_KEY = "gallery-visible-v1";
 const READ_CHUNK = 4 * 1024 * 1024;
 const STAGE_CHUNK = 3 * 1024 * 1024;
 
@@ -95,7 +96,27 @@ export type ArchivedEntry = {
 	/** When it was sent in the chat (unknown for older saves). */
 	sentAt?: number;
 	fileName: string;
+	/** A copy was put in the phone's gallery (Pictures/Movies › Martins Grindr). */
+	inGallery?: boolean;
 };
+
+function galleryPart(text: string, fallback: string): string {
+	const cleaned = text
+		.normalize("NFKD")
+		.replace(/[^a-zA-Z0-9_-]+/g, "_")
+		.replace(/^_+|_+$/g, "")
+		.slice(0, 40);
+	return cleaned === "" ? fallback : cleaned;
+}
+
+function galleryStamp(time: number): string {
+	const date = new Date(time);
+	const pad = (value: number) => String(value).padStart(2, "0");
+	return (
+		`${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
+		`_${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`
+	);
+}
 
 export type ArchivableItem = {
 	id: string;
@@ -224,6 +245,12 @@ class ReceivedArchive {
 	readonly ready: Promise<void>;
 	/** Saved items whose file had disappeared, found at startup. */
 	lost = $state(0);
+	/** Whether the Martins Grindr gallery folders show in Gallery/Photos. */
+	galleryVisible = $state(false);
+	galleryProblem = $state<string | null>(null);
+	/** Copies to the gallery waiting to be written, one at a time. */
+	#galleryQueue: string[] = [];
+	#galleryRunning = false;
 	#entries = $state<Record<string, ArchivedEntry>>({});
 	#autoSave = $state<Record<string, true>>({});
 	#saving = $state<Record<string, true>>({});
@@ -248,9 +275,94 @@ class ReceivedArchive {
 		this.ready =
 			typeof window === "undefined"
 				? Promise.resolve()
-				: this.#reconcile().catch((error: unknown) => {
-						console.error("[received-archive] check failed", error);
+				: this.#applyGalleryVisibility()
+						.then(() => this.#reconcile())
+						.catch((error: unknown) => {
+							console.error("[received-archive] check failed", error);
+						})
+						.then(() => {
+							// Everything already saved also goes to the gallery.
+							for (const entry of Object.values(this.#entries))
+								if (!entry.inGallery) this.#queueGallery(entry.id);
+						});
+	}
+
+	/** Hidden by default; the folders show only when asked for. */
+	async #applyGalleryVisibility(): Promise<void> {
+		try {
+			this.galleryVisible =
+				localStorage.getItem(GALLERY_VISIBLE_KEY) === "true";
+		} catch {
+			this.galleryVisible = false;
+		}
+		if (!this.#native) return;
+		try {
+			await invoke("gallery_folder_visibility", {
+				visible: this.galleryVisible,
+			});
+			this.galleryProblem = null;
+		} catch (error) {
+			console.error("[received-archive] gallery visibility", error);
+			this.galleryProblem = String(error);
+		}
+	}
+
+	async setGalleryVisible(visible: boolean): Promise<void> {
+		this.galleryVisible = visible;
+		try {
+			localStorage.setItem(GALLERY_VISIBLE_KEY, String(visible));
+		} catch {
+			/* still applied for now */
+		}
+		await this.#applyGalleryVisibility();
+	}
+
+	#queueGallery(id: string): void {
+		if (!this.#native || this.#galleryQueue.includes(id)) return;
+		this.#galleryQueue.push(id);
+		if (!this.#galleryRunning) void this.#drainGallery();
+	}
+
+	async #drainGallery(): Promise<void> {
+		this.#galleryRunning = true;
+		try {
+			for (let id = this.#galleryQueue.shift(); id; id = this.#galleryQueue.shift()) {
+				const entry = this.#entries[id];
+				if (!entry || entry.inGallery || !this.#stored.has(entry.fileName))
+					continue;
+				const person = this.#people[entry.conversationId]?.name ?? entry.name;
+				const folder =
+					galleryPart(person ?? "", "Sin_nombre") +
+					"_" +
+					galleryPart(String(entry.profileId ?? entry.conversationId), "chat");
+				const base =
+					folder +
+					"/" +
+					galleryStamp(entry.sentAt ?? entry.savedAt) +
+					"_" +
+					galleryPart(entry.id.slice(-10), "x");
+				try {
+					await invoke("archive_store_to_gallery", {
+						fileName: entry.fileName,
+						baseName: base,
+						isVideo: entry.kind === "video",
+						contentType: entry.contentType || null,
 					});
+					const current = this.#entries[id];
+					if (current) {
+						this.#entries = {
+							...this.#entries,
+							[id]: { ...current, inGallery: true },
+						};
+						this.#persistManifest();
+					}
+				} catch (error) {
+					console.error("[received-archive] gallery copy failed", error);
+				}
+			}
+		} finally {
+			this.#galleryRunning = false;
+		}
 	}
 
 	/**
@@ -493,6 +605,7 @@ class ReceivedArchive {
 			};
 			this.#entries = { ...this.#entries, [item.id]: entry };
 			this.#persistManifest();
+			this.#queueGallery(item.id);
 			return true;
 		} catch (error) {
 			console.error("[received-archive] save failed", error);
@@ -597,8 +710,12 @@ class ReceivedArchive {
 			await writable.write(blob);
 			await writable.close();
 		}
-		this.#entries = { ...this.#entries, [entry.id]: { ...entry, fileName } };
+		this.#entries = {
+			...this.#entries,
+			[entry.id]: { ...entry, fileName, inGallery: false },
+		};
 		this.#persistManifest();
+		this.#queueGallery(entry.id);
 		return true;
 	}
 

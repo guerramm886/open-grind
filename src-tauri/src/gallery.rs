@@ -55,7 +55,7 @@ fn ext_and_mime(content_type: Option<&str>, is_video: bool) -> (&'static str, St
 }
 
 #[cfg(target_os = "android")]
-fn save(
+pub(crate) fn save(
 	app: &tauri::AppHandle,
 	bytes: &[u8],
 	base_name: &str,
@@ -93,7 +93,7 @@ fn save(
 }
 
 #[cfg(not(target_os = "android"))]
-fn save(
+pub(crate) fn save(
 	_app: &tauri::AppHandle,
 	_bytes: &[u8],
 	_base_name: &str,

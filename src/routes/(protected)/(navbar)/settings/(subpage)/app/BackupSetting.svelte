@@ -27,6 +27,31 @@
 		restaurás desde acá.
 	</p>
 
+	<label class="mt-3 flex items-start gap-3 rounded-lg bg-secondary p-3">
+		<input
+			type="checkbox"
+			class="mt-0.5 size-5 shrink-0"
+			checked={receivedArchive.galleryVisible}
+			onchange={(event) =>
+				void receivedArchive.setGalleryVisible(event.currentTarget.checked)}
+		/>
+		<span class="text-sm">
+			<span class="font-semibold">Mostrar en la galería</span>
+			<span class="block text-2xs text-muted-foreground">
+				Cada foto y video guardado también se copia al teléfono, en
+				Imágenes/Películas → Martins Grindr, una carpeta por persona. Esa
+				copia no depende de la app. Destildado, la carpeta queda oculta
+				para Galería y Google Fotos; los archivos siguen ahí y se ven con
+				un administrador de archivos.
+			</span>
+			{#if receivedArchive.galleryProblem}
+				<span class="mt-1 block text-2xs text-destructive">
+					No se pudo cambiar: {receivedArchive.galleryProblem}
+				</span>
+			{/if}
+		</span>
+	</label>
+
 	{#if receivedArchive.lost > 0}
 		<div class="mt-3 rounded-lg border border-destructive/50 p-3 text-sm">
 			<p class="font-semibold text-destructive">
