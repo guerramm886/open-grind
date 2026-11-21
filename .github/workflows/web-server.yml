@@ -47,12 +47,27 @@ jobs:
       - name: Build the server
         # Start from the app's lockfile so the Grindr client and its HTTP stack
         # are the exact versions the app ships (and the http2 patch applies).
+        # The Home Assistant PC is an Intel Atom N2600 (2011): no SSE4/POPCNT/
+        # AVX, so everything (Rust and the C of BoringSSL) targets plain x86-64.
+        env:
+          RUSTFLAGS: "-C target-cpu=x86-64"
+          CFLAGS: "-march=x86-64 -mtune=generic"
+          CXXFLAGS: "-march=x86-64 -mtune=generic"
         run: |
           cp src-tauri/Cargo.lock server/Cargo.lock
           cargo build --release --manifest-path server/Cargo.toml
 
       - name: Test the server
+        env:
+          RUSTFLAGS: "-C target-cpu=x86-64"
+          CFLAGS: "-march=x86-64 -mtune=generic"
+          CXXFLAGS: "-march=x86-64 -mtune=generic"
         run: cargo test --release --manifest-path server/Cargo.toml
+
+      - name: Starts on an old CPU (no SSE4/AVX, like the Atom N2600)
+        run: |
+          sudo apt-get install -y qemu-user
+          qemu-x86_64 -cpu core2duo server/target/release/open-grind-server --self-test
 
       - name: Package
         run: |

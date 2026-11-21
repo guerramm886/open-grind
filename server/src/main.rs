@@ -102,6 +102,16 @@ async fn main() {
 		)
 		.init();
 
+	// CI runs this under an emulated old CPU: building the client initialises
+	// BoringSSL, which is where an unsupported instruction would show up.
+	if std::env::args().any(|arg| arg == "--self-test") {
+		let client = grindr::GrindrClient::new(grindr::DeviceInfo::generate(), None)
+			.expect("cannot build the Grindr client");
+		drop(client);
+		println!("self-test ok");
+		return;
+	}
+
 	let data_dir = PathBuf::from(env_or("OG_DATA_DIR", "/data"));
 	let web_dir = PathBuf::from(env_or("OG_WEB_DIR", "./web"));
 	let port: u16 = env_or("OG_PORT", "8099").parse().unwrap_or(8099);
