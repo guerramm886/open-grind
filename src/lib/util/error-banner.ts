@@ -21,9 +21,13 @@ function describe(error: unknown): string {
 	}
 }
 
+/** Browser chatter that breaks nothing. */
+const HARMLESS = [/ResizeObserver loop/i];
+
 export function showError(where: string, error: unknown): void {
 	if (typeof document === "undefined") return;
 	const text = `${where}: ${describe(error)}`;
+	if (HARMLESS.some((pattern) => pattern.test(text))) return;
 	if (seen.has(text) || seen.size >= 50) return;
 	seen.add(text);
 	if (!box) {

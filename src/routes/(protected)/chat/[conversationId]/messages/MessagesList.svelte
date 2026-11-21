@@ -41,6 +41,18 @@
 	let reportProfileId = $state<number | null>(null);
 
 	const conversationState = $derived(getConversationState()());
+
+	// The list is keyed by message id; if a message ever shows up twice (the
+	// sent copy and the live event racing), render it once instead of letting
+	// the whole chat fail with "each_key_duplicate".
+	const shownMessages = $derived.by(() => {
+		const seen = new Set<string>();
+		return conversationState.messages.toReversed().filter((message) => {
+			if (seen.has(message.messageId)) return false;
+			seen.add(message.messageId);
+			return true;
+		});
+	});
 	setMediaRenewal(() => conversationState.dynamicRefresh.renewMedia());
 
 	// Grindr reports one read position per chat. "Visto" goes on the newest
@@ -131,7 +143,7 @@
 </script>
 
 <div class="contents" bind:this={photosEl}>
-	{#each conversationState.messages.toReversed() as message (message.messageId)}
+	{#each shownMessages as message (message.messageId)}
 		{@const isOut = message.senderId === conversationState.ourProfileId}
 	{@const delivered = message.status === "sent"}
 	{@const layout = layoutByMessageId.get(message.messageId)}

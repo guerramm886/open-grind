@@ -220,7 +220,13 @@ export class ReceivedPeople {
 							typeof person.mediaAt === "number" ? person.mediaAt : 0,
 					}),
 				);
-			this.senders = cached;
+			// Older versions could save someone twice; keep the first.
+			const unique = new Set<string>();
+			this.senders = cached.filter((person) => {
+				if (unique.has(person.conversationId)) return false;
+				unique.add(person.conversationId);
+				return true;
+			});
 			// Don't re-probe people we already know; the scan looks for new ones.
 			for (const person of cached) this.#seen.add(person.conversationId);
 		} catch {
@@ -471,6 +477,16 @@ export class ReceivedPeople {
 						person.hasDirect = kinds.hasDirect;
 						person.albumInApi = kinds.hasAlbum;
 						person.mediaAt = kinds.mediaAt;
+						// The shared-albums sync may have added them meanwhile.
+						const known = this.senders.find(
+							(p) => p.conversationId === person.conversationId,
+						);
+						if (known) {
+							known.hasAlbum ||= kinds.hasAlbum;
+							known.hasDirect ||= kinds.hasDirect;
+							known.mediaAt = Math.max(known.mediaAt, kinds.mediaAt);
+							continue;
+						}
 						this.senders.push(person);
 						// Albums get locked by Grindr's 5-album limit, so save a
 						// copy as soon as we see one, before it disappears.
@@ -529,11 +545,17 @@ export class ReceivedPeople {
 	get visible(): Person[] {
 		// Crossed-out people are hidden everywhere, like a block; so are people
 		// confirmed to have no available content.
-		let list = this.senders.filter(
-			(p) =>
-				!swipeDecisions.isNope(p.profileId) &&
-				!this.#empty[p.conversationId],
-		);
+		// One tile per conversation: the grid is keyed by it, and a repeated
+		// sender (two scans racing, or an old cache) made the whole Recibidos
+		// screen fail to render ("each_key_duplicate").
+		const seen = new Set<string>();
+		let list = this.senders.filter((p) => {
+			if (seen.has(p.conversationId)) return false;
+			seen.add(p.conversationId);
+			return (
+				!swipeDecisions.isNope(p.profileId) && !this.#empty[p.conversationId]
+			);
+		});
 		// Keep anyone whose media we've saved locally, even if Grindr locked
 		// their album or they vanished — otherwise you'd lose access to photos
 		// you already have. Merge them in if the live scan didn't surface them.

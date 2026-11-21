@@ -129,7 +129,7 @@
 </script>
 
 <div
-	class="relative aspect-3/4 h-auto max-h-photo w-full"
+	class="relative mx-auto aspect-3/4 h-auto max-h-photo w-full max-w-[calc(min(70vh,500px)*0.75)]"
 	{@attach devicePixelHeight}
 >
 	{#if medias.length}
