@@ -69,16 +69,20 @@ jobs:
           sudo chown -R "$(id -u):$(id -g)" server/target
 
       - name: Starts on an old CPU (no SSE4/AVX, like the Atom N2600)
+        # Inside the same Debian the add-on runs on: the runner's own libraries
+        # are amd64v3 builds and would fail under the emulated CPU themselves.
         run: |
-          sudo apt-get install -y qemu-user
-          if ! qemu-x86_64 -cpu core2duo -d in_asm -D /tmp/qemu.log \
-              server/target/release/open-grind-server --self-test; then
-            echo "---- last functions entered ----"
-            grep "^IN:" /tmp/qemu.log | tail -15
-            echo "---- last code ----"
-            tail -40 /tmp/qemu.log
-            exit 1
-          fi
+          docker run --rm -v "$PWD/server/target/release":/bin-under-test:ro \
+            debian:trixie-slim bash -euc '
+              apt-get update -qq
+              apt-get install -y -qq qemu-user ca-certificates >/dev/null
+              if ! qemu-x86_64 -cpu core2duo -d in_asm -D /tmp/qemu.log \
+                  /bin-under-test/open-grind-server --self-test; then
+                echo "---- last code ----"
+                tail -40 /tmp/qemu.log
+                exit 1
+              fi
+            '
 
       - name: Package
         run: |
