@@ -25,3 +25,6 @@ keystore.properties
 /coverage
 /.updater-dev/
 /e2e/updater/.state/
+
+# Web server (server/) build output
+/server/target

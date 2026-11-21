@@ -1,0 +1,35 @@
+[package]
+name = "open-grind-server"
+version = "0.1.0"
+edition = "2021"
+description = "Runs the open-grind Grindr client on a home server and serves the web app"
+publish = false
+
+[[bin]]
+name = "open-grind-server"
+path = "src/main.rs"
+
+[dependencies]
+grindr = "0.34"
+axum = { version = "0.7", features = ["macros"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "fs", "signal"] }
+tokio-stream = { version = "0.1", features = ["sync"] }
+futures = "0.3"
+tower-http = { version = "0.6", features = ["fs"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_bytes = "0.11"
+rmp-serde = "1.3.1"
+base64 = "0.22"
+sha2 = "0.10"
+getrandom = "0.3"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[profile.release]
+strip = "symbols"
+
+# Same HTTP/2 framing as the Android app, so Grindr's edge sees the same client.
+# `bun run patch-deps` writes this folder (see src-tauri/patches/README.md).
+[patch.crates-io]
+http2 = { path = "../src-tauri/.patched/http2" }

@@ -1,0 +1,77 @@
+name: web-server
+
+# Builds the web version (server/ + the app's pages) for the Home Assistant
+# add-on in martins_grindr/, and publishes it as the release
+# web-v<add-on version>, which the add-on's Dockerfile downloads.
+on:
+  push:
+    branches: [orden-por-distancia]
+    paths:
+      - "server/**"
+      - "martins_grindr/**"
+      - ".github/workflows/web-server.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: web-server-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Add-on version
+        run: |
+          version=$(sed -n 's/^version: *"\{0,1\}\([^"]*\)"\{0,1\} *$/\1/p' martins_grindr/config.yaml)
+          test -n "$version"
+          echo "WEB_VERSION=$version" >> "$GITHUB_ENV"
+
+      - uses: oven-sh/setup-bun@v2
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: System packages for BoringSSL
+        run: sudo apt-get update && sudo apt-get install -y cmake clang libclang-dev perl
+
+      - name: Install (also patches the Rust dependencies)
+        run: bun install --frozen-lockfile
+
+      - name: Build the pages
+        run: bun run build
+
+      - name: Build the server
+        # Start from the app's lockfile so the Grindr client and its HTTP stack
+        # are the exact versions the app ships (and the http2 patch applies).
+        run: |
+          cp src-tauri/Cargo.lock server/Cargo.lock
+          cargo build --release --manifest-path server/Cargo.toml
+
+      - name: Test the server
+        run: cargo test --release --manifest-path server/Cargo.toml
+
+      - name: Package
+        run: |
+          mkdir -p out/web
+          cp server/target/release/open-grind-server out/
+          cp -r build/. out/web/
+          tar -czf open-grind-web.tar.gz -C out .
+          ls -la open-grind-web.tar.gz
+
+      - name: Publish release web-v${{ env.WEB_VERSION }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="web-v$WEB_VERSION"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" open-grind-web.tar.gz --clobber
+          else
+            gh release create "$tag" open-grind-web.tar.gz \
+              --target "$GITHUB_SHA" --prerelease \
+              --title "Web $WEB_VERSION" \
+              --notes "Versión web para el complemento de Home Assistant (martins_grindr)."
+          fi

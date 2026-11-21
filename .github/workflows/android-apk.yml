@@ -7,6 +7,12 @@ name: android-apk
 on:
   push:
     branches: [orden-por-distancia]
+    # The web version (Home Assistant add-on) builds on its own.
+    paths-ignore:
+      - "server/**"
+      - "martins_grindr/**"
+      - "repository.yaml"
+      - ".github/workflows/web-server.yml"
   workflow_dispatch:
 
 concurrency:

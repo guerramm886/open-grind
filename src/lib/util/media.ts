@@ -4,6 +4,7 @@ import { demoEnabled, demoMediaUrl } from "$lib/demo";
 import { toBase64Url } from "$lib/util/base64";
 
 const MEDIA_SCHEME = "ogmedia";
+const WEB_MEDIA_PREFIX = "/og-media/";
 
 const CDN_VARIANTS = {
 	thumb: "thumb/320x320",
@@ -49,7 +50,9 @@ export function unproxyMediaUrl(
 			? { url: parsed.href, isVideo: false }
 			: null;
 	try {
-		const token = decodeURIComponent(parsed.pathname.replace(/^\/+/, ""));
+		const token = decodeURIComponent(
+			parsed.pathname.replace(WEB_MEDIA_PREFIX, "").replace(/^\/+/, ""),
+		);
 		const b64 = token.slice(1).replace(/-/g, "+").replace(/_/g, "/");
 		const binary = atob(b64 + "=".repeat((4 - (b64.length % 4)) % 4));
 		const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
@@ -64,7 +67,11 @@ export function unproxyMediaUrl(
 export function isProxiedMediaUrl(url: URL): boolean {
 	return (
 		url.protocol === `${MEDIA_SCHEME}:` ||
-		url.hostname === `${MEDIA_SCHEME}.localhost`
+		url.hostname === `${MEDIA_SCHEME}.localhost` ||
+		// The web version (server/): same token under /og-media/ on its own host.
+		(typeof location !== "undefined" &&
+			url.origin === location.origin &&
+			url.pathname.startsWith(WEB_MEDIA_PREFIX))
 	);
 }
 
