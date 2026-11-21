@@ -27,7 +27,8 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 [profile.release]
-strip = "symbols"
+# Keep function names, so a crash on the Home Assistant PC can be traced.
+strip = "debuginfo"
 
 # Same HTTP/2 framing as the Android app, so Grindr's edge sees the same client.
 # `bun run patch-deps` writes this folder (see src-tauri/patches/README.md).

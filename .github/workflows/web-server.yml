@@ -33,6 +33,8 @@ jobs:
           echo "WEB_VERSION=$version" >> "$GITHUB_ENV"
 
       - uses: oven-sh/setup-bun@v2
+      # Only for `cargo metadata` while building the pages; the server itself
+      # is compiled in a Debian container below.
       - uses: dtolnay/rust-toolchain@stable
 
       - name: System packages for BoringSSL
@@ -48,26 +50,35 @@ jobs:
         # Start from the app's lockfile so the Grindr client and its HTTP stack
         # are the exact versions the app ships (and the http2 patch applies).
         # The Home Assistant PC is an Intel Atom N2600 (2011): no SSE4/POPCNT/
-        # AVX, so everything (Rust and the C of BoringSSL) targets plain x86-64.
-        env:
-          RUSTFLAGS: "-C target-cpu=x86-64"
-          CFLAGS: "-march=x86-64 -mtune=generic"
-          CXXFLAGS: "-march=x86-64 -mtune=generic"
+        # AVX. The runner's Ubuntu is an amd64v3 build whose compilers and
+        # static libraries assume AVX2, so the server is built inside plain
+        # Debian (baseline x86-64), with everything pinned to x86-64 as well.
         run: |
           cp src-tauri/Cargo.lock server/Cargo.lock
-          cargo build --release --manifest-path server/Cargo.toml
-
-      - name: Test the server
-        env:
-          RUSTFLAGS: "-C target-cpu=x86-64"
-          CFLAGS: "-march=x86-64 -mtune=generic"
-          CXXFLAGS: "-march=x86-64 -mtune=generic"
-        run: cargo test --release --manifest-path server/Cargo.toml
+          docker run --rm -v "$PWD":/w -w /w \
+            -e CARGO_HOME=/w/.cargo-home \
+            -e RUSTFLAGS="-C target-cpu=x86-64" \
+            -e CFLAGS="-march=x86-64 -mtune=generic" \
+            -e CXXFLAGS="-march=x86-64 -mtune=generic" \
+            rust:1-trixie bash -euc '
+              apt-get update -qq
+              apt-get install -y -qq cmake clang libclang-dev perl >/dev/null
+              cargo build --release --manifest-path server/Cargo.toml
+              cargo test --release --manifest-path server/Cargo.toml
+            '
+          sudo chown -R "$(id -u):$(id -g)" server/target
 
       - name: Starts on an old CPU (no SSE4/AVX, like the Atom N2600)
         run: |
           sudo apt-get install -y qemu-user
-          qemu-x86_64 -cpu core2duo server/target/release/open-grind-server --self-test
+          if ! qemu-x86_64 -cpu core2duo -d in_asm -D /tmp/qemu.log \
+              server/target/release/open-grind-server --self-test; then
+            echo "---- last functions entered ----"
+            grep "^IN:" /tmp/qemu.log | tail -15
+            echo "---- last code ----"
+            tail -40 /tmp/qemu.log
+            exit 1
+          fi
 
       - name: Package
         run: |
