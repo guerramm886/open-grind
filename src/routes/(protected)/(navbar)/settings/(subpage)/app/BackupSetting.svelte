@@ -38,11 +38,11 @@
 		<span class="text-sm">
 			<span class="font-semibold">Mostrar en la galería</span>
 			<span class="block text-2xs text-muted-foreground">
-				Cada foto y video guardado también se copia al teléfono, en
-				Imágenes/Películas → Martins Grindr, una carpeta por persona. Esa
-				copia no depende de la app. Destildado, la carpeta queda oculta
-				para Galería y Google Fotos; los archivos siguen ahí y se ven con
-				un administrador de archivos.
+				Cada foto y video guardado también se copia al teléfono, una
+				carpeta por persona. Esa copia no depende de la app. Tildado, va a
+				Imágenes → Martins Grindr y se ve en Galería y Google Fotos.
+				Destildado, se mueve a Documentos → .Martins Grindr, que Galería y
+				Google Fotos no muestran; se ve con un administrador de archivos.
 			</span>
 			{#if receivedArchive.galleryProblem}
 				<span class="mt-1 block text-2xs text-destructive">

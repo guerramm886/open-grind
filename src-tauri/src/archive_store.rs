@@ -205,12 +205,11 @@ pub async fn archive_store_to_gallery(
 		let source = path_of(&app, &file_name)?;
 		let (ext, _mime) = crate::gallery::ext_and_mime(content_type.as_deref(), is_video);
 		let hidden = GALLERY_HIDDEN.load(Ordering::SeqCst);
-		let folder = if hidden { HIDDEN_NAME } else { SHOWN_NAME };
-		let target_base = Path::new(STORAGE_ROOT)
-			.join("Pictures")
-			.join(folder)
-			.join(&base);
+		let target_base = if hidden { hidden_root() } else { shown_root() }.join(&base);
 		let direct = (|| -> io::Result<()> {
+			if hidden {
+				mark_hidden()?;
+			}
 			if let Some(parent) = target_base.parent() {
 				fs::create_dir_all(parent)?;
 			}
@@ -244,76 +243,124 @@ pub async fn archive_store_to_gallery(
 }
 
 const STORAGE_ROOT: &str = "/storage/emulated/0";
-const SHOWN_NAME: &str = "Martins Grindr";
-/// A folder whose name starts with a dot is skipped by Android's media index
-/// (and so by Gallery and Google Photos) together with everything inside;
-/// a `.nomedia` file alone did not hide the per-person sub-folders.
-const HIDDEN_NAME: &str = ".Martins Grindr";
+const FOLDER: &str = "Martins Grindr";
+
+/// Where the copies live while shown: Pictures/Martins Grindr/<persona>.
+fn shown_root() -> PathBuf {
+	Path::new(STORAGE_ROOT).join("Pictures").join(FOLDER)
+}
+
+/// Where they live while hidden: Documents/.Martins Grindr/<persona>.
+/// Android refuses a `.nomedia` file in Pictures and Movies ("Operation not
+/// permitted"), and renaming folders there was refused too, so hiding there
+/// never worked. Documents takes any file, so the `.nomedia` (and the dot
+/// folder) keep Gallery and Google Photos out.
+fn hidden_root() -> PathBuf {
+	Path::new(STORAGE_ROOT).join("Documents").join(".Martins Grindr")
+}
+
+/// Every place an older version may have left copies.
+fn old_roots() -> Vec<PathBuf> {
+	let root = Path::new(STORAGE_ROOT);
+	vec![
+		root.join("Pictures").join(FOLDER),
+		root.join("Pictures").join(".Martins Grindr"),
+		root.join("Movies").join(FOLDER),
+		root.join("Movies").join(".Martins Grindr"),
+	]
+}
+
+fn mark_hidden() -> io::Result<()> {
+	let root = hidden_root();
+	fs::create_dir_all(&root)?;
+	let marker = root.join(".nomedia");
+	if !marker.exists() {
+		fs::File::create(&marker)?;
+	}
+	Ok(())
+}
 
 /// Hidden until the page says otherwise (it does at startup, before copying).
 static GALLERY_HIDDEN: AtomicBool = AtomicBool::new(true);
 
-/// Move everything in `from` into `to` (merging folders), then drop `from`
-/// if it ended up empty. A name already taken in `to` is left where it was.
-fn move_into(from: &Path, to: &Path) -> io::Result<()> {
-	if !from.exists() {
+/// Move one file, by rename or else by copy-then-delete. A name already taken
+/// gets `_2`, `_3`… so nothing is overwritten.
+fn move_file(from: &Path, to: &Path) -> io::Result<()> {
+	if let Some(parent) = to.parent() {
+		fs::create_dir_all(parent)?;
+	}
+	let mut target = to.to_path_buf();
+	let stem = to.file_stem().unwrap_or_default().to_string_lossy().into_owned();
+	let ext = to.extension().map(|e| e.to_string_lossy().into_owned());
+	for copy in 2..1000 {
+		if !target.exists() {
+			break;
+		}
+		let name = match &ext {
+			Some(ext) => format!("{stem}_{copy}.{ext}"),
+			None => format!("{stem}_{copy}"),
+		};
+		target = to.with_file_name(name);
+	}
+	if fs::rename(from, &target).is_ok() {
 		return Ok(());
 	}
-	if !to.exists() {
-		if let Some(parent) = to.parent() {
-			fs::create_dir_all(parent)?;
-		}
-		if fs::rename(from, to).is_ok() {
-			return Ok(());
-		}
-		fs::create_dir_all(to)?;
-	}
-	for entry in fs::read_dir(from)? {
-		let entry = entry?;
+	fs::copy(from, &target)?;
+	fs::remove_file(from)
+}
+
+/// Move every file under `from` to the same place under `to`, one by one
+/// (folders are never renamed: Android refuses that in Pictures). Returns how
+/// many could not be moved and the last error.
+fn move_tree(from: &Path, to: &Path, failed: &mut (usize, Option<io::Error>)) {
+	let Ok(entries) = fs::read_dir(from) else { return };
+	for entry in entries.flatten() {
 		let name = entry.file_name();
+		let path = entry.path();
 		if name == ".nomedia" {
-			let _ = fs::remove_file(entry.path());
+			let _ = fs::remove_file(&path);
 			continue;
 		}
-		let target = to.join(&name);
-		if entry.file_type()?.is_dir() {
-			move_into(&entry.path(), &target)?;
-		} else if !target.exists() {
-			fs::rename(entry.path(), &target)?;
+		let Ok(kind) = entry.file_type() else { continue };
+		if kind.is_dir() {
+			move_tree(&path, &to.join(&name), failed);
+		} else if let Err(error) = move_file(&path, &to.join(&name)) {
+			failed.0 += 1;
+			failed.1 = Some(error);
 		}
 	}
 	let _ = fs::remove_dir(from);
-	Ok(())
 }
 
-/// Show or hide the gallery copies by renaming the Martins Grindr folders
-/// (Pictures and Movies) to `.Martins Grindr` and back. The files stay on the
-/// phone, visible to a file manager, and survive uninstalling the app.
+/// Show or hide the gallery copies by moving them between
+/// Pictures/Martins Grindr (shown) and Documents/.Martins Grindr (hidden).
+/// The files stay on the phone, visible to a file manager, and survive
+/// uninstalling the app.
 #[tauri::command]
 pub async fn gallery_folder_visibility(visible: bool) -> Result<(), String> {
 	GALLERY_HIDDEN.store(!visible, Ordering::SeqCst);
 	tauri::async_runtime::spawn_blocking(move || {
-		let root = Path::new(STORAGE_ROOT);
-		let mut problems = Vec::new();
-		for media in ["Pictures", "Movies"] {
-			let shown = root.join(media).join(SHOWN_NAME);
-			let hidden = root.join(media).join(HIDDEN_NAME);
-			let outcome = if visible {
-				move_into(&hidden, &shown)
-			} else {
-				// No `.nomedia`: Android refuses non-media files in Pictures and
-				// Movies ("Operation not permitted"), which is why that never
-				// hid anything. The dot folder is what hides them.
-				move_into(&shown, &hidden)
-			};
-			if let Err(error) = outcome {
-				problems.push(format!("{media}/{SHOWN_NAME}: {error}"));
+		let mut failed = (0usize, None);
+		if visible {
+			let movies = Path::new(STORAGE_ROOT).join("Movies").join(FOLDER);
+			// Pictures first; a video Pictures refuses goes to Movies.
+			let mut refused = (0usize, None);
+			move_tree(&hidden_root(), &shown_root(), &mut refused);
+			if refused.0 > 0 {
+				move_tree(&hidden_root(), &movies, &mut failed);
+			}
+		} else {
+			mark_hidden().map_err(|error| format!("Documents/.Martins Grindr: {error}"))?;
+			for old in old_roots() {
+				move_tree(&old, &hidden_root(), &mut failed);
 			}
 		}
-		if problems.is_empty() {
-			Ok(())
-		} else {
-			Err(problems.join("; "))
+		match failed {
+			(0, _) => Ok(()),
+			(count, error) => Err(format!(
+				"{count} archivos no se pudieron mover: {}",
+				error.map(|e| e.to_string()).unwrap_or_default()
+			)),
 		}
 	})
 	.await
