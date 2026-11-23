@@ -296,18 +296,10 @@ pub async fn gallery_folder_visibility(visible: bool) -> Result<(), String> {
 			let outcome = if visible {
 				move_into(&hidden, &shown)
 			} else {
-				move_into(&shown, &hidden).and_then(|()| {
-					// Belt and braces for galleries that ignore dot folders.
-					if !hidden.exists() {
-						return Ok(());
-					}
-					let marker = hidden.join(".nomedia");
-					if marker.exists() {
-						Ok(())
-					} else {
-						fs::File::create(&marker).map(drop)
-					}
-				})
+				// No `.nomedia`: Android refuses non-media files in Pictures and
+				// Movies ("Operation not permitted"), which is why that never
+				// hid anything. The dot folder is what hides them.
+				move_into(&shown, &hidden)
 			};
 			if let Err(error) = outcome {
 				problems.push(format!("{media}/{SHOWN_NAME}: {error}"));
