@@ -8,7 +8,8 @@
 
 use std::fs;
 use std::io::{self, Read as _, Seek as _, SeekFrom, Write as _};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use serde::Serialize;
@@ -198,7 +199,11 @@ pub async fn archive_store_to_gallery(
 	tauri::async_runtime::spawn_blocking(move || {
 		let source = path_of(&app, &file_name)?;
 		let (ext, _mime) = crate::gallery::ext_and_mime(content_type.as_deref(), is_video);
-		let target_base = std::path::Path::new("/storage/emulated/0/Pictures/Martins Grindr")
+		let hidden = GALLERY_HIDDEN.load(Ordering::SeqCst);
+		let folder = if hidden { HIDDEN_NAME } else { SHOWN_NAME };
+		let target_base = Path::new(STORAGE_ROOT)
+			.join("Pictures")
+			.join(folder)
 			.join(&base);
 		let direct = (|| -> io::Result<()> {
 			if let Some(parent) = target_base.parent() {
@@ -219,6 +224,9 @@ pub async fn archive_store_to_gallery(
 		})();
 		match direct {
 			Ok(()) => Ok(()),
+			// The MediaStore route always lands in the visible gallery; while
+			// hidden, better no copy than a visible one.
+			Err(error) if hidden => Err(format!("copia oculta: {error}")),
 			Err(error) => {
 				tracing::warn!("[archive] gallery copy by path failed: {error}");
 				let bytes = fs::read(&source).map_err(text_error)?;
@@ -230,24 +238,70 @@ pub async fn archive_store_to_gallery(
 	.map_err(text_error)?
 }
 
-/// Show or hide the gallery copies: a `.nomedia` file in each Martins Grindr
-/// folder keeps Gallery and Google Photos from listing them; the files stay
-/// where they are, visible to a file manager.
+const STORAGE_ROOT: &str = "/storage/emulated/0";
+const SHOWN_NAME: &str = "Martins Grindr";
+/// A folder whose name starts with a dot is skipped by Android's media index
+/// (and so by Gallery and Google Photos) together with everything inside;
+/// a `.nomedia` file alone did not hide the per-person sub-folders.
+const HIDDEN_NAME: &str = ".Martins Grindr";
+
+/// Hidden until the page says otherwise (it does at startup, before copying).
+static GALLERY_HIDDEN: AtomicBool = AtomicBool::new(true);
+
+/// Move everything in `from` into `to` (merging folders), then drop `from`
+/// if it ended up empty. A name already taken in `to` is left where it was.
+fn move_into(from: &Path, to: &Path) -> io::Result<()> {
+	if !from.exists() {
+		return Ok(());
+	}
+	if !to.exists() {
+		if let Some(parent) = to.parent() {
+			fs::create_dir_all(parent)?;
+		}
+		if fs::rename(from, to).is_ok() {
+			return Ok(());
+		}
+		fs::create_dir_all(to)?;
+	}
+	for entry in fs::read_dir(from)? {
+		let entry = entry?;
+		let name = entry.file_name();
+		if name == ".nomedia" {
+			let _ = fs::remove_file(entry.path());
+			continue;
+		}
+		let target = to.join(&name);
+		if entry.file_type()?.is_dir() {
+			move_into(&entry.path(), &target)?;
+		} else if !target.exists() {
+			fs::rename(entry.path(), &target)?;
+		}
+	}
+	let _ = fs::remove_dir(from);
+	Ok(())
+}
+
+/// Show or hide the gallery copies by renaming the Martins Grindr folders
+/// (Pictures and Movies) to `.Martins Grindr` and back. The files stay on the
+/// phone, visible to a file manager, and survive uninstalling the app.
 #[tauri::command]
 pub async fn gallery_folder_visibility(visible: bool) -> Result<(), String> {
+	GALLERY_HIDDEN.store(!visible, Ordering::SeqCst);
 	tauri::async_runtime::spawn_blocking(move || {
-		let root = std::path::Path::new("/storage/emulated/0");
+		let root = Path::new(STORAGE_ROOT);
 		let mut problems = Vec::new();
-		for folder in ["Pictures/Martins Grindr", "Movies/Martins Grindr"] {
-			let dir = root.join(folder);
-			let marker = dir.join(".nomedia");
+		for media in ["Pictures", "Movies"] {
+			let shown = root.join(media).join(SHOWN_NAME);
+			let hidden = root.join(media).join(HIDDEN_NAME);
 			let outcome = if visible {
-				match fs::remove_file(&marker) {
-					Err(error) if error.kind() != io::ErrorKind::NotFound => Err(error),
-					_ => Ok(()),
-				}
+				move_into(&hidden, &shown)
 			} else {
-				fs::create_dir_all(&dir).and_then(|()| {
+				move_into(&shown, &hidden).and_then(|()| {
+					// Belt and braces for galleries that ignore dot folders.
+					if !hidden.exists() {
+						return Ok(());
+					}
+					let marker = hidden.join(".nomedia");
 					if marker.exists() {
 						Ok(())
 					} else {
@@ -256,7 +310,7 @@ pub async fn gallery_folder_visibility(visible: bool) -> Result<(), String> {
 				})
 			};
 			if let Err(error) = outcome {
-				problems.push(format!("{folder}: {error}"));
+				problems.push(format!("{media}/{SHOWN_NAME}: {error}"));
 			}
 		}
 		if problems.is_empty() {
