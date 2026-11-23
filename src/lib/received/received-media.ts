@@ -256,6 +256,42 @@ export async function ensureAlbumSavedLocally({
 	return savable.length;
 }
 
+type MessagesPage = Awaited<ReturnType<typeof getConversationMessages>>;
+
+/** Older pages read per gallery; a very long chat stops here. */
+const MAX_PAGES = 80;
+const PAGE_PAUSE_MS = 120;
+
+/**
+ * Every message of the chat, not only the newest page: photos sent further
+ * back used to be missing from the gallery. If an older page fails, what was
+ * read so far is used.
+ */
+async function wholeConversation(
+	conversationId: string,
+	first: MessagesPage,
+): Promise<MessagesPage["messages"]> {
+	const byId = new Map<string, MessagesPage["messages"][number]>();
+	for (const message of first.messages) byId.set(message.messageId, message);
+	let pageKey = first.messages.at(-1)?.messageId;
+	for (let turn = 1; turn < MAX_PAGES && pageKey !== undefined; turn += 1) {
+		await new Promise((resolve) => setTimeout(resolve, PAGE_PAUSE_MS));
+		let page: MessagesPage;
+		try {
+			page = await getConversationMessages({ conversationId, pageKey });
+		} catch (error) {
+			console.error("[received-media] older page failed", error);
+			break;
+		}
+		const before = byId.size;
+		for (const message of page.messages) byId.set(message.messageId, message);
+		const next = page.messages.at(-1)?.messageId;
+		if (next === undefined || next === pageKey || byId.size === before) break;
+		pageKey = next;
+	}
+	return [...byId.values()];
+}
+
 export async function loadReceivedMedia({
 	conversationId,
 	ourProfileId,
@@ -299,7 +335,7 @@ export async function loadReceivedMedia({
 	const albumJobs: Promise<ReceivedItem[]>[] = [];
 	const seenAlbums = new Set<number>();
 
-	for (const message of page.messages) {
+	for (const message of await wholeConversation(conversationId, page)) {
 		if (message.senderId === ourProfileId || message.unsent) continue;
 		const ts = message.timestamp;
 		switch (message.type) {
