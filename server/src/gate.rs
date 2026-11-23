@@ -49,6 +49,13 @@ impl Gate {
 
 	fn lets_in(&self, headers: &HeaderMap) -> bool {
 		let Some(token) = &self.token else { return true };
+		// The phone app sends the password itself (it keeps no cookie).
+		if let (Some(sent), Some(password)) = (
+			headers.get("x-og-password").and_then(|v| v.to_str().ok()),
+			&self.password,
+		) {
+			return same(sent.as_bytes(), password.as_bytes());
+		}
 		headers
 			.get_all(header::COOKIE)
 			.iter()

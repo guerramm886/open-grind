@@ -15,6 +15,7 @@ mod commands;
 mod error;
 mod gate;
 mod media;
+mod phone;
 mod shapes;
 mod store;
 mod tasks;
@@ -158,6 +159,9 @@ async fn main() {
 		.route("/api/events", get(events_stream))
 		.route("/api/storage", get(storage_all).post(storage_write))
 		.route("/og-media/:token", get(media::serve))
+		.route("/api/phone/media", get(phone::list))
+		.route("/api/phone/media/:file_name", axum::routing::put(phone::upload))
+		.route("/api/phone/settings", axum::routing::put(phone::settings))
 		.route("/", get(index_page))
 		.route("/index.html", get(index_page))
 		.fallback_service(static_files)

@@ -53,6 +53,11 @@ fn path_of(app: &AppHandle, file_name: &str) -> Result<PathBuf, String> {
 	Ok(store_dir(app)?.join(checked_name(file_name)?))
 }
 
+/// Where a stored file is, for other native code (the home-server copy).
+pub(crate) fn stored_file(app: &AppHandle, file_name: &str) -> Result<PathBuf, String> {
+	path_of(app, file_name)
+}
+
 /// Write through a temporary file and rename, so a crash never leaves a
 /// half-written photo under the real name.
 fn write_atomically(target: &PathBuf, bytes: &[u8]) -> io::Result<()> {

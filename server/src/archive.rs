@@ -38,7 +38,7 @@ fn dir(root: &Path, name: &str) -> Result<PathBuf, String> {
 }
 
 /// A plain file name, never a path.
-fn checked_name(file_name: &str) -> Result<&str, String> {
+pub fn checked_name(file_name: &str) -> Result<&str, String> {
 	let valid = !file_name.is_empty()
 		&& file_name.len() <= 200
 		&& !file_name.starts_with('.')
@@ -75,7 +75,7 @@ fn write_atomically(target: &Path, bytes: &[u8]) -> io::Result<()> {
 	fs::rename(&partial, target)
 }
 
-fn ext_for(content_type: Option<&str>, is_video: bool) -> &'static str {
+pub fn ext_for(content_type: Option<&str>, is_video: bool) -> &'static str {
 	let ct = content_type.unwrap_or("").to_ascii_lowercase();
 	if ct.contains("quicktime") {
 		"mov"
@@ -97,7 +97,7 @@ fn ext_for(content_type: Option<&str>, is_video: bool) -> &'static str {
 }
 
 /// `persona/fecha` (one sub-folder at most), only safe characters.
-fn clean_base(base_name: &str) -> Result<String, String> {
+pub fn clean_base(base_name: &str) -> Result<String, String> {
 	let clean: String = base_name
 		.chars()
 		.filter(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '/'))
@@ -109,8 +109,8 @@ fn clean_base(base_name: &str) -> Result<String, String> {
 	Ok(parts.join("/"))
 }
 
-/// Write `bytes` to the gallery folder under `base`, never overwriting.
-fn to_gallery(app: &App, base: &str, ext: &str, bytes: &[u8]) -> Result<(), String> {
+/// A free name for `base` in the gallery folder (never overwriting).
+fn gallery_target(app: &App, base: &str, ext: &str) -> Result<PathBuf, String> {
 	let target_base = app.media_dir.join(GALLERY_FOLDER).join(base);
 	if let Some(parent) = target_base.parent() {
 		fs::create_dir_all(parent).map_err(text)?;
@@ -129,7 +129,26 @@ fn to_gallery(app: &App, base: &str, ext: &str, bytes: &[u8]) -> Result<(), Stri
 			.with_file_name(format!("{stem}_{copy}"))
 			.with_extension(ext);
 	}
-	write_atomically(&target, bytes).map_err(text)
+	Ok(target)
+}
+
+/// Write `bytes` to the gallery folder under `base`, never overwriting.
+fn to_gallery(app: &App, base: &str, ext: &str, bytes: &[u8]) -> Result<(), String> {
+	write_atomically(&gallery_target(app, base, ext)?, bytes).map_err(text)
+}
+
+/// Move a finished file into the gallery folder under `base`.
+pub fn move_to_gallery(app: &App, base: &str, ext: &str, source: &Path) -> Result<(), String> {
+	let target = gallery_target(app, base, ext)?;
+	if fs::rename(source, &target).is_ok() {
+		return Ok(());
+	}
+	// /data and /media are different disks: copy, then drop the original.
+	let partial = target.with_extension("partial");
+	fs::copy(source, &partial).map_err(text)?;
+	fs::rename(&partial, &target).map_err(text)?;
+	let _ = fs::remove_file(source);
+	Ok(())
 }
 
 fn new_id() -> Result<String, String> {

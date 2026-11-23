@@ -49,10 +49,13 @@ const SKIPPED_SETTINGS = new Set([
 	"gemini-api-key-v1",
 	"vision-queue-v1",
 	TARGET_KEY,
+	// Home server address and password (see home-server.svelte.ts).
+	"home-server-v1",
+	"home-server-settings-sent-v1",
 ]);
 const SKIPPED_SETTING_PREFIX = "open-grind:app-data:";
 
-function settingAllowed(key: string): boolean {
+export function settingAllowed(key: string): boolean {
 	return !SKIPPED_SETTINGS.has(key) && !key.startsWith(SKIPPED_SETTING_PREFIX);
 }
 

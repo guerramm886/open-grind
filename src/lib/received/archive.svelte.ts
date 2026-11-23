@@ -362,17 +362,7 @@ class ReceivedArchive {
 					!this.#stored.has(entry.fileName)
 				)
 					continue;
-				const person = this.#people[entry.conversationId]?.name ?? entry.name;
-				const folder =
-					galleryPart(person ?? "", "Sin_nombre") +
-					"_" +
-					galleryPart(String(entry.profileId ?? entry.conversationId), "chat");
-				const base =
-					folder +
-					"/" +
-					galleryStamp(entry.sentAt ?? entry.savedAt) +
-					"_" +
-					galleryPart(entry.id.slice(-10), "x");
+				const base = this.galleryBase(entry);
 				try {
 					await invoke("archive_store_to_gallery", {
 						fileName: entry.fileName,
@@ -447,6 +437,28 @@ class ReceivedArchive {
 		console.warn(
 			`[received-archive] ${missing.length} saved files were missing; unlisted so they can be saved again`,
 		);
+	}
+
+	/** `persona_id/fecha_id`: where a copy of this entry goes, one folder per
+	 *  person (the phone's gallery and the home server use the same names). */
+	galleryBase(entry: ArchivedEntry): string {
+		const person = this.#people[entry.conversationId]?.name ?? entry.name;
+		const folder =
+			galleryPart(person ?? "", "Sin_nombre") +
+			"_" +
+			galleryPart(String(entry.profileId ?? entry.conversationId), "chat");
+		return (
+			folder +
+			"/" +
+			galleryStamp(entry.sentAt ?? entry.savedAt) +
+			"_" +
+			galleryPart(entry.id.slice(-10), "x")
+		);
+	}
+
+	/** Whether the file of this entry is in the native store. */
+	isStored(entry: ArchivedEntry): boolean {
+		return this.#stored.has(entry.fileName);
 	}
 
 	get supported(): boolean {

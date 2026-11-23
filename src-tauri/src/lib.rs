@@ -12,6 +12,7 @@ mod error;
 mod gallery;
 mod haptics;
 mod hex;
+mod home_server;
 #[cfg(target_os = "android")]
 mod keyboard_media;
 pub mod media;
@@ -284,6 +285,9 @@ pub fn run() {
             archive_store::archive_store_remove,
             archive_store::archive_store_to_gallery,
             archive_store::gallery_folder_visibility,
+            home_server::home_server_list,
+            home_server::home_server_upload,
+            home_server::home_server_settings,
         ])
         .setup(|app| {
             scroll_phase::install_scroll_gesture_bridge(app.handle());
