@@ -239,7 +239,7 @@
 	data-fixed-header
 	class="fixed top-0 left-0 z-10 w-full px-4 pt-fixed-header pb-2"
 	bgClass="bg-linear-to-b from-background to-transparent"
-	contentClass="flex flex-col gap-2 w-full max-w-120 mx-auto"
+	contentClass="flex flex-col gap-2 w-full max-w-120 lg:max-w-400 mx-auto"
 	{@attach topChrome}
 >
 	<div class="flex h-10 items-center gap-2">
@@ -409,10 +409,10 @@
 <main class="screen-nav-host">
 	<div class="pull-scroller">
 		<div
-			class="@container/photo-grid mx-auto min-h-overscrollable mt-14 w-full max-w-120 px-2 pt-header-clear-16 pb-nav-clear"
+			class="@container/photo-grid mx-auto min-h-overscrollable mt-14 w-full max-w-120 lg:max-w-400 px-2 pt-header-clear-16 pb-nav-clear"
 		>
 			{#if loading && posts.length === 0}
-				<div class="grid grid-cols-2 gap-2">
+				<div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 2xl:grid-cols-6">
 					{#each Array(8)}
 						<Skeleton class="aspect-square rounded-lg" />
 					{/each}
@@ -429,7 +429,7 @@
 					No hay nadie en Right Now ahora con ese filtro.
 				</p>
 			{:else}
-				<div class="grid grid-cols-2 gap-2">
+				<div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 2xl:grid-cols-6">
 					{#each visible as post (post.profileId)}
 						{@const photo = photoOf(post)}
 						<div

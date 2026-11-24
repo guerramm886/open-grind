@@ -102,7 +102,7 @@
 	data-fixed-header
 	class="fixed top-0 left-0 z-10 w-full px-4 pt-fixed-header pb-2"
 	bgClass="bg-linear-to-b from-background to-transparent"
-	contentClass="flex flex-col gap-2 w-full max-w-120 mx-auto"
+	contentClass="flex flex-col gap-2 w-full max-w-120 lg:max-w-400 mx-auto"
 	{@attach topChrome}
 >
 	<div class="flex h-10 items-center gap-2">
@@ -287,7 +287,7 @@
 <main class="screen-nav-host">
 	<div class="pull-scroller" bind:this={scrollerEl}>
 		<div
-			class="@container/photo-grid mx-auto min-h-overscrollable mt-14 flex w-full max-w-120 flex-col gap-3 px-4 pt-header-clear-16 pb-nav-clear"
+			class="@container/photo-grid mx-auto min-h-overscrollable mt-14 flex w-full max-w-120 lg:max-w-400 flex-col gap-3 px-4 pt-header-clear-16 pb-nav-clear"
 		>
 			{#if people.scanning && shown.length === 0}
 				<div class="photo-grid">

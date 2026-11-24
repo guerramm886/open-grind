@@ -46,7 +46,7 @@
 	>
 		<div
 			data-refresh-content
-			class="mx-auto min-h-overscrollable flex w-full max-w-120 flex-col gap-1 px-4 pt-header-clear-16 pb-nav-clear"
+			class="mx-auto min-h-overscrollable flex w-full max-w-120 lg:max-w-400 flex-col gap-1 px-4 pt-header-clear-16 pb-nav-clear"
 		>
 			{#if taps.loading}
 				{#each Array(8)}

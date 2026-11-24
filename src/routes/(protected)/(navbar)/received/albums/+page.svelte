@@ -97,7 +97,7 @@
 	data-fixed-header
 	class="fixed top-0 left-0 z-10 w-full px-4 pt-fixed-header pb-2"
 	bgClass="bg-linear-to-b from-background to-transparent"
-	contentClass="flex flex-col gap-2 w-full max-w-120 mx-auto"
+	contentClass="flex flex-col gap-2 w-full max-w-120 lg:max-w-400 mx-auto"
 	{@attach topChrome}
 >
 	<div class="flex h-10 items-center gap-2">
@@ -137,7 +137,7 @@
 <main class="screen-nav-host">
 	<div class="pull-scroller">
 		<div
-			class="mx-auto min-h-overscrollable mt-14 flex w-full max-w-120 flex-col gap-2 px-3 pt-header-clear-16 pb-nav-clear"
+			class="mx-auto min-h-overscrollable mt-14 flex w-full max-w-120 lg:max-w-400 flex-col gap-2 px-3 pt-header-clear-16 pb-nav-clear"
 		>
 			{#if loading}
 				{#each Array(5)}

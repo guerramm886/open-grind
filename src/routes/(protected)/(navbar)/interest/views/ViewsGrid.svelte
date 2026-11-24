@@ -89,7 +89,7 @@
 	>
 		<div
 			data-refresh-content
-			class="@container/photo-grid mx-auto min-h-overscrollable flex w-full max-w-120 flex-col gap-3 px-4 pt-header-clear-16 pb-nav-clear"
+			class="@container/photo-grid mx-auto min-h-overscrollable flex w-full max-w-120 lg:max-w-400 flex-col gap-3 px-4 pt-header-clear-16 pb-nav-clear"
 		>
 			{#if views.loading}
 				<div class="photo-grid">

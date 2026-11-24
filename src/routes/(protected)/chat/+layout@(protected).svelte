@@ -94,7 +94,7 @@
 	>
 		<Resizable.PaneGroup
 			direction="horizontal"
-			class="mx-auto h-auto! max-h-full max-w-300"
+			class="mx-auto h-auto! max-h-full max-w-300 2xl:max-w-440"
 			bind:ref={paneGroup}
 			autoSaveId="/(protected)/chat/layout"
 		>

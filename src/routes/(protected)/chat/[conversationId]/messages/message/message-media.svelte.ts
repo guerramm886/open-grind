@@ -24,7 +24,7 @@ export class MessageMediaState {
 	}
 
 	get widthClass(): ClassValue {
-		return { "w-2/5 max-w-60 min-w-35": !this.clone };
+		return { "w-2/5 max-w-60 min-w-35 lg:max-w-96": !this.clone };
 	}
 
 	get cornerClass(): ClassValue {

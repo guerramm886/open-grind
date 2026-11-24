@@ -13,7 +13,7 @@
 	data-fixed-header
 	class="fixed top-0 left-0 z-10 w-full px-4 pt-fixed-header pb-2"
 	bgClass="bg-linear-to-b from-background to-transparent"
-	contentClass="flex h-10 items-center gap-2 w-full max-w-120 mx-auto"
+	contentClass="flex h-10 items-center gap-2 w-full max-w-120 lg:max-w-400 mx-auto"
 	{@attach topChrome}
 >
 	<h1 class="text-base font-semibold">Visitas</h1>

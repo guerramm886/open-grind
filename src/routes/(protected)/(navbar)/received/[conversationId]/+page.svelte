@@ -391,7 +391,7 @@
 	data-fixed-header
 	class="fixed top-0 left-0 z-10 w-full px-4 pt-fixed-header pb-2"
 	bgClass="bg-linear-to-b from-background to-transparent"
-	contentClass="flex flex-col gap-2 w-full max-w-120 mx-auto"
+	contentClass="flex flex-col gap-2 w-full max-w-120 lg:max-w-400 mx-auto"
 	{@attach topChrome}
 >
 	<div class="flex h-10 items-center gap-2">
@@ -560,7 +560,7 @@
 >
 	<div class="pull-scroller">
 		<div
-			class="mx-auto min-h-overscrollable mt-14 w-full max-w-120 px-2 pt-header-clear-16 pb-nav-clear"
+			class="mx-auto min-h-overscrollable mt-14 w-full max-w-120 lg:max-w-400 px-2 pt-header-clear-16 pb-nav-clear"
 		>
 			{#if !receivedArchive.supported}
 				<p
@@ -571,7 +571,7 @@
 				</p>
 			{/if}
 			{#if loading && !result}
-				<div class="grid grid-cols-3 gap-1">
+				<div class="grid grid-cols-3 gap-1 sm:grid-cols-4 lg:grid-cols-6 2xl:grid-cols-8">
 					{#each Array(9)}
 						<Skeleton class="aspect-square rounded-none" />
 					{/each}
@@ -652,7 +652,7 @@
 						{/each}
 					</div>
 				{/if}
-				<div class="grid grid-cols-3 gap-1">
+				<div class="grid grid-cols-3 gap-1 sm:grid-cols-4 lg:grid-cols-6 2xl:grid-cols-8">
 					{#each result.items as item, i (item.id)}
 						<ReceivedTile {item} onOpen={() => (viewIndex = i)} />
 					{/each}
