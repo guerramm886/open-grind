@@ -230,6 +230,7 @@ pub fn run() {
             api::rest::fetch_external,
             media::media_failure,
             upload::bytes::upload_media,
+            upload::audio::upload_audio,
             upload::inspect::inspect_media_file,
             upload::preview::preview_media,
             upload::file::upload_media_file,

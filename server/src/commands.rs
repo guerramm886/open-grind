@@ -118,6 +118,36 @@ pub async fn run(app: &App, command: &str, args: Value) -> Result<Value, AppErro
 			let payload: String = arg(&args, "payload")?;
 			request(app, &payload).await.map(Value::String)
 		}
+		"upload_audio" => {
+			// A voice note recorded in the page, sent as is (src-tauri's
+			// upload/audio.rs does the same in the app).
+			let data: String = arg(&args, "data")?;
+			let content_type: String = arg(&args, "contentType")?;
+			let length_ms: u64 = arg(&args, "lengthMs")?;
+			let content_type = content_type.trim().to_ascii_lowercase();
+			let clean = content_type.starts_with("audio/")
+				&& content_type.len() < 100
+				&& content_type
+					.chars()
+					.all(|c| c.is_ascii_alphanumeric() || "/.;=+-_ ,\"".contains(c));
+			if !clean {
+				return Err(AppError::Http("Ese archivo no es un audio".to_owned()));
+			}
+			let bytes = STANDARD
+				.decode(data.trim())
+				.map_err(|_| AppError::Http("El audio llegó dañado".to_owned()))?;
+			if bytes.is_empty() || bytes.len() > 20 * 1024 * 1024 {
+				return Err(AppError::Http("El audio está vacío o es muy largo".to_owned()));
+			}
+			let path = format!("/v5/chat/media/upload?takenOnGrindr=false&length={length_ms}");
+			let raw = client
+				.request(grindr::Method::POST, &path)
+				.bytes(&content_type, bytes)
+				.send()
+				.await
+				.map_err(|e| AppError::from_client_error(e, client))?;
+			encode_response(raw.status, raw.body).map(Value::String)
+		}
 		"fetch_external" => {
 			let url: String = arg(&args, "url")?;
 			let range: Option<String> = arg(&args, "range")?;

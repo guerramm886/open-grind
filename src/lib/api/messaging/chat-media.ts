@@ -136,6 +136,40 @@ export async function uploadChatMediaFile(
 	return { ...uploaded, contentType, inspection };
 }
 
+function blobToBase64(blob: Blob): Promise<string> {
+	return new Promise((resolve, reject) => {
+		const reader = new FileReader();
+		reader.onload = () => {
+			const url = String(reader.result);
+			resolve(url.slice(url.indexOf(",") + 1));
+		};
+		reader.onerror = () => reject(reader.error ?? new Error("read failed"));
+		reader.readAsDataURL(blob);
+	});
+}
+
+/** A voice note recorded in the page, uploaded as is. */
+export async function uploadChatAudio({
+	blob,
+	contentType,
+	lengthMs,
+}: {
+	blob: Blob;
+	contentType: string;
+	lengthMs: number;
+}): Promise<MediaUploadResponse> {
+	const path = "/v5/chat/media/upload";
+	const response = await invokeRest("upload_audio", {
+		args: {
+			data: await blobToBase64(blob),
+			contentType,
+			lengthMs: Math.max(1, Math.round(lengthMs)),
+		},
+		requestInfo: { method: "POST", path },
+	});
+	return response.jsonParsed(mediaUploadResponseSchema);
+}
+
 export async function addMediaToDrawer(
 	media: PickedMedia,
 ): Promise<DrawerMedia> {

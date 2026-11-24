@@ -18,6 +18,8 @@
 	} from "$lib/util/swipe-to-reply.svelte";
 	import type { ApiResponseMessage } from "$lib/model/messaging/messages";
 	import AlbumMessage from "./AlbumMessage.svelte";
+	import AudioMessage from "./AudioMessage.svelte";
+	import MediaReactionMessage from "./MediaReactionMessage.svelte";
 	import { type MessageRefs, setMessageContext } from "./context";
 	import ExpiringImageMessage from "./ExpiringImageMessage.svelte";
 	import GaymojiMessage from "./GaymojiMessage.svelte";
@@ -289,6 +291,25 @@
 				{isOut}
 				senderId={message.senderId}
 				sentAt={message.timestamp}
+			/>
+		{:else if message.type === "Audio"}
+			<AudioMessage message={message.body} />
+		{:else if message.type === "AlbumContentReaction"}
+			<MediaReactionMessage
+				kind="album-reaction"
+				previewUrl={message.body.previewUrl}
+			/>
+		{:else if message.type === "AlbumContentReply"}
+			<MediaReactionMessage
+				kind="album-reply"
+				previewUrl={message.body.previewUrl}
+				reply={message.body.albumContentReply}
+			/>
+		{:else if message.type === "ProfilePhotoReply"}
+			<MediaReactionMessage
+				kind="photo-reply"
+				imageHash={message.body.imageHash}
+				reply={message.body.photoContentReply}
 			/>
 		{:else if message.type === "Gaymoji"}
 			<GaymojiMessage message={message.body} />

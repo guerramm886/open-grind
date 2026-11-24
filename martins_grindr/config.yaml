@@ -1,7 +1,7 @@
 name: Martins Grindr
-version: "0.1.7"
+version: "0.1.8"
 slug: martins_grindr
-description: open-grind como página web, servida desde esta PC
+description: open-grind como pÃ¡gina web, servida desde esta PC
 url: https://github.com/guerramm886/open-grind
 arch:
   - amd64
@@ -13,7 +13,7 @@ map:
 ports:
   8099/tcp: 8099
 ports_description:
-  8099/tcp: Página web
+  8099/tcp: PÃ¡gina web
 webui: "http://[HOST]:[PORT:8099]"
 options:
   password: ""

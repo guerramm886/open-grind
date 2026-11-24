@@ -1,3 +1,4 @@
+pub(crate) mod audio;
 pub(crate) mod bytes;
 pub(crate) mod file;
 mod form;
