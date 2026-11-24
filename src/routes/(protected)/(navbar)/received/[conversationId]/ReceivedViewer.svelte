@@ -6,6 +6,7 @@
 	import XIcon from "phosphor-svelte/lib/XIcon";
 
 	import { dismissOnBackGesture } from "$lib/platform/back-gesture-event.svelte";
+	import { isWebServer } from "$lib/platform/os";
 	import { receivedArchive } from "$lib/received/archive.svelte";
 	import { saveItemToDevice } from "$lib/received/save-to-device";
 	import type { ReceivedItem } from "$lib/received/received-media";
@@ -43,7 +44,62 @@
 
 	function go(delta: number) {
 		const next = index + delta;
-		if (next >= 0 && next < items.length) index = next;
+		if (next >= 0 && next < items.length) {
+			index = next;
+			resetZoom();
+		}
+	}
+
+	// Home Assistant (web on a PC): zoom like a pinch with the mouse wheel,
+	// double click or + / - / 0, and drag to move around a zoomed photo.
+	const onPc = isWebServer();
+	let zoom = $state(1);
+	let panX = $state(0);
+	let panY = $state(0);
+	let panFrom: { x: number; y: number; panX: number; panY: number } | null =
+		null;
+	let panned = false;
+	const zoomed = $derived(zoom > 1.01);
+
+	function resetZoom() {
+		zoom = 1;
+		panX = 0;
+		panY = 0;
+	}
+	function setZoom(next: number) {
+		zoom = Math.min(6, Math.max(1, next));
+		if (zoom <= 1.01) resetZoom();
+	}
+	function onWheel(event: WheelEvent) {
+		if (!onPc || current?.kind !== "image") return;
+		event.preventDefault();
+		setZoom(zoom * (event.deltaY < 0 ? 1.15 : 1 / 1.15));
+	}
+	function onPointerDown(event: PointerEvent) {
+		if (!onPc || event.pointerType !== "mouse" || event.button !== 0) return;
+		panFrom = { x: event.clientX, y: event.clientY, panX, panY };
+		panned = false;
+	}
+	function onPointerMove(event: PointerEvent) {
+		if (!panFrom) return;
+		const dx = event.clientX - panFrom.x;
+		const dy = event.clientY - panFrom.y;
+		if (Math.abs(dx) + Math.abs(dy) > 4) panned = true;
+		if (zoomed) {
+			panX = panFrom.panX + dx;
+			panY = panFrom.panY + dy;
+		}
+	}
+	function onPointerUp(event: PointerEvent) {
+		if (!panFrom) return;
+		const dx = event.clientX - panFrom.x;
+		const dy = event.clientY - panFrom.y;
+		panFrom = null;
+		// Not zoomed: a sideways drag is a swipe to the next/previous photo.
+		if (!zoomed && Math.abs(dx) >= 80 && Math.abs(dx) >= Math.abs(dy) * 1.3) {
+			swipedAway = true;
+			go(dx < 0 ? 1 : -1);
+		}
 	}
 
 	// Close only the viewer on the Android back gesture, staying in the gallery.
@@ -83,8 +139,9 @@
 	// Edge taps change photo too, but after a swipe the browser fires a trailing
 	// click on the edge we must ignore once, or the photo would advance twice.
 	function onEdgeTap(delta: number) {
-		if (swipedAway) {
+		if (swipedAway || panned) {
 			swipedAway = false;
+			panned = false;
 			return;
 		}
 		go(delta);
@@ -110,19 +167,39 @@
 
 <svelte:window
 	onkeydown={(e) => {
-		if (e.key === "Escape") onClose();
-		else if (e.key === "ArrowRight") go(1);
+		if (e.key === "Escape") {
+			if (zoomed) resetZoom();
+			else onClose();
+		} else if (e.key === "ArrowRight") go(1);
 		else if (e.key === "ArrowLeft") go(-1);
+		else if (onPc && (e.key === "+" || e.key === "=")) setZoom(zoom * 1.25);
+		else if (onPc && e.key === "-") setZoom(zoom / 1.25);
+		else if (onPc && e.key === "0") resetZoom();
 	}}
 />
 
 <div
-	class="fixed inset-0 z-50 flex items-center justify-center bg-black/95"
+	class={[
+		"fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-black/95",
+		{ "cursor-grab": zoomed },
+	]}
 	role="dialog"
 	aria-modal="true"
 	tabindex="-1"
 	ontouchstart={onTouchStart}
 	ontouchend={onTouchEnd}
+	onwheel={onWheel}
+	onpointerdown={onPointerDown}
+	onpointermove={onPointerMove}
+	onpointerup={onPointerUp}
+	ondblclick={() => {
+		if (!onPc || current?.kind !== "image") return;
+		if (zoomed) resetZoom();
+		else setZoom(2.5);
+	}}
+	ondragstart={(event) => {
+		if (onPc) event.preventDefault();
+	}}
 >
 	<button
 		type="button"
@@ -169,7 +246,7 @@
 		</button>
 	{/if}
 
-	{#if current && current.kind === "image"}
+	{#if current && current.kind === "image" && !zoomed}
 		<!-- Tap the left/right half of the screen to change photo. -->
 		<button
 			type="button"
@@ -196,7 +273,15 @@
 				playsinline
 			></video>
 		{:else}
-			<img {src} alt="" class="max-h-full max-w-full object-contain" />
+			<img
+				{src}
+				alt=""
+				class="max-h-full max-w-full object-contain select-none"
+				draggable="false"
+				style:transform={zoomed
+					? `translate(${panX}px, ${panY}px) scale(${zoom})`
+					: undefined}
+			/>
 		{/if}
 	{:else}
 		<span

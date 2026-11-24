@@ -15,6 +15,7 @@
 	import PagingSentinel from "$lib/components/shared/PagingSentinel.svelte";
 	import { gridState } from "$lib/grid/grid-state.svelte";
 	import { swipeDecisions } from "$lib/grid/swipe-decisions.svelte";
+	import { isWebServer } from "$lib/platform/os";
 	import { proxyMediaUrl } from "$lib/util/media";
 	import { virtualGrid } from "$lib/util/virtual-grid.svelte";
 	import EmptyGrid from "./EmptyGrid.svelte";
@@ -124,11 +125,56 @@
 			const saved = Number(
 				localStorage.getItem("open-grind-grid-columns"),
 			);
-			if (Number.isInteger(saved) && saved >= 1 && saved <= 7)
+			if (Number.isInteger(saved) && saved >= 1 && saved <= MAX_COLUMNS)
 				columns = saved;
 		} catch (error) {
 			console.error(error);
 		}
+	});
+
+	// Home Assistant (web on a PC): the pinch is Ctrl + mouse wheel, or the
+	// + / - keys; a monitor can fit more columns than a phone.
+	const onPc = isWebServer();
+	const MAX_COLUMNS = onPc ? 12 : 7;
+	function currentColumns(): number {
+		if (columns !== null) return columns;
+		if (!gridElement) return 3;
+		return getComputedStyle(gridElement)
+			.gridTemplateColumns.trim()
+			.split(/\s+/).length;
+	}
+	function stepColumns(delta: number) {
+		columns = Math.max(1, Math.min(MAX_COLUMNS, currentColumns() + delta));
+		try {
+			localStorage.setItem("open-grind-grid-columns", String(columns));
+		} catch (error) {
+			console.error(error);
+		}
+	}
+	let wheelAt = 0;
+	function onGridWheel(event: WheelEvent) {
+		if (!onPc || !event.ctrlKey) return;
+		event.preventDefault();
+		const now = Date.now();
+		if (now - wheelAt < 250) return;
+		wheelAt = now;
+		// Wheel up = zoom in = bigger photos = fewer columns, like spreading.
+		stepColumns(event.deltaY < 0 ? -1 : 1);
+	}
+	$effect(() => {
+		if (!onPc) return;
+		const onKey = (event: KeyboardEvent) => {
+			if (event.defaultPrevented || event.altKey || event.metaKey) return;
+			const target = event.target as HTMLElement | null;
+			if (target?.closest("input, textarea, [contenteditable='true']")) return;
+			if (document.querySelector(".pswp--open, [role='dialog']")) return;
+			if (event.key === "+" || event.key === "=") stepColumns(-1);
+			else if (event.key === "-") stepColumns(1);
+			else return;
+			event.preventDefault();
+		};
+		window.addEventListener("keydown", onKey);
+		return () => window.removeEventListener("keydown", onKey);
 	});
 	let pinchStart = 0;
 	let pinchColumns = 0;
@@ -311,6 +357,7 @@
 		ontouchstart={touchStart}
 		ontouchmove={touchMove}
 		ontouchend={() => (pinchStart = 0)}
+		onwheel={onGridWheel}
 		style:padding-top="{view.paddingTopPx}px"
 		style:padding-bottom="{view.paddingBottomPx}px"
 		data-rows-above={view.hasRowsAbove || undefined}

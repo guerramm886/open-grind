@@ -13,6 +13,7 @@
 		removeFavoriteUser,
 	} from "$lib/api/users/favorites";
 	import BackLink from "$lib/components/navigation/BackLink.svelte";
+	import { isWebServer } from "$lib/platform/os";
 	import DistanceFormatted from "$lib/components/profile/DistanceFormatted.svelte";
 	import UserAvatar from "$lib/components/profile/UserAvatar.svelte";
 	import ProgressiveBlur from "$lib/components/shared/ProgressiveBlur.svelte";
@@ -368,6 +369,54 @@
 		goAdjacentGrid(dx < 0 ? 1 : -1);
 	}
 
+	// Home Assistant (web on a PC): the same swipe with the mouse — drag
+	// sideways — or the keyboard arrows, or a sideways scroll on a touchpad.
+	const onPc = isWebServer();
+	let dragStartX: number | null = null;
+	let dragStartY = 0;
+	function onGridPointerDown(event: PointerEvent) {
+		if (!onPc || event.pointerType !== "mouse" || event.button !== 0) return;
+		dragStartX = event.clientX;
+		dragStartY = event.clientY;
+	}
+	function onGridPointerUp(event: PointerEvent) {
+		if (dragStartX === null) return;
+		const dx = event.clientX - dragStartX;
+		const dy = event.clientY - dragStartY;
+		dragStartX = null;
+		if (Math.abs(dx) < 80 || Math.abs(dx) < Math.abs(dy) * 1.3) return;
+		lastSwipeAt = Date.now();
+		goAdjacentGrid(dx < 0 ? 1 : -1);
+	}
+	let wheelAccum = 0;
+	let wheelResetAt = 0;
+	function onGridWheel(event: WheelEvent) {
+		if (!onPc || Math.abs(event.deltaX) <= Math.abs(event.deltaY)) return;
+		const now = Date.now();
+		if (now - wheelResetAt > 400) wheelAccum = 0;
+		wheelResetAt = now;
+		wheelAccum += event.deltaX;
+		if (Math.abs(wheelAccum) < 150 || now - lastSwipeAt < 800) return;
+		lastSwipeAt = now;
+		goAdjacentGrid(wheelAccum > 0 ? 1 : -1);
+		wheelAccum = 0;
+	}
+	$effect(() => {
+		if (!onPc) return;
+		const onKey = (event: KeyboardEvent) => {
+			if (viewIndex !== -1 || event.defaultPrevented) return;
+			if (event.altKey || event.ctrlKey || event.metaKey) return;
+			const target = event.target as HTMLElement | null;
+			if (target?.closest("input, textarea, [contenteditable='true']")) return;
+			if (event.key === "ArrowRight") goAdjacentGrid(1);
+			else if (event.key === "ArrowLeft") goAdjacentGrid(-1);
+			else return;
+			event.preventDefault();
+		};
+		window.addEventListener("keydown", onKey);
+		return () => window.removeEventListener("keydown", onKey);
+	});
+
 	// Swallow the click a swipe leaves behind, so releasing over a tile doesn't
 	// also pop its photo open as we navigate to the next person.
 	$effect(() => {
@@ -557,6 +606,13 @@
 	bind:this={mainEl}
 	ontouchstart={onGridTouchStart}
 	ontouchend={onGridTouchEnd}
+	onpointerdown={onGridPointerDown}
+	onpointerup={onGridPointerUp}
+	onwheel={onGridWheel}
+	ondragstart={(event) => {
+		// A mouse drag is a swipe here, not dragging the photo out.
+		if (onPc) event.preventDefault();
+	}}
 >
 	<div class="pull-scroller">
 		<div
