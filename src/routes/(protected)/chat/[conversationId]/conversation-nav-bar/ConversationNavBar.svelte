@@ -6,6 +6,7 @@
 	import { Skeleton } from "$lib/components/ui/skeleton";
 	import { topChrome } from "$lib/util/screen-chrome.svelte";
 	import { getConversationState } from "../conversation-state.svelte";
+	import ChatDecisionButtons from "./ChatDecisionButtons.svelte";
 	import ConversationNavBarProfile from "./ConversationNavBarProfile.svelte";
 	import ReceivedMediaLink from "./ReceivedMediaLink.svelte";
 
@@ -31,6 +32,12 @@
 	{#if conversationState.profile !== null}
 		<ConversationNavBarProfile profile={conversationState.profile} />
 		<ReceivedMediaLink />
+		<ChatDecisionButtons
+			profileId={conversationState.profile.profileId}
+			conversationId={conversationState.conversationId}
+			name={conversationState.profile.name ?? null}
+		/>
+		<div class="w-2 shrink-0"></div>
 	{:else if conversationState.error}
 		<span class="flex-1">No se pudo cargar la conversación</span>
 	{:else}
