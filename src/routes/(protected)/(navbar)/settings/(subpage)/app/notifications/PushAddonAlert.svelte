@@ -31,24 +31,24 @@
 	<AlertDialog.Content interactOutsideBehavior="close" {onCloseAutoFocus}>
 		<AlertDialog.Header>
 			<AlertDialog.Title
-				>Install push notifications add-on</AlertDialog.Title
+				>Instalar el complemento de notificaciones</AlertDialog.Title
 			>
 			<AlertDialog.Description class="text-wrap">
-				To enable the fast mode, download and install {ADDON} add-on for Open
-				Grind. It includes Google's proprietary Firebase library and needs
-				Google Play services or microG, so it's not installed by default.
+				Para el modo rápido, descargá e instalá el complemento {ADDON}. Usa la
+				biblioteca Firebase de Google y necesita los servicios de Google Play o
+				microG, por eso no viene instalado.
 				{#if installedFromFdroid()}
-					This add-on bypasses F-Droid's checks.
+					Este complemento no pasa por los controles de F-Droid.
 				{/if}
 			</AlertDialog.Description>
 		</AlertDialog.Header>
 		<AlertDialog.Footer>
-			<AlertDialog.Cancel size="lg">Cancel</AlertDialog.Cancel>
+			<AlertDialog.Cancel size="lg">Cancelar</AlertDialog.Cancel>
 			<AlertDialog.Action
 				size="lg"
 				onclick={() => void continueToAddon()}
 			>
-				Continue
+				Continuar
 			</AlertDialog.Action>
 		</AlertDialog.Footer>
 	</AlertDialog.Content>

@@ -69,14 +69,14 @@
 <h2>Backup</h2>
 <HomeServerSetting />
 <BackupSetting />
-<h2>Display</h2>
+<h2>Pantalla</h2>
 <UnitsSetting />
 <BackdropBlurSetting />
 {#if hapticsAvailable()}
 	<PreferenceSwitchSetting
 		preference="hapticFeedback"
-		title="Haptic feedback"
-		description="Use the haptic engine for interactions."
+		title="Vibración"
+		description="Vibra un poco al tocar algunas cosas."
 	/>
 {/if}
 {#if desktopEntryAvailable()}
@@ -85,47 +85,47 @@
 <Item.Root variant="outline">
 	{#snippet child({ props })}
 		<a href="/settings/app/notifications" {...props}>
-			{@render rowContent({ title: "Notifications" })}
+			{@render rowContent({ title: "Notificaciones" })}
 		</a>
 	{/snippet}
 </Item.Root>
-<h2>Privacy</h2>
+<h2>Privacidad</h2>
 <PreferenceSwitchSetting
 	preference="stayOnline"
-	title="Stay online while the app is open"
-	description="Refresh your online status in the background automatically, while the app is open."
+	title="Seguir online mientras la app está abierta"
+	description="Renueva tu estado online solo, mientras la app está abierta."
 />
 <PreferenceSwitchSetting
 	preference="revealMessageRead"
-	title="Reveal message read status"
-	description="Let others know when you've read their messages. Your read receipts remain unaffected."
+	title="Mostrar que leí los mensajes"
+	description="Los demás ven cuándo leíste sus mensajes. Vos seguís viendo cuándo leen los tuyos."
 />
 <PreferenceSwitchSetting
 	preference="revealProfileViews"
-	title="Reveal profile views"
-	description="Let others know when you've viewed their profile. Your profile view history remains unaffected."
+	title="Mostrar que vi su perfil"
+	description="Los demás ven que miraste su perfil. Vos seguís viendo quién mira el tuyo."
 />
 <PreferenceSwitchSetting
 	preference="giphyConsent"
-	title="GIF search via GIPHY"
-	description="Search and load GIFs from GIPHY in chats. GIPHY sees your IP address, what you search for and that the requests come from a Grindr app."
+	title="Buscar GIFs con GIPHY"
+	description="Buscar y mandar GIFs de GIPHY en los chats. GIPHY ve tu dirección IP, lo que buscás y que el pedido viene de una app de Grindr."
 />
-<h2>Security</h2>
+<h2>Seguridad</h2>
 {@render item({
-	title: "Discreet app icon",
-	unimplemented: { feature: "Discreet app icon", issue: 97 },
+	title: "Ícono discreto",
+	unimplemented: { feature: "Ícono discreto", issue: 97 },
 })}
 {@render item({ title: "PIN", unimplemented: { feature: "PIN", issue: 50 } })}
 {#if updatesSelfManaged() || updatesUnsupportedReason() !== null || addonInstallerAvailable()}
-	<h2>Updates</h2>
+	<h2>Actualizaciones</h2>
 	<AutomaticUpdatesSetting />
 {/if}
-<h2>About</h2>
+<h2>Acerca de</h2>
 <Item.Root variant="outline">
 	{#snippet child({ props })}
 		<Link href="https://opengrind.org/privacy" {...props}>
 			{@render rowContent({
-				title: "Privacy policy",
+				title: "Política de privacidad",
 				trailingIcon: ArrowSquareOutIcon,
 			})}
 		</Link>
@@ -134,7 +134,7 @@
 <Item.Root variant="outline">
 	{#snippet child({ props })}
 		<a href="/settings/app/credits" {...props}>
-			{@render rowContent({ title: "Credits & Licenses" })}
+			{@render rowContent({ title: "Créditos y licencias" })}
 		</a>
 	{/snippet}
 </Item.Root>

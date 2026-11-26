@@ -54,7 +54,7 @@
 				<Item.Title
 					class="inline-block w-full min-w-0 truncate text-left"
 				>
-					My Albums
+					Mis álbumes
 				</Item.Title>
 			</Item.Content>
 			<Item.Actions>

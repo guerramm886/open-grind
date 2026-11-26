@@ -26,7 +26,7 @@
 	import { maxProfilePhotos } from "./options";
 
 	const DAILY_LIMIT_MESSAGE =
-		"You've reached today's limit for new profile photos";
+		"Llegaste al límite de fotos de perfil nuevas por hoy";
 
 	type PreviousUpload = { mediaHash: string; state: number };
 
@@ -138,7 +138,7 @@
 	receiveMedia(() =>
 		canAdd && !disabled && !adding
 			? {
-					label: "Drop to add photos",
+					label: "Soltá para agregar fotos",
 					videos: false,
 					receive: (media) => void add(media),
 				}
@@ -150,7 +150,7 @@
 			return await pickMultipleMedia("image");
 		} catch (error) {
 			console.error(error);
-			toast.error("Couldn't open the photo picker");
+			toast.error("No se pudo abrir el selector de fotos");
 			return [];
 		}
 	}
@@ -176,7 +176,7 @@
 				console.error(error);
 				const dailyLimit = httpStatusOf(error) === 403;
 				toast.error(
-					dailyLimit ? DAILY_LIMIT_MESSAGE : "Couldn't upload photo",
+					dailyLimit ? DAILY_LIMIT_MESSAGE : "No se pudo subir la foto",
 				);
 				if (dailyLimit) {
 					const dropped = new Set(
@@ -205,7 +205,7 @@
 
 {#snippet addTile()}
 	<AddTile
-		label="Add photos"
+		label="Agregar fotos"
 		class="aspect-square w-full rounded-xl"
 		disabled={disabled || adding}
 		onclick={() => (sheetOpen = true)}
@@ -214,8 +214,8 @@
 
 <PreviousUploadsSheet
 	bind:open={sheetOpen}
-	uploadLabel="Upload photos"
-	submitLabel="Add to profile"
+	uploadLabel="Subir fotos"
+	submitLabel="Agregar al perfil"
 	max={room}
 	load={loadPreviousUploads}
 	describe={({ mediaHash }) => ({

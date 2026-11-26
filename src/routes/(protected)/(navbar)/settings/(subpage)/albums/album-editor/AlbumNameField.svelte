@@ -13,13 +13,13 @@
 <div class={["flex flex-col gap-1.5", className]}>
 	<Input
 		bind:value
-		placeholder="Album Name"
-		aria-label="Album name"
+		placeholder="Nombre del álbum"
+		aria-label="Nombre del álbum"
 		aria-describedby={hintId}
 		maxlength={255}
 		{disabled}
 	/>
 	<p id={hintId} class="px-1 text-xs text-muted-foreground">
-		Only you see the album name
+		Solo vos ves el nombre del álbum
 	</p>
 </div>

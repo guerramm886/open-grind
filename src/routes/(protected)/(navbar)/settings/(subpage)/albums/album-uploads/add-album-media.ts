@@ -22,8 +22,8 @@ import {
 	type UploadLimits,
 } from "./album-uploads-state.svelte";
 
-const UNSUPPORTED_MESSAGE = "That file isn't a photo or video";
-const ALBUM_FULL_MESSAGE = "The album is full. Remove something to add more.";
+const UNSUPPORTED_MESSAGE = "Ese archivo no es una foto ni un video";
+const ALBUM_FULL_MESSAGE = "El álbum está lleno. Sacá algo para agregar más.";
 
 function isUploadable(
 	inspection: MediaFileInspection,
@@ -63,7 +63,7 @@ export async function pickInspectedAlbumMedia({
 
 function videoLimitMessage(maxVideosPerAlbum: number): string {
 	const noun = maxVideosPerAlbum === 1 ? "video" : "videos";
-	return `You can have ${maxVideosPerAlbum} ${noun} in your album. Remove one to add another.`;
+	return `Podés tener ${maxVideosPerAlbum} ${noun} en el álbum. Sacá uno para agregar otro.`;
 }
 
 export function enqueueAlbumMedia({
@@ -129,7 +129,7 @@ export async function addAlbumMedia({
 	} catch (error) {
 		console.error(error);
 		void discardStagedMedia(media ?? []);
-		showErrorToast({ label: "Couldn't add to album", error });
+		showErrorToast({ label: "No se pudo agregar al álbum", error });
 	}
 }
 
@@ -152,7 +152,7 @@ export async function addPreviousUploads({
 		if (isPlanLimitReached(error)) {
 			toast.error(ALBUM_FULL_MESSAGE);
 		} else {
-			showErrorToast({ label: "Couldn't add to album", error });
+			showErrorToast({ label: "No se pudo agregar al álbum", error });
 		}
 		return false;
 	}

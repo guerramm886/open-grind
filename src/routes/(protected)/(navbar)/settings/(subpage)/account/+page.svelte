@@ -16,7 +16,7 @@
 					event.preventDefault();
 					toast(ToastUnimplemented, {
 						componentProps: {
-							feature: "Account settings",
+							feature: "Ajustes de la cuenta",
 							issue: 47,
 						},
 					});
@@ -54,12 +54,12 @@
 		{/snippet}
 	</Item.Root>
 {/snippet}
-{@render linkItem({ title: "Privacy", href: "/settings/account/privacy" })}
+{@render linkItem({ title: "Privacidad", href: "/settings/account/privacy" })}
 {@render item({ title: "Email" })}
-{@render item({ title: "Password" })}
+{@render item({ title: "Contraseña" })}
 {@render linkItem({
-	title: "Blocked users",
+	title: "Bloqueados",
 	href: "/settings/account/blocked",
 })}
-{@render linkItem({ title: "Hidden users", href: "/settings/account/hidden" })}
-{@render item({ title: "Delete account" })}
+{@render linkItem({ title: "Ocultos", href: "/settings/account/hidden" })}
+{@render item({ title: "Borrar la cuenta" })}

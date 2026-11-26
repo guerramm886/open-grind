@@ -25,14 +25,14 @@
 		try {
 			await deleteAlbum({ albumId });
 			getMyAlbumsState(ourProfileId).remove(albumId);
-			toast.success("Your album has been deleted");
+			toast.success("Se borró el álbum");
 			leaveDeletedPages({
 				pathnames: [`/settings/albums/${albumId}`],
 				parent: "/settings/albums",
 			});
 		} catch (error) {
 			console.error(error);
-			showErrorToast({ label: "Couldn't delete album", error });
+			showErrorToast({ label: "No se pudo borrar el álbum", error });
 		} finally {
 			deleting = false;
 		}
@@ -47,7 +47,7 @@
 				variant="ghost"
 				size="icon-lg"
 				class="size-12"
-				aria-label="Album menu"
+				aria-label="Menú del álbum"
 				disabled={deleting || saving}
 			>
 				<DotsThreeVerticalIcon class="size-6" />
@@ -60,17 +60,17 @@
 			onSelect={() => (confirming = true)}
 		>
 			<TrashIcon class="size-5" />
-			Delete album
+			Borrar álbum
 		</DropdownMenu.Item>
 	</DropdownMenu.Content>
 </DropdownMenu.Root>
 <AlertDialog.Root bind:open={confirming}>
 	<AlertDialog.Content>
 		<AlertDialog.Header>
-			<AlertDialog.Title>Delete album?</AlertDialog.Title>
+			<AlertDialog.Title>Borrar álbum?</AlertDialog.Title>
 			<AlertDialog.Description>
-				This album and everything in it will be deleted, and anyone you
-				shared it with will lose access. This cannot be undone.
+				Se borra el álbum con todo lo que tiene, y las personas con las que
+				lo compartiste dejan de verlo. No se puede deshacer.
 			</AlertDialog.Description>
 		</AlertDialog.Header>
 		<AlertDialog.Footer>

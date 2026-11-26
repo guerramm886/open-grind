@@ -16,12 +16,12 @@ import {
 const unsupportedCopy: Record<Unsupported["reason"], string> = {
 	externallyManaged:
 		"Updates are managed by the store that installed the app",
-	foreignSigner: "This build was not signed by Open Grind",
-	foreignTarget: "The installed app isn't signed by Open Grind",
-	undetermined: "Open Grind can't tell whether it may update itself",
+	foreignSigner: "This build was not signed by Martin's Grindr",
+	foreignTarget: "The installed app isn't signed by Martin's Grindr",
+	undetermined: "Martin's Grindr can't tell whether it may update itself",
 	noReleaseArtifacts: "No release is published for this platform",
 	sandboxed: "The sandbox this app runs in manages its own updates",
-	locationNotWritable: "Open Grind can't install the update in its directory",
+	locationNotWritable: "Martin's Grindr can't install the update in its directory",
 };
 
 const userCanFix: Record<Unsupported["reason"], boolean> = {
@@ -54,12 +54,12 @@ const copy: Record<KnownKind, string> = {
 	assetReplaced: "The release changed during the download. Try again.",
 	canceled: "Update canceled",
 	nothingStaged: "No update is ready to install",
-	needsUnknownSources: "Open Grind needs permission to install updates",
-	needsManualInstall: "Quit Open Grind, then drag it onto Applications",
+	needsUnknownSources: "Martin's Grindr needs permission to install updates",
+	needsManualInstall: "Quit Martin's Grindr, then drag it onto Applications",
 	install: "Couldn't install the update",
 	checkTooSoon: "Already checked for updates recently",
 	autoChecksDisabled: "Automatic update checks are turned off",
-	unknownComponent: "Open Grind doesn't know that component",
+	unknownComponent: "Martin's Grindr doesn't know that component",
 	busy: "Another download is already running",
 };
 
@@ -68,13 +68,13 @@ const addonUnsupportedCopy: Partial<Record<Unsupported["reason"], AddonText>> =
 		externallyManaged: (addon) =>
 			`The store that installed the ${addon} manages its updates`,
 		foreignSigner: (addon) =>
-			`This copy of Open Grind isn't signed by Open Grind, so it can't install the ${addon}`,
+			`This copy of Martin's Grindr isn't signed by Martin's Grindr, so it can't install the ${addon}`,
 		foreignTarget: (addon) =>
-			`The installed ${addon} isn't signed by Open Grind. Uninstall it to install the official one.`,
+			`The installed ${addon} isn't signed by Martin's Grindr. Uninstall it to install the official one.`,
 		noReleaseArtifacts: (addon) =>
 			`The ${addon} isn't published for this device`,
 		undetermined: (addon) =>
-			`Open Grind can't tell whether it may install the ${addon}`,
+			`Martin's Grindr can't tell whether it may install the ${addon}`,
 	};
 
 const addonCopy: Partial<Record<KnownKind, AddonText>> = {
@@ -99,7 +99,7 @@ const PACKAGE_MANAGER_INSTALL_FAILED_INSUFFICIENT_STORAGE = -4;
 
 function busyText(component: ComponentKey): string {
 	return component === APP_COMPONENT
-		? "Wait for the Open Grind update to finish downloading"
+		? "Wait for the Martin's Grindr update to finish downloading"
 		: `Wait for the ${ADDON_NAME[component]} to finish downloading`;
 }
 
@@ -120,7 +120,7 @@ export function noReleaseText({
 	component: ComponentKey;
 }): string {
 	const subject =
-		component === APP_COMPONENT ? "Open Grind" : ADDON_NAME[component];
+		component === APP_COMPONENT ? "Martin's Grindr" : ADDON_NAME[component];
 	return `No ${subject} release is published yet`;
 }
 

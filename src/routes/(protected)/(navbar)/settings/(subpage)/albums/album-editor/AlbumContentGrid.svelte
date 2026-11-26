@@ -118,7 +118,7 @@
 		saving || adding
 			? null
 			: {
-					label: "Drop to add to album",
+					label: "Soltá para agregar al álbum",
 					videos: true,
 					receive: (media) => void add(media),
 				},
@@ -127,8 +127,8 @@
 
 {#if slots.length === 0}
 	<AlbumMediaEmpty
-		title="No media yet"
-		description="Photos and videos you add appear here."
+		title="Todavía no hay fotos"
+		description="Las fotos y videos que agregues aparecen acá."
 		disabled={saving || adding || full}
 		onAdd={() => (sheetOpen = true)}
 	/>
@@ -144,7 +144,7 @@
 
 {#snippet leading()}
 	<AddTile
-		label="Add photos or videos"
+		label="Agregar fotos o videos"
 		class="aspect-square w-full rounded-xl"
 		disabled={saving || adding || full}
 		onclick={() => (sheetOpen = true)}
@@ -153,8 +153,8 @@
 
 <PreviousUploadsSheet
 	bind:open={sheetOpen}
-	uploadLabel="Upload photos or videos"
-	submitLabel="Add to album"
+	uploadLabel="Subir fotos o videos"
+	submitLabel="Agregar al álbum"
 	max={itemRoom}
 	load={loadDrawerPhotos}
 	describe={(item) => ({

@@ -25,11 +25,11 @@ export const companionUntrusted = "companion-untrusted";
 export const companionRefused = "companion-refused";
 export const companionDisabled = "companion-disabled";
 export const untrustedCompanionMessage =
-	"The installed Open Grind Google OAuth app isn't signed by Open Grind, so its token was refused. Uninstall it, or paste the OAuth token manually.";
+	"The installed Martin's Grindr Google OAuth app isn't signed by Martin's Grindr, so its token was refused. Uninstall it, or paste the OAuth token manually.";
 export const refusedCompanionMessage =
-	"The Open Grind Google OAuth app only accepts official copies of Open Grind. Update it, or paste the OAuth token manually.";
+	"The Martin's Grindr Google OAuth app only accepts official copies of Martin's Grindr. Update it, or paste the OAuth token manually.";
 export const disabledCompanionMessage =
-	"The Open Grind Google OAuth app is turned off. Turn it on in Android settings, then try again.";
+	"The Martin's Grindr Google OAuth app is turned off. Turn it on in Android settings, then try again.";
 
 export function finishSignIn(result: {
 	restriction?: Restriction | null;

@@ -35,7 +35,7 @@
 		>
 			<Item.Content class="max-cramped:min-w-0">
 				<Item.Title class="inline-block max-w-full min-w-0 truncate">
-					Check for updates
+					Buscar actualizaciones
 				</Item.Title>
 			</Item.Content>
 			{#if checking}

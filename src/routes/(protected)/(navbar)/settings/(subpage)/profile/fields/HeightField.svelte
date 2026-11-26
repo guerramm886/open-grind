@@ -24,13 +24,13 @@
 
 {#if units === "imperial"}
 	<SelectField
-		label="Height"
+		label="Altura"
 		bind:value={() => inches, storeInches}
 		options={heightInchOptions}
 	/>
 {:else}
 	<NumberField
-		label="Height"
+		label="Altura"
 		bind:value
 		min={heightCmRange.min}
 		max={heightCmRange.max}

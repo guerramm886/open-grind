@@ -198,7 +198,7 @@
 			);
 			form.removedPhotos = [];
 			savedForm = { ...sent, medias: keptPhotos, removedPhotos: [] };
-			toast.success("Profile updated");
+			toast.success("Perfil actualizado");
 		} catch (error) {
 			if (error instanceof ProfileModerationError) {
 				const detail = error.rejected
@@ -208,7 +208,7 @@
 					description: detail || undefined,
 				});
 			} else {
-				showErrorToast({ label: "Failed to update profile", error });
+				showErrorToast({ label: "No se pudo actualizar el perfil", error });
 			}
 		} finally {
 			saving = false;
@@ -233,10 +233,10 @@
 
 		<ProfileFormSection title="Basics">
 			<TextField
-				label="Display name"
+				label="Nombre"
 				bind:value={form.displayName}
 				maxLength={fieldLimits.displayName}
-				placeholder="Everyone will see this on the grid..."
+				placeholder="Todos lo ven en la grilla..."
 			/>
 			<FieldPair>
 				<Field label="Age">
@@ -245,29 +245,29 @@
 							bind:value={form.age}
 							min={ageRange.min}
 							max={ageRange.max}
-							unit="years"
+							unit="años"
 							disabled={saving}
 							aria-labelledby={labelId}
 						/>
 					{/snippet}
 				</Field>
-				<SwitchRow label="Show my age" bind:checked={form.showAge} />
+				<SwitchRow label="Mostrar mi edad" bind:checked={form.showAge} />
 			</FieldPair>
 			<FieldPair>
 				<SelectField
-					label="Position"
+					label="Rol"
 					bind:value={form.sexualPosition}
 					options={positionOptions}
 				/>
 				<SwitchRow
-					label="Show my position"
+					label="Mostrar mi rol"
 					bind:checked={form.showPosition}
 				/>
 			</FieldPair>
 			<HeightField bind:value={form.height} />
 			<WeightField bind:value={form.weightKg} />
 			<SelectField
-				label="Body type"
+				label="Cuerpo"
 				bind:value={form.bodyType}
 				options={bodyTypeOptions}
 			/>
@@ -275,57 +275,57 @@
 
 		<ProfileFormSection title="About">
 			<ComboField
-				label="Tags"
+				label="Etiquetas"
 				bind:values={form.profileTags}
 				options={tagOptions}
 				resolveLabel={resolveTagLabel}
 				max={maxProfileTags}
-				searchPlaceholder="Search tags..."
+				searchPlaceholder="Buscar etiquetas..."
 			/>
 			<MultilineField
-				label="About me"
+				label="Sobre mí"
 				bind:value={form.aboutMe}
 				maxLength={fieldLimits.aboutMe}
-				placeholder="Tell people who you are and what you're looking for (not what you're not looking for)"
+				placeholder="Contá quién sos y qué buscás (no lo que no buscás)"
 			/>
 		</ProfileFormSection>
 
 		<ProfileFormSection title="Stats">
 			<ComboField
-				label="Gender"
+				label="Género"
 				bind:values={form.genderIds}
 				options={genderOptions}
 				resolveLabel={resolveGenderLabel}
 				exclude={genderExclusions}
 				max={maxProfileGenders}
-				searchPlaceholder="Search genders..."
+				searchPlaceholder="Buscar géneros..."
 			/>
 			<ComboField
-				label="Pronouns"
+				label="Pronombres"
 				bind:values={form.pronounIds}
 				options={pronounOptions}
 				resolveLabel={resolvePronounLabel}
 				max={maxProfilePronouns}
-				searchPlaceholder="Search pronouns..."
+				searchPlaceholder="Buscar pronombres..."
 			/>
 			<FieldPair>
 				<MultiSelectField
-					label="My tribes"
+					label="Mis tribus"
 					bind:values={form.grindrTribes}
 					options={tribeOptions}
 				/>
 				<SwitchRow
-					label="Show my tribes"
+					label="Mostrar mis tribus"
 					bind:checked={form.showTribes}
 				/>
 			</FieldPair>
 			<SelectField
-				label="Ethnicity"
+				label="Etnia"
 				bind:value={form.ethnicity}
 				options={ethnicityOptions}
 			/>
 			<SelectField
-				label="Relationship status"
+				label="Situación sentimental"
 				bind:value={form.relationshipStatus}
 				options={relationshipOptions}
 			/>
@@ -333,22 +333,22 @@
 
 		<ProfileFormSection title="Expectations">
 			<MultiSelectField
-				label="Looking for"
+				label="Busco"
 				bind:values={form.lookingFor}
 				options={lookingForOptions}
 			/>
 			<MultiSelectField
-				label="Meet at"
+				label="Encuentro en"
 				bind:values={form.meetAt}
 				options={meetAtOptions}
 			/>
 			<SelectField
-				label="Accept NSFW pics"
+				label="Acepto fotos explícitas"
 				bind:value={form.nsfw}
 				options={nsfwOptions}
 			/>
 			<MultiSelectField
-				label="Tribes I'm into"
+				label="Tribus que me gustan"
 				bind:values={form.tribesImInto}
 				options={tribeOptions}
 			/>
@@ -356,18 +356,18 @@
 
 		<ProfileFormSection title="Health">
 			<SelectField
-				label="HIV status"
+				label="Estado de VIH"
 				bind:value={form.hivStatus}
 				options={hivOptions}
 			/>
 			<DateField label="Last tested" bind:value={form.lastTestedDate} />
 			<MultiSelectField
-				label="Sexual health practices"
+				label="Prácticas de salud sexual"
 				bind:values={form.sexualHealth}
 				options={healthOptions}
 			/>
 			<MultiSelectField
-				label="Vaccines"
+				label="Vacunas"
 				bind:values={form.vaccineIds}
 				options={vaccineOptions}
 			/>

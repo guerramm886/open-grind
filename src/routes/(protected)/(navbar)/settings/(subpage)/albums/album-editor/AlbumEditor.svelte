@@ -66,16 +66,16 @@
 	function save() {
 		draft
 			.save()
-			.then(() => toast.success("Album updated"))
+			.then(() => toast.success("Álbum actualizado"))
 			.catch((error: unknown) => {
 				console.error(error);
 				if (error instanceof StillProcessingError) {
 					toast.error(
-						"This video is still processing. Try removing it again in a moment",
+						"El video todavía se está procesando. Probá sacarlo de nuevo en un momento",
 					);
 					return;
 				}
-				showErrorToast({ label: "Couldn't save album changes", error });
+				showErrorToast({ label: "No se pudieron guardar los cambios del álbum", error });
 			});
 	}
 </script>

@@ -36,7 +36,7 @@
 							newValue.trim() === "" ? null : newValue.trim())
 				}
 				maxlength={maxLength}
-				placeholder="username"
+				placeholder="usuario"
 				autocapitalize="off"
 				autocomplete="off"
 				spellcheck={false}

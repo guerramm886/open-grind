@@ -12,6 +12,7 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 
 import type { ByteSource } from "$lib/backup/zip";
+import { isWebServer } from "$lib/platform/os";
 import { fromBase64, toBase64 } from "$lib/util/base64";
 
 export const MANIFEST_KEY ="received-archive-manifest-v1";
@@ -298,7 +299,49 @@ class ReceivedArchive {
 							}
 							for (const entry of Object.values(this.#entries))
 								if (!entry.inGallery) this.#queueGallery(entry.id);
+						})
+						.then(() => this.#adoptPhoneEntries())
+						.catch((error: unknown) => {
+							console.error("[received-archive] phone items", error);
 						});
+	}
+
+	/** Web version: list what the phone sent with "Sincronizar" as saved here
+	 *  too (the files are already in this server's store). */
+	async #adoptPhoneEntries(): Promise<void> {
+		if (!isWebServer()) return;
+		const list = await invoke<ArchivedEntry[]>("phone_entries");
+		const next = { ...this.#entries };
+		let added = 0;
+		for (const entry of list) {
+			if (!entry?.id || next[entry.id] || !this.#stored.has(entry.fileName))
+				continue;
+			next[entry.id] = entry;
+			added += 1;
+		}
+		if (added === 0) return;
+		this.#entries = next;
+		this.#persistManifest();
+	}
+
+	/** Every entry with a file in the native store (what a sync compares). */
+	storedEntries(): ArchivedEntry[] {
+		return Object.values(this.#entries).filter((entry) =>
+			this.#stored.has(entry.fileName),
+		);
+	}
+
+	/** Register a file the native side just wrote (brought from the home
+	 *  server by "Sincronizar"). */
+	adoptStored(entry: ArchivedEntry, size: number): void {
+		this.#stored.set(entry.fileName, size);
+		if (this.#entries[entry.id]) return;
+		this.#entries = {
+			...this.#entries,
+			[entry.id]: { ...entry, inGallery: false },
+		};
+		this.#persistManifest();
+		this.#queueGallery(entry.id);
 	}
 
 	/** Hidden by default; the folders show only when asked for. */

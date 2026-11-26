@@ -118,7 +118,7 @@
 					if (message === companionUnavailable) {
 						launchFailed = true;
 						toast.error(
-							"Couldn't find the Open Grind Google OAuth app on your device. Install it first, or paste the OAuth token manually.",
+							"Couldn't find the Martin's Grindr Google OAuth app on your device. Install it first, or paste the OAuth token manually.",
 						);
 						return true;
 					}
@@ -158,7 +158,7 @@
 		href={companionHref}
 		class="font-medium text-primary underline underline-offset-2"
 	>
-		Open Grind Google OAuth app
+		Martin's Grindr Google OAuth app
 	</Link>
 {/snippet}
 
@@ -215,7 +215,7 @@
 							<ol class="ms-5 list-decimal">
 								<li>Install the {@render companionLink()}</li>
 								<li>
-									Sign in with Google in the Open Grind Google
+									Sign in with Google in the Martin's Grindr Google
 									OAuth app and copy the token
 								</li>
 								<li>
@@ -301,7 +301,7 @@
 						disabled={submitting}
 						onclick={() => (pasting = false)}
 					>
-						use the Open Grind Google OAuth app
+						use the Martin's Grindr Google OAuth app
 					</Button>
 				{:else}
 					<Button

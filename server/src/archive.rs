@@ -52,7 +52,7 @@ pub fn checked_name(file_name: &str) -> Result<&str, String> {
 	}
 }
 
-fn stored_path(app: &App, file_name: &str) -> Result<PathBuf, String> {
+pub fn stored_path(app: &App, file_name: &str) -> Result<PathBuf, String> {
 	Ok(dir(&app.data_dir, ARCHIVE)?.join(checked_name(file_name)?))
 }
 
@@ -151,6 +151,14 @@ pub fn move_to_gallery(app: &App, base: &str, ext: &str, source: &Path) -> Resul
 	Ok(())
 }
 
+/// Copy a stored file into the gallery folder under `base` (the original stays).
+pub fn copy_to_gallery(app: &App, base: &str, ext: &str, source: &Path) -> Result<(), String> {
+	let target = gallery_target(app, base, ext)?;
+	let partial = target.with_extension("partial");
+	fs::copy(source, &partial).map_err(text)?;
+	fs::rename(&partial, &target).map_err(text)
+}
+
 fn new_id() -> Result<String, String> {
 	let mut bytes = [0u8; 16];
 	getrandom::fill(&mut bytes).map_err(text)?;
@@ -179,6 +187,8 @@ pub async fn run(app: &App, command: &str, args: &Value) -> Option<Result<Value,
 		"stage_media" => stage_media(app).await,
 		"append_staged_media" => append_staged_media(app, args).await,
 		"discard_staged_media" => discard_staged_media(app, args).await,
+		// What the phone sent with "Sincronizar", for the page to list too.
+		"phone_entries" => Ok(Value::Array(crate::phone::phone_entries(app))),
 		_ => return None,
 	};
 	Some(result)

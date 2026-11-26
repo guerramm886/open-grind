@@ -7,7 +7,11 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 
 import { isWebServer } from "$lib/platform/os";
-import { receivedArchive } from "$lib/received/archive.svelte";
+import { swipeDecisions } from "$lib/grid/swipe-decisions.svelte";
+import {
+	type ArchivedEntry,
+	receivedArchive,
+} from "$lib/received/archive.svelte";
 import { settingAllowed } from "./backup.svelte";
 
 const CONFIG_KEY = "home-server-v1";
@@ -99,6 +103,131 @@ class HomeServer {
 		void this.sync();
 	}
 
+	/** What the server keeps, by entry id. */
+	async #serverEntries(url: string, password: string) {
+		const text = await invoke<string>("home_server_manifest", { url, password });
+		const parsed = JSON.parse(text) as { entries?: unknown };
+		const map = new Map<string, ArchivedEntry>();
+		if (Array.isArray(parsed.entries))
+			for (const raw of parsed.entries) {
+				const entry = raw as ArchivedEntry;
+				if (
+					entry &&
+					typeof entry.id === "string" &&
+					typeof entry.fileName === "string" &&
+					typeof entry.conversationId === "string"
+				)
+					map.set(entry.id, entry);
+			}
+		return map;
+	}
+
+	async #putItem(url: string, password: string, entry: ArchivedEntry) {
+		const { inGallery: _inGallery, ...plain } = entry;
+		await invoke("home_server_put_item", {
+			url,
+			password,
+			fileName: entry.fileName,
+			entry: JSON.stringify(plain),
+			baseName: receivedArchive.galleryBase(entry),
+		});
+	}
+
+	// ------------------------------------------------ "Sincronizar todo" button
+	/** null = idle; otherwise what the bar shows. */
+	syncPhase = $state<null | "comparing" | "up" | "down" | "done">(null);
+	upTotal = $state(0);
+	upDone = $state(0);
+	downTotal = $state(0);
+	downDone = $state(0);
+	syncFailed = $state(0);
+	syncProblem = $state<string | null>(null);
+	#cancel = false;
+
+	get syncTotal(): number {
+		return this.upTotal + this.downTotal;
+	}
+	get syncDone(): number {
+		return this.upDone + this.downDone;
+	}
+
+	cancelFullSync(): void {
+		this.#cancel = true;
+	}
+
+	/**
+	 * Compare what the phone and the server keep and copy each way what is
+	 * missing: phone → server, then server → phone. People crossed out on the
+	 * phone are not brought back.
+	 */
+	async fullSync(): Promise<void> {
+		if (!this.configured || this.syncPhase === "comparing") return;
+		if (this.syncPhase === "up" || this.syncPhase === "down") return;
+		// The automatic copy would race us for the same files.
+		while (this.running) await new Promise((r) => setTimeout(r, 500));
+		this.running = true;
+		this.#cancel = false;
+		this.syncPhase = "comparing";
+		this.upTotal = this.upDone = this.downTotal = this.downDone = 0;
+		this.syncFailed = 0;
+		this.syncProblem = null;
+		const { url, password } = this;
+		try {
+			await receivedArchive.ready;
+			const server = await this.#serverEntries(url, password);
+			const phone = receivedArchive.storedEntries();
+			const phoneIds = new Set(phone.map((entry) => entry.id));
+			const up = phone
+				.filter((entry) => !server.has(entry.id))
+				.sort((a, b) => a.savedAt - b.savedAt);
+			const down = [...server.values()].filter(
+				(entry) =>
+					!phoneIds.has(entry.id) &&
+					!receivedArchive.isArchived(entry.id) &&
+					!(entry.profileId !== null && swipeDecisions.isNope(entry.profileId)),
+			);
+			this.upTotal = up.length;
+			this.downTotal = down.length;
+
+			this.syncPhase = "up";
+			for (const entry of up) {
+				if (this.#cancel) break;
+				try {
+					await this.#putItem(url, password, entry);
+				} catch (error) {
+					this.syncFailed += 1;
+					this.syncProblem = String(error);
+					console.error("[home-server] sync up", entry.fileName, error);
+				}
+				this.upDone += 1;
+			}
+
+			this.syncPhase = "down";
+			for (const entry of down) {
+				if (this.#cancel) break;
+				try {
+					const size = await invoke<number>("home_server_get_item", {
+						url,
+						password,
+						fileName: entry.fileName,
+					});
+					receivedArchive.adoptStored(entry, size);
+				} catch (error) {
+					this.syncFailed += 1;
+					this.syncProblem = String(error);
+					console.error("[home-server] sync down", entry.fileName, error);
+				}
+				this.downDone += 1;
+			}
+			this.lastOk = Date.now();
+		} catch (error) {
+			this.syncProblem = String(error);
+		} finally {
+			this.syncPhase = "done";
+			this.running = false;
+		}
+	}
+
 	async sync(): Promise<void> {
 		if (!this.configured) return;
 		if (this.running) {
@@ -110,27 +239,18 @@ class HomeServer {
 		const { url, password } = this;
 		try {
 			await receivedArchive.ready;
-			const have = new Set(
-				await invoke<string[]>("home_server_list", { url, password }),
-			);
-			const todo = receivedArchive.all
-				.filter((entry) => receivedArchive.isStored(entry))
-				.filter((entry) => !have.has(entry.fileName))
+			const have = await this.#serverEntries(url, password);
+			const todo = receivedArchive
+				.storedEntries()
+				.filter((entry) => !have.has(entry.id))
 				// Oldest first, so the folders fill in the order things came.
-				.reverse();
+				.sort((a, b) => a.savedAt - b.savedAt);
 			this.pending = todo.length;
 			let failures = 0;
 			let lastError: unknown = null;
 			for (const entry of todo) {
 				try {
-					await invoke("home_server_upload", {
-						url,
-						password,
-						fileName: entry.fileName,
-						baseName: receivedArchive.galleryBase(entry),
-						isVideo: entry.kind === "video",
-						contentType: entry.contentType || null,
-					});
+					await this.#putItem(url, password, entry);
 					this.sentThisPass += 1;
 				} catch (error) {
 					failures += 1;

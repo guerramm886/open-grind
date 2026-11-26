@@ -15,8 +15,8 @@
 	import type { PushCategoryName } from "$lib/push/types";
 
 	const TITLES: Record<PushCategoryName, string> = {
-		messages: "New messages",
-		taps: "Received taps",
+		messages: "Mensajes nuevos",
+		taps: "Toques recibidos",
 	};
 
 	const saving = new SvelteSet<PushCategoryName>();

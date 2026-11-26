@@ -20,7 +20,7 @@
 </script>
 
 <svelte:head>
-	<title>My albums</title>
+	<title>Mis álbumes</title>
 </svelte:head>
 
 <MediaGrid
@@ -36,7 +36,7 @@
 		{#if !atAlbumCap}
 			<AddTile
 				href="/settings/albums/new"
-				label="Add album"
+				label="Agregar álbum"
 				class="aspect-(--photo-grid-aspect)"
 			/>
 		{/if}

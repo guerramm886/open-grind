@@ -6,7 +6,7 @@
 </script>
 
 <SwitchField
-	title="Enable notifications"
+	title="Activar notificaciones"
 	class="border-transparent"
 	disabled={!preferencesLoaded() || notificationSettings.busy}
 	busy={notificationSettings.permissionPending}

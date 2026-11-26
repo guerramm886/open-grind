@@ -36,7 +36,7 @@
 	onMount(() => {
 		if (setting.blocked) return;
 		hydrateUpdateSettings().catch((error: unknown) => {
-			showErrorToast({ label: "Couldn't read update settings", error });
+			showErrorToast({ label: "No se pudieron leer los ajustes de actualización", error });
 		});
 	});
 </script>
@@ -59,7 +59,7 @@
 				.catch((error: unknown) => {
 					pending = null;
 					showErrorToast({
-						label: "Couldn't save update settings",
+						label: "No se pudieron guardar los ajustes de actualización",
 						error,
 					});
 				});

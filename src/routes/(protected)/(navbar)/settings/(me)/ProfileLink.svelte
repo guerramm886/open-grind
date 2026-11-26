@@ -46,12 +46,12 @@
 						<DisplayName name={profile.displayName} />
 					{:catch}
 						<span class="text-muted-foreground italic">
-							Failed to load name
+							No se pudo cargar el nombre
 						</span>
 					{/await}
 				</Item.Title>
 				<Item.Description class="inline-block truncate">
-					View your profile
+					Ver tu perfil
 				</Item.Description>
 			</Item.Content>
 			<Item.Actions class="max-cramped:hidden">

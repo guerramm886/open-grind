@@ -46,7 +46,7 @@
 				<Item.Title
 					class="inline-block w-full min-w-0 truncate text-left"
 				>
-					Sign Out
+					Cerrar sesión
 				</Item.Title>
 			</Item.Content>
 			<Item.Actions>
@@ -58,15 +58,15 @@
 <AlertDialog.Root bind:open={alertOpen}>
 	<AlertDialog.Content {escapeKeydownBehavior}>
 		<AlertDialog.Header>
-			<AlertDialog.Title>Sign out?</AlertDialog.Title>
+			<AlertDialog.Title>¿Cerrar sesión?</AlertDialog.Title>
 			<AlertDialog.Description>
-				Are you sure you want to sign out? You can sign back in at any
-				time.
+				¿Seguro que querés cerrar sesión? Podés volver a entrar cuando
+				quieras.
 			</AlertDialog.Description>
 		</AlertDialog.Header>
 		<AlertDialog.Footer>
 			<fieldset disabled={signingOut} class="contents">
-				<AlertDialog.Cancel size="lg">Cancel</AlertDialog.Cancel>
+				<AlertDialog.Cancel size="lg">Cancelar</AlertDialog.Cancel>
 				<AlertDialog.Action
 					onclick={() => void confirmSignOut()}
 					size="lg"
@@ -75,7 +75,7 @@
 					{#if signingOut}
 						<Spinner aria-hidden="true" />
 					{/if}
-					Continue
+					Continuar
 				</AlertDialog.Action>
 			</fieldset>
 		</AlertDialog.Footer>

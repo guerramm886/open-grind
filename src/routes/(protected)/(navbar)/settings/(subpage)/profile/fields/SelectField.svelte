@@ -13,8 +13,8 @@
 		label,
 		value = $bindable(),
 		options,
-		placeholder = "Not set",
-		clearLabel = "Not set",
+		placeholder = "Sin elegir",
+		clearLabel = "Sin elegir",
 		nullable = true,
 	}: {
 		label: string;

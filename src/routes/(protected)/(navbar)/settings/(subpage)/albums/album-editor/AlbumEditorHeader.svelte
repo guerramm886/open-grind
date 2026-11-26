@@ -61,7 +61,7 @@
 				coverUrl={cover.thumbUrl}
 				hasPhoto={readyMedia.hasPhoto}
 				hasVideo={readyMedia.hasVideo}
-				label="Preview album"
+				label="Ver el álbum"
 				class="aspect-3/4 w-full"
 				contentClass="rounded-xl"
 			/>
@@ -73,7 +73,7 @@
 		class="mt-1 h-11 w-full justify-between"
 		onclick={onOpenShares}
 	>
-		<span class="truncate">Shared with</span>
+		<span class="truncate">Compartido con</span>
 		<span class="flex items-center gap-1.5">
 			<Badge variant="secondary">{sharedCount}</Badge>
 			<CaretRightIcon class="size-4" />

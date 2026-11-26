@@ -45,14 +45,14 @@
 		pending = backdropBlurQuality;
 		setPreferences({ backdropBlurQuality }).catch((error) => {
 			pending = null;
-			showErrorToast({ label: "Failed to save preferences", error });
+			showErrorToast({ label: "No se pudo guardar el ajuste", error });
 		});
 	}
 </script>
 
 <Item.Root variant="outline" class="gap-3 p-4">
 	<Item.Content class="gap-1">
-		<Item.Title>Background blur</Item.Title>
+		<Item.Title>Desenfoque de fondo</Item.Title>
 		<Item.Description>
 			{BACKDROP_BLUR_QUALITY_DESCRIPTIONS[quality]}
 		</Item.Description>
@@ -64,7 +64,7 @@
 		max={lastStep}
 		step={1}
 		disabled={!preferencesLoaded() || !supported}
-		thumbLabels={["Background blur"]}
+		thumbLabels={["Desenfoque de fondo"]}
 		thumbValueTexts={[BACKDROP_BLUR_QUALITY_LABELS[quality]]}
 		bind:value={() => position, choose}
 	/>
@@ -87,14 +87,14 @@
 	</div>
 	{#if !supported}
 		<Item.Description class="w-full">
-			This system cannot blur backgrounds, so blur is always off.
+			Este dispositivo no puede desenfocar el fondo, así que queda apagado.
 		</Item.Description>
 	{:else if automatic}
 		<Item.Description class="w-full">
 			{#if trialPending}
-				Being chosen automatically as you scroll.
+				Se está eligiendo solo mientras te movés por la app.
 			{:else}
-				Chosen automatically for this device.
+				Elegido automáticamente para este dispositivo.
 			{/if}
 		</Item.Description>
 	{/if}

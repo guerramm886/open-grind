@@ -29,7 +29,7 @@
 	<Empty.Content>
 		<Button {disabled} onclick={onAdd}>
 			<PlusIcon weight="bold" />
-			Add photos or videos
+			Agregar fotos o videos
 		</Button>
 	</Empty.Content>
 </Empty.Root>

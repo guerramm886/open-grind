@@ -3,42 +3,42 @@
 
 	const base = "/(protected)/(navbar)/settings/(subpage)";
 	const routes = {
-		[`${base}/account`]: { title: "Account Settings", back: "/settings" },
+		[`${base}/account`]: { title: "Ajustes de la cuenta", back: "/settings" },
 		[`${base}/account/privacy`]: {
-			title: "Privacy",
+			title: "Privacidad",
 			back: "/settings/account",
 		},
 		[`${base}/account/blocked`]: {
-			title: "Blocked Users",
+			title: "Bloqueados",
 			back: "/settings/account",
 		},
 		[`${base}/account/hidden`]: {
-			title: "Hidden Users",
+			title: "Ocultos",
 			back: "/settings/account",
 		},
 		[`${base}/albums`]: {
-			title: "My Albums",
+			title: "Mis álbumes",
 			back: "/settings",
 			wide: true,
 		},
 		[`${base}/albums/new`]: {
-			title: "New Album",
+			title: "Álbum nuevo",
 			back: "/settings/albums",
 		},
 		[`${base}/albums/[albumId]`]: {
-			title: "Edit Album",
+			title: "Editar álbum",
 			back: "/settings/albums",
 		},
-		[`${base}/app`]: { title: "App Settings", back: "/settings" },
+		[`${base}/app`]: { title: "Ajustes de la app", back: "/settings" },
 		[`${base}/app/notifications`]: {
-			title: "Notifications",
+			title: "Notificaciones",
 			back: "/settings/app",
 		},
 		[`${base}/app/credits`]: {
-			title: "Credits & Licenses",
+			title: "Créditos y licencias",
 			back: "/settings/app",
 		},
-		[`${base}/profile`]: { title: "Edit Profile", back: "/settings" },
+		[`${base}/profile`]: { title: "Editar perfil", back: "/settings" },
 	};
 
 	let { children }: import("./$types").LayoutProps = $props();

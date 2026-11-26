@@ -29,7 +29,7 @@
 			pending = newValue;
 			setPreferences({ [preference]: newValue }).catch((error) => {
 				pending = null;
-				showErrorToast({ label: "Failed to save preferences", error });
+				showErrorToast({ label: "No se pudo guardar el ajuste", error });
 			});
 		}
 	}

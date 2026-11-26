@@ -17,16 +17,16 @@
 	}[] = [
 		{
 			mode: "fast",
-			title: "Fast mode",
+			title: "Modo rápido",
 			description:
-				"Use Google's Firebase proprietary service to receive push notifications instantly",
+				"Usa el servicio Firebase de Google para recibir las notificaciones al instante",
 			recommended: true,
 		},
 		{
 			mode: "slow",
-			title: "Slow mode",
+			title: "Modo lento",
 			description:
-				"Poll for new notifications periodically in the background using Android's native scheduler",
+				"Revisa cada tanto si hay notificaciones nuevas, en segundo plano, con el programador de Android",
 		},
 	];
 
@@ -42,7 +42,7 @@
 
 <RadioGroup.Root
 	bind:ref={group}
-	aria-label="Delivery mode"
+	aria-label="Modo de entrega"
 	disabled={notificationSettings.busy || !notificationSettings.enabled}
 	class="overflow-hidden rounded-2xl border border-border transition-opacity data-disabled:opacity-60"
 	bind:value={

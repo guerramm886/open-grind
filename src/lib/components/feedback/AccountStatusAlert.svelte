@@ -113,7 +113,7 @@
 				return {
 					title: "Age verification required",
 					description:
-						"Grindr requires you to verify your age before continuing. Complete it in the official Grindr app, then sign in again. Open Grind does not bypass age verification.",
+						"Grindr requires you to verify your age before continuing. Complete it in the official Grindr app, then sign in again. Martin's Grindr does not bypass age verification.",
 				};
 			}
 			if (restriction.kind === "timedBan") {
@@ -139,9 +139,9 @@
 		}
 		if (status?.kind === "unsupportedVersion") {
 			return {
-				title: "Update Open Grind",
+				title: "Update Martin's Grindr",
 				description:
-					"Grindr no longer supports this version of Open Grind.",
+					"Grindr no longer supports this version of Martin's Grindr.",
 				details: status.error,
 				checksForUpdates: true,
 			};

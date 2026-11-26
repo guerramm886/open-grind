@@ -15,7 +15,7 @@
 				<Item.Title
 					class="inline-block w-full min-w-0 truncate text-left"
 				>
-					Account Settings
+					Ajustes de la cuenta
 				</Item.Title>
 			</Item.Content>
 			<Item.Actions>

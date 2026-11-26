@@ -7,6 +7,16 @@
 	const changed = $derived(
 		url.trim() !== homeServer.url || password !== homeServer.password,
 	);
+	const syncing = $derived(
+		homeServer.syncPhase === "up" || homeServer.syncPhase === "down",
+	);
+	const percent = $derived(
+		homeServer.syncTotal === 0
+			? homeServer.syncPhase === "done"
+				? 100
+				: 0
+			: Math.round((homeServer.syncDone / homeServer.syncTotal) * 100),
+	);
 </script>
 
 {#if homeServer.available}
@@ -55,9 +65,72 @@
 			</div>
 		</div>
 
+		<!-- Two-way: what the phone has and the server lacks goes up, and what
+		     the server has and the phone lacks comes down. -->
+		<div class="mt-3 rounded-lg bg-secondary p-3">
+			<Button
+				size="sm"
+				class="w-full"
+				disabled={!homeServer.configured ||
+					syncing ||
+					homeServer.syncPhase === "comparing"}
+				onclick={() => void homeServer.fullSync()}
+			>
+				Sincronizar fotos y videos con Home Assistant
+			</Button>
+			<p class="mt-2 text-2xs text-muted-foreground">
+				Compara lo guardado en el celular con lo de Home Assistant: sube al
+				servidor lo que le falta y trae al celular lo que falta acá. No trae
+				a las personas que cruzaste.
+			</p>
+			{#if homeServer.syncPhase === "comparing"}
+				<p class="mt-2 text-sm font-semibold">Comparando…</p>
+			{:else if homeServer.syncPhase !== null}
+				<p class="mt-2 text-sm font-semibold">
+					{#if homeServer.syncPhase === "done"}
+						Listo · {homeServer.syncDone} de {homeServer.syncTotal}
+					{:else}
+						{homeServer.syncPhase === "up" ? "Subiendo" : "Trayendo"}… {homeServer.syncDone}
+						de {homeServer.syncTotal} · faltan {homeServer.syncTotal -
+							homeServer.syncDone}
+					{/if}
+				</p>
+				<div class="mt-2 h-2 overflow-hidden rounded-full bg-input/40">
+					<div
+						class="h-full rounded-full bg-primary transition-[width]"
+						style="width: {percent}%"
+					></div>
+				</div>
+				<p class="mt-1 text-2xs text-muted-foreground">
+					Al servidor: {homeServer.upDone}/{homeServer.upTotal} · Al
+					celular: {homeServer.downDone}/{homeServer.downTotal}{homeServer.syncFailed >
+					0
+						? ` · ${homeServer.syncFailed} con error`
+						: ""}
+				</p>
+				{#if syncing}
+					<Button
+						size="sm"
+						variant="secondary"
+						class="mt-2"
+						onclick={() => homeServer.cancelFullSync()}
+					>
+						Cancelar
+					</Button>
+				{/if}
+				{#if homeServer.syncProblem}
+					<p class="mt-1 text-2xs text-destructive">
+						{homeServer.syncProblem}
+					</p>
+				{/if}
+			{/if}
+		</div>
+
 		<p class="mt-2 text-2xs text-muted-foreground">
 			{#if !homeServer.configured}
 				Falta la clave: es la misma que pusiste en el complemento.
+			{:else if syncing || homeServer.syncPhase === "comparing"}
+				Sincronizando…
 			{:else if homeServer.running}
 				Copiando… {homeServer.sentThisPass} enviados{homeServer.pending > 0
 					? `, faltan ${homeServer.pending}`

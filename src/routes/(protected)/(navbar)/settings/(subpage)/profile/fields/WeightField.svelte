@@ -30,7 +30,7 @@
 
 {#if units === "imperial"}
 	<NumberField
-		label="Weight"
+		label="Peso"
 		bind:value={() => pounds, storePounds}
 		min={weightPoundRange.min}
 		max={weightPoundRange.max}
@@ -40,7 +40,7 @@
 	/>
 {:else}
 	<NumberField
-		label="Weight"
+		label="Peso"
 		bind:value
 		min={weightKgRange.min}
 		max={weightKgRange.max}

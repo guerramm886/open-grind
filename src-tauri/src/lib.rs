@@ -289,6 +289,9 @@ pub fn run() {
             home_server::home_server_list,
             home_server::home_server_upload,
             home_server::home_server_settings,
+            home_server::home_server_manifest,
+            home_server::home_server_put_item,
+            home_server::home_server_get_item,
         ])
         .setup(|app| {
             scroll_phase::install_scroll_gesture_bridge(app.handle());

@@ -16,6 +16,6 @@
 	<p
 		class="fixed inset-x-4 inset-y-0 m-auto size-fit text-center text-sm text-balance text-muted-foreground"
 	>
-		Notifications are not supported on this platform yet.
+		Las notificaciones todavía no funcionan en este dispositivo.
 	</p>
 {/if}

@@ -15,9 +15,9 @@ export type UpdatesScope = {
 type CheckScope = Pick<UpdatesScope, "selfManaged" | "addonAvailable">;
 
 const privacyNote =
-	"No personally identifiable information is sent, no requests are stored or analyzed.";
+	"No se manda ningún dato personal y los pedidos no se guardan ni se analizan.";
 const addonCheck =
-	"Periodically ask git.opengrind.org whether newer versions of your installed add-ons are published.";
+	"Pregunta cada tanto a git.opengrind.org si hay versiones nuevas de los complementos instalados.";
 
 function describeChecks({
 	selfManaged,
@@ -26,17 +26,17 @@ function describeChecks({
 }: UpdatesScope): string {
 	if (selfManaged || !addonAvailable) {
 		const subject = addonAvailable
-			? "Open Grind and its add-ons"
-			: "Open Grind";
+			? "Martin's Grindr y sus complementos"
+			: "Martin's Grindr";
 		return (
 			unsupportedReason ??
-			`Periodically request updates for ${subject} from git.opengrind.org. ${privacyNote}`
+			`Busca cada tanto actualizaciones de ${subject} en git.opengrind.org. ${privacyNote}`
 		);
 	}
 	if (unsupportedReason !== null) {
 		return `${unsupportedReason}. ${addonCheck} ${privacyNote}`;
 	}
-	return `${addonCheck} Open Grind itself isn't updated from here. ${privacyNote}`;
+	return `${addonCheck} La app en sí no se actualiza desde acá. ${privacyNote}`;
 }
 
 export function automaticChecksSetting(scope: UpdatesScope): {
@@ -47,8 +47,8 @@ export function automaticChecksSetting(scope: UpdatesScope): {
 	const addonsOnly = scope.addonAvailable && !scope.selfManaged;
 	return {
 		title: addonsOnly
-			? "Check add-on updates automatically"
-			: "Check updates automatically",
+			? "Buscar actualizaciones de complementos solo"
+			: "Buscar actualizaciones solo",
 		description: describeChecks(scope),
 		blocked: scope.unsupportedReason !== null && !scope.addonAvailable,
 	};

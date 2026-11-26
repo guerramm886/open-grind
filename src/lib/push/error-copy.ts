@@ -5,16 +5,16 @@ import type { PushErrorReason } from "./types";
 const ADDON = ADDON_NAME[FCM_COMPONENT];
 
 const reasons: Record<PushErrorReason, string | null> = {
-	unsupportedPlatform: "This build of Open Grind can't show notifications.",
-	addonUnavailable: `Open Grind couldn't reach the ${ADDON}.`,
+	unsupportedPlatform: "This build of Martin's Grindr can't show notifications.",
+	addonUnavailable: `Martin's Grindr couldn't reach the ${ADDON}.`,
 	addonDisabled: `The ${ADDON} is disabled. Enable it in Android settings.`,
-	addonUntrusted: `The installed ${ADDON} isn't signed by Open Grind. Uninstall it, then install the official one.`,
-	addonRefused: `The ${ADDON} refused this copy of Open Grind.`,
+	addonUntrusted: `The installed ${ADDON} isn't signed by Martin's Grindr. Uninstall it, then install the official one.`,
+	addonRefused: `The ${ADDON} refused this copy of Martin's Grindr.`,
 	addonOutdated: `The ${ADDON} is out of date. Update it to the latest version.`,
 	addonHidden: `The ${ADDON} is hidden or frozen, for example by Ice Box or Hail. Unfreeze it.`,
 	addonTurnedOff: `An app like Blocker or App Manager turned off part of the ${ADDON}. Turn it back on in that app.`,
-	addonBlocked: `Android or another app stopped Open Grind from starting the ${ADDON}. Allow it to auto-start in your phone's settings, then try again.`,
-	untrustedCaller: `The ${ADDON} doesn't recognize this copy of Open Grind as official.`,
+	addonBlocked: `Android or another app stopped Martin's Grindr from starting the ${ADDON}. Allow it to auto-start in your phone's settings, then try again.`,
+	untrustedCaller: `The ${ADDON} doesn't recognize this copy of Martin's Grindr as official.`,
 	timedOut: `The ${ADDON} didn't answer in time.`,
 	firebaseUnavailable: "This device has no Google Play services or microG.",
 	tokenFailed: "Firebase couldn't register this device.",

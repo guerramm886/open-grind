@@ -10,7 +10,7 @@
 		label,
 		values = $bindable(),
 		options,
-		placeholder = "Not set",
+		placeholder = "Sin elegir",
 	}: {
 		label: string;
 		values: T[];

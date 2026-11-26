@@ -17,7 +17,7 @@ import {
 	isPlanLimitReached,
 } from "../album-uploads/album-uploads-state.svelte";
 
-const ALBUM_LIMIT_MESSAGE = "You can't create more albums";
+const ALBUM_LIMIT_MESSAGE = "No podés crear más álbumes";
 
 export async function createAlbumFromMedia({
 	uploads,
@@ -50,6 +50,6 @@ export async function createAlbumFromMedia({
 			toast.error(ALBUM_LIMIT_MESSAGE);
 			return;
 		}
-		showErrorToast({ label: "Couldn't create album", error });
+		showErrorToast({ label: "No se pudo crear el álbum", error });
 	}
 }

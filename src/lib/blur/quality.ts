@@ -18,16 +18,16 @@ export const BACKDROP_BLUR_QUALITY_ORDER = [
 ] as const satisfies readonly BackdropBlurQuality[];
 
 export const BACKDROP_BLUR_QUALITY_LABELS: Record<BackdropBlurQuality, string> =
-	{ off: "Off", min: "Low", medium: "Medium", max: "Full" };
+	{ off: "No", min: "Bajo", medium: "Medio", max: "Total" };
 
 export const BACKDROP_BLUR_QUALITY_DESCRIPTIONS: Record<
 	BackdropBlurQuality,
 	string
 > = {
-	off: "No blur. Bars and menus use solid shading instead.",
-	min: "A single light blur behind bars and menus.",
-	medium: "A softer gradient blur. Best on older devices.",
-	max: "The full gradient blur.",
+	off: "Sin desenfoque. Las barras y menús usan un fondo sólido.",
+	min: "Un desenfoque suave detrás de barras y menús.",
+	medium: "Un desenfoque gradual más liviano. Mejor en celulares viejos.",
+	max: "El desenfoque gradual completo.",
 };
 
 export const UNCALIBRATED_BACKDROP_BLUR_QUALITY =

@@ -33,7 +33,7 @@
 		creating
 			? null
 			: {
-					label: "Drop to start an album",
+					label: "Soltá para empezar un álbum",
 					videos: true,
 					receive: (media) => void add(media),
 				},
@@ -51,8 +51,8 @@
 	<AlbumNameField bind:value={albumName} disabled={creating} />
 </AlbumHeaderLayout>
 <AlbumMediaEmpty
-	title="Add a photo to start your album"
-	description="The album is created once you add its first photo or video."
+	title="Agregá una foto para empezar el álbum"
+	description="El álbum se crea cuando agregás la primera foto o video."
 	disabled={creating}
 	onAdd={() => void add()}
 />

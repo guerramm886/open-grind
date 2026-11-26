@@ -28,10 +28,10 @@
 		on ? hideUser({ profileId }) : unhideUser({ profileId })}
 	{icon}
 	{scroll}
-	label="Hidden"
-	errorLabel={{ turningOn: "Failed to hide", turningOff: "Failed to unhide" }}
+	label="Oculto"
+	errorLabel={{ turningOn: "No se pudo ocultar", turningOff: "No se pudo mostrar" }}
 	empty={{
-		title: "No Hidden Users",
-		description: "People you hide will appear here.",
+		title: "No ocultaste a nadie",
+		description: "Las personas que ocultes aparecen acá.",
 	}}
 />

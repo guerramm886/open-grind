@@ -162,6 +162,11 @@ async fn main() {
 		.route("/api/phone/media", get(phone::list))
 		.route("/api/phone/media/:file_name", axum::routing::put(phone::upload))
 		.route("/api/phone/settings", axum::routing::put(phone::settings))
+		.route("/api/sync/manifest", get(phone::manifest))
+		.route(
+			"/api/sync/item/:file_name",
+			get(phone::get_item).put(phone::put_item),
+		)
 		.route("/", get(index_page))
 		.route("/index.html", get(index_page))
 		.fallback_service(static_files)

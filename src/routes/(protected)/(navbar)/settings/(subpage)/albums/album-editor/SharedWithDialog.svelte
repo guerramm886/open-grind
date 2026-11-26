@@ -27,7 +27,7 @@
 		dialogProps={{ showCloseButton: true }}
 	>
 		<ResponsiveDialog.Header class="pb-2">
-			<ResponsiveDialog.Title>Shared with</ResponsiveDialog.Title>
+			<ResponsiveDialog.Title>Compartido con</ResponsiveDialog.Title>
 		</ResponsiveDialog.Header>
 		<ResponsiveDialog.Body
 			data-slot="shared-with-list"
@@ -43,15 +43,15 @@
 				{emptyIcon}
 				control="checkbox"
 				skeletons={2}
-				label="Sharing"
+				label="Compartido"
 				errorLabel={{
-					turningOn: "Couldn't share album",
-					turningOff: "Couldn't unshare album",
+					turningOn: "No se pudo compartir el álbum",
+					turningOff: "No se pudo dejar de compartir el álbum",
 				}}
 				empty={{
-					title: "Not shared yet",
+					title: "Todavía no lo compartiste",
 					description:
-						"People you share this album with appear here.",
+						"Las personas con las que compartas este álbum aparecen acá.",
 				}}
 			/>
 		</ResponsiveDialog.Body>

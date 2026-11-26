@@ -30,8 +30,8 @@
 </script>
 
 <SwitchField
-	title="Show my distance"
-	description="Reveal your approximate location to other users as distance, e.g. {exampleDistance}."
+	title="Mostrar mi distancia"
+	description="Los demás ven a qué distancia aproximada estás, por ejemplo {exampleDistance}."
 	disabled={!loaded}
 	bind:checked={
 		() => value,
@@ -44,7 +44,7 @@
 				patch: { showDistance: newValue },
 			}).catch((error) => {
 				value = previous;
-				showErrorToast({ label: "Failed to update setting", error });
+				showErrorToast({ label: "No se pudo cambiar el ajuste", error });
 			});
 		}
 	}

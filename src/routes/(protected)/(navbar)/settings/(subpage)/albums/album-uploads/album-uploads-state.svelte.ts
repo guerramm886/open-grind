@@ -83,11 +83,11 @@ function outOfRoomMessage({ inspection, limits }: QueuedUpload): string {
 			? limits.maxVideosPerAlbum
 			: limits.maxContentItemsPerAlbum;
 	const noun = inspection.kind === "video" ? "video" : "photo";
-	return `This album already holds ${count} ${noun}${count === 1 ? "" : "s"}`;
+	return `Este álbum ya tiene ${count} ${noun === "video" ? "video" : "foto"}${count === 1 ? "" : "s"}`;
 }
 
 function failureMessage(kind: UploadKind): string {
-	return kind === "video" ? "Couldn't add video" : "Couldn't add photo";
+	return kind === "video" ? "No se pudo agregar el video" : "No se pudo agregar la foto";
 }
 
 class AlbumUploadsState {

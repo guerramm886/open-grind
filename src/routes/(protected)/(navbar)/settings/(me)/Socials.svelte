@@ -7,7 +7,7 @@
 	import Link from "./LinkItem.svelte";
 </script>
 
-<Link destination="https://opengrind.org/" label="Open Grind Website">
+<Link destination="https://opengrind.org/" label="Sitio web">
 	{#snippet icon()}
 		<GlobeIcon weight="bold" class="size-5" />
 	{/snippet}
@@ -15,7 +15,7 @@
 
 <Link
 	destination="https://git.opengrind.org/open-grind/open-grind/"
-	label="Open Grind Source Code"
+	label="Código fuente"
 >
 	{#snippet icon()}
 		<CodeIcon weight="bold" class="size-5" />
@@ -23,17 +23,17 @@
 </Link>
 <Link
 	destination="https://t.me/opengrind"
-	label="Open Grind Announcements"
+	label="Novedades"
 	warning={{
-		title: "Telegram channel is semiofficial",
+		title: "El canal de Telegram es semioficial",
 		description:
 			"You're about to visit a Telegram channel that operates as a convenient mirror of the official announcements room hosted on Matrix. ",
 		primary: {
-			label: "Open Telegram channel",
+			label: "Abrir el canal de Telegram",
 			destination: "https://t.me/opengrind",
 		},
 		secondary: {
-			label: "Join official Matrix room",
+			label: "Entrar a la sala oficial de Matrix",
 			destination: "https://matrix.to/#/#announcements:opengrind.org",
 		},
 	}}
@@ -44,7 +44,7 @@
 </Link>
 <Link
 	destination="https://matrix.to/#/#general:opengrind.org"
-	label="Open Grind Discussion"
+	label="Comunidad"
 >
 	{#snippet icon()}
 		<ChatsCircleIcon weight="bold" class="size-5" />

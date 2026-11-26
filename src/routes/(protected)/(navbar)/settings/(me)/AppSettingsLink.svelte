@@ -15,7 +15,7 @@
 				<Item.Title
 					class="inline-block w-full min-w-0 truncate text-left"
 				>
-					App Settings
+					Ajustes de la app
 				</Item.Title>
 			</Item.Content>
 			<Item.Actions>

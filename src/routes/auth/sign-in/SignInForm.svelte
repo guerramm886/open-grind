@@ -61,7 +61,7 @@
 					),
 				"facebook-handoff-refused": () =>
 					toast.error(
-						"Facebook tried to open its own app, which Open Grind can't use. Sign in with your email and password instead.",
+						"Facebook tried to open its own app, which Martin's Grindr can't use. Sign in with your email and password instead.",
 					),
 			},
 		},
@@ -86,13 +86,13 @@
 
 	const captchaSignInMessages: Record<string, string> = {
 		unsupportedPlatform:
-			"This account needs captcha verification, available through the Open Grind reCAPTCHA helper on Android.",
+			"This account needs captcha verification, available through the Martin's Grindr reCAPTCHA helper on Android.",
 		addonUnavailable:
-			"Install the Open Grind reCAPTCHA helper to sign in to this account.",
+			"Install the Martin's Grindr reCAPTCHA helper to sign in to this account.",
 		addonDisabled:
-			"Enable the Open Grind reCAPTCHA helper to sign in to this account.",
+			"Enable the Martin's Grindr reCAPTCHA helper to sign in to this account.",
 		addonUntrusted:
-			"The installed reCAPTCHA helper isn't the official Open Grind build.",
+			"The installed reCAPTCHA helper isn't the official Martin's Grindr build.",
 		grindrMissing:
 			"The reCAPTCHA helper needs the Grindr app installed to verify this sign-in.",
 	};

@@ -101,6 +101,81 @@ pub async fn home_server_upload(
 	checked(response).await.map(drop)
 }
 
+/// Everything the server keeps (`{"entries":[…]}`), as JSON text.
+#[tauri::command]
+pub async fn home_server_manifest(url: String, password: String) -> Result<String, String> {
+	let response = client()?
+		.get(format!("{}/api/sync/manifest", base(&url)?))
+		.header("x-og-password", password)
+		.send()
+		.await
+		.map_err(text)?;
+	checked(response).await?.text().await.map_err(text)
+}
+
+/// Send one stored file with its entry (JSON), for the server's Recibidos.
+#[tauri::command]
+pub async fn home_server_put_item(
+	app: AppHandle,
+	url: String,
+	password: String,
+	file_name: String,
+	entry: String,
+	base_name: String,
+) -> Result<(), String> {
+	let path = crate::archive_store::stored_file(&app, &file_name)?;
+	let bytes = tauri::async_runtime::spawn_blocking(move || std::fs::read(path))
+		.await
+		.map_err(text)?
+		.map_err(text)?;
+	let target = format!(
+		"{}/api/sync/item/{}?base={}&entry={}",
+		base(&url)?,
+		encode(&file_name),
+		encode(&base_name),
+		encode(&entry),
+	);
+	let response = client()?
+		.put(target)
+		.header("x-og-password", password)
+		.body(bytes)
+		.send()
+		.await
+		.map_err(text)?;
+	checked(response).await.map(drop)
+}
+
+/// Bring one file from the server into the app's own store; returns its size.
+#[tauri::command]
+pub async fn home_server_get_item(
+	app: AppHandle,
+	url: String,
+	password: String,
+	file_name: String,
+) -> Result<u64, String> {
+	let target_path = crate::archive_store::stored_file(&app, &file_name)?;
+	let response = client()?
+		.get(format!("{}/api/sync/item/{}", base(&url)?, encode(&file_name)))
+		.header("x-og-password", password)
+		.send()
+		.await
+		.map_err(text)?;
+	let bytes = checked(response).await?.bytes().await.map_err(text)?;
+	if bytes.is_empty() {
+		return Err("el archivo llegó vacío".to_owned());
+	}
+	let size = bytes.len() as u64;
+	tauri::async_runtime::spawn_blocking(move || {
+		let partial = target_path.with_extension("partial");
+		std::fs::write(&partial, &bytes)?;
+		std::fs::rename(&partial, &target_path)
+	})
+	.await
+	.map_err(text)?
+	.map_err(text)?;
+	Ok(size)
+}
+
 /// Send the settings snapshot (a JSON object of key → value).
 #[tauri::command]
 pub async fn home_server_settings(

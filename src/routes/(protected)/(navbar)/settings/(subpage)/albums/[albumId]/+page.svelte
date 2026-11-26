@@ -20,7 +20,7 @@
 </script>
 
 <svelte:head>
-	<title>Edit album</title>
+	<title>Editar álbum</title>
 </svelte:head>
 
 {#await album}
