@@ -23,6 +23,8 @@ const GALLERY_VISIBLE_KEY = "gallery-visible-v1";
 /** Ids already copied to the gallery. Kept apart from the manifest so the
  *  copying doesn't rewrite (and re-render) the whole list once per file. */
 const GALLERY_DONE_KEY = "received-gallery-done-v1";
+/** Ids deleted on purpose on this device (not brought back by a sync). */
+const DELETED_KEY = "received-deleted-here-v1";
 const READ_CHUNK = 4 * 1024 * 1024;
 const STAGE_CHUNK = 3 * 1024 * 1024;
 
@@ -262,6 +264,12 @@ class ReceivedArchive {
 
 	#urls = new Map<string, string>();
 	#supported = $state(true);
+	/** Changes still to write to the durable index (native file / server). */
+	#indexSet = new Map<string, ArchivedEntry>();
+	#indexRemove = new Set<string>();
+	#indexTimer: ReturnType<typeof setTimeout> | null = null;
+	/** Ids deleted on purpose here, so a sync does not bring them back. */
+	#deletedHere = new Set<string>();
 
 	#people = $state<Record<string, PersonRecord>>({});
 
@@ -270,6 +278,16 @@ class ReceivedArchive {
 			this.#entries = readManifest();
 			this.#autoSave = readAutoSave();
 			this.#people = readPeople();
+			try {
+				const raw: unknown = JSON.parse(
+					localStorage.getItem(DELETED_KEY) ?? "[]",
+				);
+				if (Array.isArray(raw))
+					for (const id of raw)
+						if (typeof id === "string") this.#deletedHere.add(id);
+			} catch {
+				/* nothing remembered */
+			}
 		}
 		this.#supported =
 			this.#native ||
@@ -300,28 +318,110 @@ class ReceivedArchive {
 							for (const entry of Object.values(this.#entries))
 								if (!entry.inGallery) this.#queueGallery(entry.id);
 						})
-						.then(() => this.#adoptPhoneEntries())
-						.catch((error: unknown) => {
-							console.error("[received-archive] phone items", error);
+						.then(() => {
+							// Web version: what the phone sends shows up here
+							// without reloading the page.
+							if (isWebServer())
+								setInterval(() => void this.#refreshFromStore(), 60_000);
 						});
+		if (typeof window !== "undefined")
+			window.addEventListener("pagehide", () => void this.#flushIndex());
 	}
 
-	/** Web version: list what the phone sent with "Sincronizar" as saved here
-	 *  too (the files are already in this server's store). */
-	async #adoptPhoneEntries(): Promise<void> {
-		if (!isWebServer()) return;
-		const list = await invoke<ArchivedEntry[]>("phone_entries");
+	/** Queue entries to add (or replace) in the durable index. */
+	#indexPut(...entries: ArchivedEntry[]): void {
+		if (!this.#native) return;
+		for (const entry of entries) {
+			this.#indexRemove.delete(entry.id);
+			this.#indexSet.set(entry.id, entry);
+		}
+		this.#scheduleIndex();
+	}
+
+	/** Queue ids deleted on purpose (crossing someone out, "Borrar"). */
+	#indexDrop(id: string): void {
+		if (!this.#native) return;
+		this.#indexSet.delete(id);
+		this.#indexRemove.add(id);
+		this.#scheduleIndex();
+	}
+
+	#scheduleIndex(delay = 300): void {
+		if (this.#indexTimer === null)
+			this.#indexTimer = setTimeout(() => void this.#flushIndex(), delay);
+	}
+
+	async #flushIndex(): Promise<void> {
+		if (this.#indexTimer !== null) {
+			clearTimeout(this.#indexTimer);
+			this.#indexTimer = null;
+		}
+		if (this.#indexSet.size === 0 && this.#indexRemove.size === 0) return;
+		const set = Object.fromEntries(this.#indexSet);
+		const remove = [...this.#indexRemove];
+		this.#indexSet = new Map();
+		this.#indexRemove = new Set();
+		try {
+			await invoke("archive_index_merge", { set, remove });
+		} catch (error) {
+			console.error("[received-archive] index not written yet", error);
+			// Put it back (newer changes win) and try again shortly.
+			for (const id of remove)
+				if (!this.#indexSet.has(id)) this.#indexRemove.add(id);
+			for (const [id, entry] of Object.entries(set))
+				if (!this.#indexSet.has(id) && !this.#indexRemove.has(id))
+					this.#indexSet.set(id, entry);
+			this.#scheduleIndex(5000);
+		}
+	}
+
+	/**
+	 * Bring back from the durable index every entry whose file is in the
+	 * store but which is missing from the page's list (localStorage full or
+	 * wiped, another tab writing an older list, items sent by the phone…), and
+	 * write to the index whatever it does not have yet.
+	 */
+	async #mergeIndex(): Promise<void> {
+		const index = await invoke<Record<string, ArchivedEntry>>(
+			"archive_index_read",
+		);
 		const next = { ...this.#entries };
 		let added = 0;
-		for (const entry of list) {
-			if (!entry?.id || next[entry.id] || !this.#stored.has(entry.fileName))
+		for (const [id, entry] of Object.entries(index ?? {})) {
+			if (
+				!entry ||
+				typeof entry.fileName !== "string" ||
+				typeof entry.conversationId !== "string" ||
+				next[id] ||
+				!this.#stored.has(entry.fileName)
+			)
 				continue;
-			next[entry.id] = entry;
+			next[id] = { ...entry, id };
 			added += 1;
 		}
-		if (added === 0) return;
-		this.#entries = next;
-		this.#persistManifest();
+		if (added > 0) {
+			this.#entries = next;
+			this.#persistManifest();
+			console.info(`[received-archive] ${added} saved items put back from the index`);
+		}
+		const unknown = Object.values(this.#entries).filter(
+			(entry) => !index?.[entry.id],
+		);
+		if (unknown.length > 0) this.#indexPut(...unknown);
+	}
+
+	/** Web version: list again what is in the store (the phone may have sent
+	 *  more) and show it. */
+	async #refreshFromStore(): Promise<void> {
+		try {
+			const files = await invoke<{ name: string; size: number }[]>(
+				"archive_store_list",
+			);
+			for (const file of files) this.#stored.set(file.name, file.size);
+			await this.#mergeIndex();
+		} catch (error) {
+			console.error("[received-archive] refresh failed", error);
+		}
 	}
 
 	/** Every entry with a file in the native store (what a sync compares). */
@@ -336,11 +436,10 @@ class ReceivedArchive {
 	adoptStored(entry: ArchivedEntry, size: number): void {
 		this.#stored.set(entry.fileName, size);
 		if (this.#entries[entry.id]) return;
-		this.#entries = {
-			...this.#entries,
-			[entry.id]: { ...entry, inGallery: false },
-		};
+		const adopted = { ...entry, inGallery: false };
+		this.#entries = { ...this.#entries, [entry.id]: adopted };
 		this.#persistManifest();
+		this.#indexPut(adopted);
 		this.#queueGallery(entry.id);
 	}
 
@@ -443,6 +542,11 @@ class ReceivedArchive {
 				"archive_store_list",
 			);
 			this.#stored = new Map(files.map((file) => [file.name, file.size]));
+			try {
+				await this.#mergeIndex();
+			} catch (error) {
+				console.error("[received-archive] index check failed", error);
+			}
 			for (const entry of entries) {
 				if (this.#stored.has(entry.fileName)) continue;
 				const old = await opfsFile(opfs, entry.fileName);
@@ -689,6 +793,8 @@ class ReceivedArchive {
 			};
 			this.#entries = { ...this.#entries, [item.id]: entry };
 			this.#persistManifest();
+			this.#indexPut(entry);
+			this.#setDeletedHere(item.id, false);
 			this.#queueGallery(item.id);
 			return true;
 		} catch (error) {
@@ -733,6 +839,24 @@ class ReceivedArchive {
 		delete next[id];
 		this.#entries = next;
 		this.#persistManifest();
+		this.#indexDrop(id);
+		this.#setDeletedHere(id, true);
+	}
+
+	/** Deleted on purpose on this device. */
+	wasDeletedHere(id: string): boolean {
+		return this.#deletedHere.has(id);
+	}
+
+	#setDeletedHere(id: string, deleted: boolean): void {
+		if (this.#deletedHere.has(id) === deleted) return;
+		if (deleted) this.#deletedHere.add(id);
+		else this.#deletedHere.delete(id);
+		try {
+			localStorage.setItem(DELETED_KEY, JSON.stringify([...this.#deletedHere]));
+		} catch {
+			/* storage unavailable */
+		}
 	}
 
 	/**
@@ -794,11 +918,10 @@ class ReceivedArchive {
 			await writable.write(blob);
 			await writable.close();
 		}
-		this.#entries = {
-			...this.#entries,
-			[entry.id]: { ...entry, fileName },
-		};
+		const imported = { ...entry, fileName };
+		this.#entries = { ...this.#entries, [entry.id]: imported };
 		this.#persistManifest();
+		this.#indexPut(imported);
 		this.#queueGallery(entry.id);
 		return true;
 	}

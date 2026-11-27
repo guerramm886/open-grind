@@ -133,6 +133,28 @@ class HomeServer {
 		});
 	}
 
+	/** What the server keeps and this phone does not (people crossed out
+	 *  here are left out). */
+	#missingHere(server: Map<string, ArchivedEntry>): ArchivedEntry[] {
+		return [...server.values()]
+			.filter(
+				(entry) =>
+					!receivedArchive.isArchived(entry.id) &&
+					!receivedArchive.wasDeletedHere(entry.id) &&
+					!(entry.profileId !== null && swipeDecisions.isNope(entry.profileId)),
+			)
+			.sort((a, b) => a.savedAt - b.savedAt);
+	}
+
+	async #getItem(url: string, password: string, entry: ArchivedEntry) {
+		const size = await invoke<number>("home_server_get_item", {
+			url,
+			password,
+			fileName: entry.fileName,
+		});
+		receivedArchive.adoptStored(entry, size);
+	}
+
 	// ------------------------------------------------ "Sincronizar todo" button
 	/** null = idle; otherwise what the bar shows. */
 	syncPhase = $state<null | "comparing" | "up" | "down" | "done">(null);
@@ -176,16 +198,10 @@ class HomeServer {
 			await receivedArchive.ready;
 			const server = await this.#serverEntries(url, password);
 			const phone = receivedArchive.storedEntries();
-			const phoneIds = new Set(phone.map((entry) => entry.id));
 			const up = phone
 				.filter((entry) => !server.has(entry.id))
 				.sort((a, b) => a.savedAt - b.savedAt);
-			const down = [...server.values()].filter(
-				(entry) =>
-					!phoneIds.has(entry.id) &&
-					!receivedArchive.isArchived(entry.id) &&
-					!(entry.profileId !== null && swipeDecisions.isNope(entry.profileId)),
-			);
+			const down = this.#missingHere(server);
 			this.upTotal = up.length;
 			this.downTotal = down.length;
 
@@ -206,12 +222,7 @@ class HomeServer {
 			for (const entry of down) {
 				if (this.#cancel) break;
 				try {
-					const size = await invoke<number>("home_server_get_item", {
-						url,
-						password,
-						fileName: entry.fileName,
-					});
-					receivedArchive.adoptStored(entry, size);
+					await this.#getItem(url, password, entry);
 				} catch (error) {
 					this.syncFailed += 1;
 					this.syncProblem = String(error);
@@ -259,6 +270,24 @@ class HomeServer {
 					if (failures >= MAX_FAILURES) break;
 				}
 				this.pending -= 1;
+			}
+
+			// And the other way: what the server has (from the web version or
+			// another phone) and this phone does not.
+			if (failures < MAX_FAILURES) {
+				const down = this.#missingHere(have);
+				this.pending = down.length;
+				for (const entry of down) {
+					try {
+						await this.#getItem(url, password, entry);
+					} catch (error) {
+						failures += 1;
+						lastError = error;
+						console.error("[home-server] download failed", entry.fileName, error);
+						if (failures >= MAX_FAILURES) break;
+					}
+					this.pending -= 1;
+				}
 			}
 
 			const snapshot = settingsSnapshot();

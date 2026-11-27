@@ -284,6 +284,8 @@ pub fn run() {
             archive_store::archive_store_list,
             archive_store::archive_store_read,
             archive_store::archive_store_remove,
+            archive_store::archive_index_read,
+            archive_store::archive_index_merge,
             archive_store::archive_store_to_gallery,
             archive_store::gallery_folder_visibility,
             home_server::home_server_list,

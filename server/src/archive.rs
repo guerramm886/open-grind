@@ -189,6 +189,9 @@ pub async fn run(app: &App, command: &str, args: &Value) -> Option<Result<Value,
 		"discard_staged_media" => discard_staged_media(app, args).await,
 		// What the phone sent with "Sincronizar", for the page to list too.
 		"phone_entries" => Ok(Value::Array(crate::phone::phone_entries(app))),
+		// The durable list of what is saved here (see phone.rs).
+		"archive_index_read" => Ok(Value::Object(crate::phone::all_entries(app))),
+		"archive_index_merge" => archive_index_merge(app, args).await,
 		_ => return None,
 	};
 	Some(result)
@@ -241,8 +244,16 @@ async fn archive_store_list(app: &App) -> Result<Value, String> {
 				continue;
 			}
 			let name = entry.file_name().to_string_lossy().into_owned();
-			if name.ends_with(".partial") {
-				let _ = fs::remove_file(entry.path());
+			if name.ends_with(".partial") || name.ends_with(".incoming") {
+				// Only leftovers of an interrupted write, never one in progress.
+				let stale = metadata
+					.modified()
+					.ok()
+					.and_then(|time| time.elapsed().ok())
+					.is_some_and(|age| age.as_secs() > 3600);
+				if stale {
+					let _ = fs::remove_file(entry.path());
+				}
 				continue;
 			}
 			files.push(json!({ "name": name, "size": metadata.len() }));
@@ -285,6 +296,13 @@ async fn archive_store_to_gallery(app: &App, args: &Value) -> Result<Value, Stri
 		Ok(Value::Null)
 	})
 	.await
+}
+
+async fn archive_index_merge(app: &App, args: &Value) -> Result<Value, String> {
+	let set: serde_json::Map<String, Value> = arg(args, "set")?;
+	let remove: Vec<String> = arg(args, "remove")?;
+	let app = app.clone();
+	blocking(move || crate::phone::merge_entries(&app, set, &remove).map(|()| Value::Null)).await
 }
 
 async fn archive_store_remove(app: &App, args: &Value) -> Result<Value, String> {

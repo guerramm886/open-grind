@@ -154,6 +154,12 @@ pub async fn home_server_get_item(
 	file_name: String,
 ) -> Result<u64, String> {
 	let target_path = crate::archive_store::stored_file(&app, &file_name)?;
+	// Never replace a file the phone already has.
+	if let Ok(metadata) = std::fs::metadata(&target_path) {
+		if metadata.is_file() && metadata.len() > 0 {
+			return Ok(metadata.len());
+		}
+	}
 	let response = client()?
 		.get(format!("{}/api/sync/item/{}", base(&url)?, encode(&file_name)))
 		.header("x-og-password", password)
@@ -166,8 +172,15 @@ pub async fn home_server_get_item(
 	}
 	let size = bytes.len() as u64;
 	tauri::async_runtime::spawn_blocking(move || {
-		let partial = target_path.with_extension("partial");
-		std::fs::write(&partial, &bytes)?;
+		use std::io::Write as _;
+		let mut name = target_path.file_name().unwrap_or_default().to_os_string();
+		name.push(".incoming");
+		let partial = target_path.with_file_name(name);
+		{
+			let mut file = std::fs::File::create(&partial)?;
+			file.write_all(&bytes)?;
+			file.sync_all()?;
+		}
 		std::fs::rename(&partial, &target_path)
 	})
 	.await

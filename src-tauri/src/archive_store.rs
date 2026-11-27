@@ -123,6 +123,15 @@ pub async fn archive_store_staged(
 	.map_err(text_error)?
 }
 
+/// Untouched for an hour: a write that will never finish.
+fn is_stale(metadata: &fs::Metadata) -> bool {
+	metadata
+		.modified()
+		.ok()
+		.and_then(|time| time.elapsed().ok())
+		.is_some_and(|age| age.as_secs() > 3600)
+}
+
 #[derive(Serialize)]
 pub struct StoredFile {
 	name: String,
@@ -142,8 +151,11 @@ pub async fn archive_store_list(app: AppHandle) -> Result<Vec<StoredFile>, Strin
 				continue;
 			}
 			let name = entry.file_name().to_string_lossy().into_owned();
-			if name.ends_with(".partial") {
-				let _ = fs::remove_file(entry.path());
+			if name.ends_with(".partial") || name.ends_with(".incoming") {
+				// Only leftovers of an interrupted write, never one in progress.
+				if is_stale(&metadata) {
+					let _ = fs::remove_file(entry.path());
+				}
 				continue;
 			}
 			files.push(StoredFile {
@@ -362,6 +374,88 @@ pub async fn gallery_folder_visibility(visible: bool) -> Result<(), String> {
 				error.map(|e| e.to_string()).unwrap_or_default()
 			)),
 		}
+	})
+	.await
+	.map_err(text_error)?
+}
+
+// ------------------------------------------------------------ durable index
+// The list of what is saved (and whose it is) also lives here, in a file of
+// the app's own data directory, next to the files. The webview's
+// localStorage can fill up or be wiped; this file is merged back in at
+// startup so no saved photo or video ever drops off the list.
+
+const INDEX: &str = "received-archive-index.json";
+static INDEX_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+type IndexMap = serde_json::Map<String, serde_json::Value>;
+
+fn index_path(app: &AppHandle) -> Result<PathBuf, String> {
+	let dir = app.path().app_data_dir().map_err(text_error)?;
+	fs::create_dir_all(&dir).map_err(text_error)?;
+	Ok(dir.join(INDEX))
+}
+
+/// The index; an unreadable one is kept aside (never overwritten) and the
+/// list starts over from what the page still has.
+fn read_index(path: &Path) -> IndexMap {
+	let Ok(text) = fs::read_to_string(path) else {
+		return IndexMap::new();
+	};
+	match serde_json::from_str::<IndexMap>(&text) {
+		Ok(map) => map,
+		Err(error) => {
+			let stamp = std::time::SystemTime::now()
+				.duration_since(std::time::UNIX_EPOCH)
+				.map(|d| d.as_millis())
+				.unwrap_or(0);
+			let aside = path.with_file_name(format!("{INDEX}.danado-{stamp}"));
+			tracing::error!("[archive] unreadable index kept as {}: {error}", aside.display());
+			let _ = fs::copy(path, aside);
+			IndexMap::new()
+		}
+	}
+}
+
+fn write_index(path: &Path, map: &IndexMap) -> Result<(), String> {
+	let text = serde_json::to_string(map).map_err(text_error)?;
+	let partial = path.with_file_name(format!("{INDEX}.partial"));
+	{
+		let mut file = fs::File::create(&partial).map_err(text_error)?;
+		file.write_all(text.as_bytes()).map_err(text_error)?;
+		file.sync_all().map_err(text_error)?;
+	}
+	fs::rename(&partial, path).map_err(text_error)
+}
+
+#[tauri::command]
+pub async fn archive_index_read(app: AppHandle) -> Result<IndexMap, String> {
+	tauri::async_runtime::spawn_blocking(move || {
+		let path = index_path(&app)?;
+		let _guard = INDEX_LOCK.lock().unwrap_or_else(|p| p.into_inner());
+		Ok(read_index(&path))
+	})
+	.await
+	.map_err(text_error)?
+}
+
+/// Add/replace `set` and drop `remove` (only what the page explicitly
+/// deleted); everything else in the index stays.
+#[tauri::command]
+pub async fn archive_index_merge(
+	app: AppHandle,
+	set: IndexMap,
+	remove: Vec<String>,
+) -> Result<(), String> {
+	tauri::async_runtime::spawn_blocking(move || {
+		let path = index_path(&app)?;
+		let _guard = INDEX_LOCK.lock().unwrap_or_else(|p| p.into_inner());
+		let mut map = read_index(&path);
+		for id in remove {
+			map.remove(&id);
+		}
+		map.extend(set);
+		write_index(&path, &map)
 	})
 	.await
 	.map_err(text_error)?

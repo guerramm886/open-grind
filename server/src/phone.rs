@@ -132,12 +132,57 @@ const ENTRIES: &str = "entries.json";
 const WEB_MANIFEST_KEY: &str = "received-archive-manifest-v1";
 static ENTRIES_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
-fn read_entries(app: &App) -> serde_json::Map<String, serde_json::Value> {
-	sync_dir(app)
-		.ok()
-		.and_then(|dir| fs::read_to_string(dir.join(ENTRIES)).ok())
-		.and_then(|text| serde_json::from_str(&text).ok())
-		.unwrap_or_default()
+type EntryMap = serde_json::Map<String, serde_json::Value>;
+
+/// The durable list of everything saved here (phone and web alike). An
+/// unreadable file is copied aside, never silently overwritten.
+fn read_entries(app: &App) -> EntryMap {
+	let Ok(dir) = sync_dir(app) else {
+		return EntryMap::new();
+	};
+	let path = dir.join(ENTRIES);
+	let Ok(text) = fs::read_to_string(&path) else {
+		return EntryMap::new();
+	};
+	match serde_json::from_str::<EntryMap>(&text) {
+		Ok(map) => map,
+		Err(error) => {
+			let aside = dir.join(format!("{ENTRIES}.danado-{}", chrono_stamp()));
+			tracing::error!("[phone] unreadable {ENTRIES}, kept as {}: {error}", aside.display());
+			let _ = fs::copy(&path, aside);
+			EntryMap::new()
+		}
+	}
+}
+
+/// Write the list through a temporary file and a rename.
+fn write_entries(app: &App, entries: &EntryMap) -> Result<(), String> {
+	let dir = sync_dir(app).map_err(|e| e.to_string())?;
+	let text = serde_json::to_string(entries).map_err(|e| e.to_string())?;
+	let partial = dir.join(format!("{ENTRIES}.partial"));
+	{
+		let mut file = fs::File::create(&partial).map_err(|e| e.to_string())?;
+		file.write_all(text.as_bytes()).map_err(|e| e.to_string())?;
+		file.sync_all().map_err(|e| e.to_string())?;
+	}
+	fs::rename(&partial, dir.join(ENTRIES)).map_err(|e| e.to_string())
+}
+
+/// Add/replace `set`, drop only the ids in `remove`.
+pub fn merge_entries(app: &App, set: EntryMap, remove: &[String]) -> Result<(), String> {
+	let _guard = ENTRIES_LOCK.lock().unwrap_or_else(|poison| poison.into_inner());
+	let mut entries = read_entries(app);
+	for id in remove {
+		entries.remove(id);
+	}
+	entries.extend(set);
+	write_entries(app, &entries)
+}
+
+/// The whole list (for the page's own index).
+pub fn all_entries(app: &App) -> EntryMap {
+	let _guard = ENTRIES_LOCK.lock().unwrap_or_else(|poison| poison.into_inner());
+	read_entries(app)
 }
 
 fn has_file(app: &App, entry: &serde_json::Value) -> bool {
@@ -230,8 +275,20 @@ pub async fn put_item(
 		Ok(target) => target,
 		Err(error) => return (StatusCode::BAD_REQUEST, error).into_response(),
 	};
-	if let Err(response) = receive(body, &target).await {
-		return response;
+	// A file already kept here is never replaced, only listed.
+	let already = fs::metadata(&target).is_ok_and(|m| m.is_file() && m.len() > 0);
+	if !already {
+		let incoming = match sync_dir(&app) {
+			Ok(dir) => dir.join(format!("{file_name}.incoming")),
+			Err(error) => return fail(error),
+		};
+		if let Err(response) = receive(body, &incoming).await {
+			return response;
+		}
+		if let Err(error) = fs::rename(&incoming, &target) {
+			let _ = fs::remove_file(&incoming);
+			return fail(error);
+		}
 	}
 
 	// A copy in the visible folder too, unless the old automatic copy
@@ -260,17 +317,9 @@ pub async fn put_item(
 
 	entry.insert("fileName".to_owned(), serde_json::Value::String(file_name));
 	entry.insert("inGallery".to_owned(), serde_json::Value::Bool(true));
-	let _guard = ENTRIES_LOCK.lock().unwrap_or_else(|poison| poison.into_inner());
-	let mut entries = read_entries(&app);
-	entries.insert(id, serde_json::Value::Object(entry));
-	let written = serde_json::to_string(&entries)
-		.map_err(|e| e.to_string())
-		.and_then(|text| {
-			sync_dir(&app)
-				.and_then(|dir| fs::write(dir.join(ENTRIES), text))
-				.map_err(|e| e.to_string())
-		});
-	match written {
+	let mut set = EntryMap::new();
+	set.insert(id, serde_json::Value::Object(entry));
+	match merge_entries(&app, set, &[]) {
 		Ok(()) => StatusCode::NO_CONTENT.into_response(),
 		Err(error) => fail(error),
 	}
@@ -286,6 +335,11 @@ pub async fn get_item(State(app): State<App>, Path(file_name): Path<String>) -> 
 		Ok(file) => file,
 		Err(_) => return (StatusCode::NOT_FOUND, "no está").into_response(),
 	};
+	// The size goes along, so a cut transfer fails instead of arriving short.
+	let length = match file.metadata().await {
+		Ok(metadata) if metadata.len() > 0 => metadata.len(),
+		_ => return (StatusCode::NOT_FOUND, "vacío").into_response(),
+	};
 	let stream = futures::stream::unfold(file, |mut file| async move {
 		use tokio::io::AsyncReadExt as _;
 		let mut buffer = vec![0u8; 256 * 1024];
@@ -300,6 +354,7 @@ pub async fn get_item(State(app): State<App>, Path(file_name): Path<String>) -> 
 	});
 	Response::builder()
 		.header("content-type", "application/octet-stream")
+		.header("content-length", length)
 		.body(Body::from_stream(stream))
 		.unwrap_or_else(|error| fail(error))
 }
