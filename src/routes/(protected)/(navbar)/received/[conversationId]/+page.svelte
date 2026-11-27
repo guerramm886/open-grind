@@ -189,9 +189,8 @@
 			// too), so an album is already duplicated in the app before you
 			// stop keeping it on Grindr. Loose chat videos are heavier and are
 			// saved on demand via the buttons instead.
-			const keep = items.filter(
-				(i) => i.available && (i.kind === "image" || i.source === "album"),
-			);
+			// Videos too: nothing they sent should be lost.
+			const keep = items.filter((i) => i.available);
 			const sent = keep.filter((i) => i.source !== "profile");
 			// Keep their profile photos locally too, but only for people who
 			// actually sent you something; otherwise archive nothing.

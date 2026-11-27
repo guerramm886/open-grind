@@ -502,31 +502,96 @@ export class ReceivedPeople {
 		);
 	}
 
-	// Keep a copy of this person's album photos while they're still viewable.
-	async #archiveAlbums(person: Person): Promise<void> {
-		if (this.#albumArchivedFor.has(person.conversationId)) return;
+	// Keep a copy of everything this person sent (photos and videos, chat and
+	// albums) while it's still viewable, without having to open their
+	// Recibidos. One person at a time, in the background.
+	#archiveAlbums(person: Person): Promise<void> {
+		if (swipeDecisions.isNope(person.profileId)) return Promise.resolve();
+		const mark = Math.max(person.mediaAt, person.lastActivity);
+		const done = this.#archivedMark.get(person.conversationId);
+		if (this.#albumArchivedFor.has(person.conversationId) && done !== undefined && done >= mark)
+			return Promise.resolve();
 		this.#albumArchivedFor.add(person.conversationId);
+		this.#archivedMark.set(person.conversationId, mark);
+		if (!this.#archiveQueue.some((p) => p.conversationId === person.conversationId))
+			this.#archiveQueue.push(person);
+		if (!this.#archiveRunning) void this.#drainArchive();
+		return Promise.resolve();
+	}
+
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity -- bookkeeping, not reactive
+	#archivedMark = new Map<string, number>();
+	#archiveQueue: Person[] = [];
+	#archiveRunning = false;
+
+	async #drainArchive(): Promise<void> {
+		this.#archiveRunning = true;
 		try {
-			const { items } = await loadReceivedMedia({
-				conversationId: person.conversationId,
-				ourProfileId: this.#ourProfileId,
-			});
-			const albumImages = items.filter(
-				(item) =>
-					item.source === "album" &&
-					item.kind === "image" &&
-					item.available,
-			);
-			if (albumImages.length === 0) return;
-			receivedArchive.notePerson(person.conversationId, {
-				name: person.name,
-				mediaHash: person.mediaHash,
-				lastActivity: person.mediaAt > 0 ? person.mediaAt : undefined,
-			});
-			await receivedArchive.saveMany(albumImages.map(archivableFromItem));
-		} catch {
-			/* best effort */
+			for (let person = this.#archiveQueue.shift(); person; person = this.#archiveQueue.shift()) {
+				if (swipeDecisions.isNope(person.profileId)) continue;
+				try {
+					const { items } = await loadReceivedMedia({
+						conversationId: person.conversationId,
+						ourProfileId: this.#ourProfileId,
+					});
+					const keep = items.filter(
+						(item) => item.available && item.rawUrl !== "",
+					);
+					// Their profile photos only for people who sent something.
+					const sent = keep.filter((item) => item.source !== "profile");
+					if (sent.length === 0) continue;
+					const missing = keep.filter(
+						(item) => !receivedArchive.isArchived(item.id),
+					);
+					if (missing.length === 0) continue;
+					receivedArchive.notePerson(person.conversationId, {
+						name: person.name,
+						mediaHash: person.mediaHash,
+						lastActivity: person.mediaAt > 0 ? person.mediaAt : undefined,
+					});
+					await receivedArchive.saveMany(missing.map(archivableFromItem));
+				} catch {
+					// Try this person again on the next pass.
+					this.#albumArchivedFor.delete(person.conversationId);
+				}
+				// Let the app (and Grindr) breathe between people.
+				await new Promise((resolve) => setTimeout(resolve, 1500));
+			}
+		} finally {
+			this.#archiveRunning = false;
 		}
+	}
+
+	#backgroundStarted = false;
+
+	/**
+	 * Keep everything everyone sent saved, without opening each Recibidos:
+	 * go through the whole inbox once, then every half hour look for new
+	 * messages (chats whose last activity moved) and save what is new.
+	 */
+	startBackgroundArchive(): void {
+		if (this.#backgroundStarted) return;
+		this.#backgroundStarted = true;
+		const pass = async () => {
+			try {
+				while (this.scanning) await new Promise((r) => setTimeout(r, 2000));
+				this.#page = 1;
+				this.hasMore = true;
+				for (let rounds = 0; this.hasMore && rounds < 100; rounds += 1) {
+					if (this.scanning) {
+						await new Promise((r) => setTimeout(r, 2000));
+						continue;
+					}
+					await this.scanMore();
+					if (this.error) break;
+				}
+			} catch {
+				/* next pass */
+			}
+			for (const person of this.senders) void this.#archiveAlbums(person);
+		};
+		setTimeout(() => void pass(), 20_000);
+		setInterval(() => void pass(), 30 * 60_000);
 	}
 
 	ensureAge(profileId: number): void {

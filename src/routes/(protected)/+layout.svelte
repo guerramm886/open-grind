@@ -10,10 +10,23 @@
 	import { startOnlineHeartbeat } from "$lib/presence/online-heartbeat";
 	import { guardDeletedPages } from "$lib/util/deleted-pages";
 	import { retryBrokenMediaWhenOnline } from "$lib/util/media-retry-signals";
+	import { getReceivedPeople } from "./(navbar)/received/received-people.svelte";
 
-	let { children }: { children: import("svelte").Snippet } = $props();
+	let {
+		children,
+		data,
+	}: { children: import("svelte").Snippet; data?: { ourProfileId: number } } =
+		$props();
 
 	guardDeletedPages();
+
+	// Save everything people sent in the background (phone and web alike),
+	// without having to open each person's Recibidos.
+	$effect(() => {
+		const ourProfileId = data?.ourProfileId;
+		if (typeof ourProfileId === "number")
+			getReceivedPeople(ourProfileId).startBackgroundArchive();
+	});
 
 	$effect(() => startOnlineHeartbeat());
 	$effect(() => retryBrokenMediaWhenOnline());
