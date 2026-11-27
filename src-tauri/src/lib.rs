@@ -292,6 +292,7 @@ pub fn run() {
             home_server::home_server_upload,
             home_server::home_server_settings,
             home_server::home_server_manifest,
+            home_server::home_server_sync_status,
             home_server::home_server_put_item,
             home_server::home_server_get_item,
         ])

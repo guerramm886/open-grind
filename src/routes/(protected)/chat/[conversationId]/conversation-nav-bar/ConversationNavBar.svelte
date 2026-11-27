@@ -8,20 +8,21 @@
 	import { getConversationState } from "../conversation-state.svelte";
 	import ChatDecisionButtons from "./ChatDecisionButtons.svelte";
 	import ConversationNavBarProfile from "./ConversationNavBarProfile.svelte";
-	import ReceivedMediaLink from "./ReceivedMediaLink.svelte";
+	import ReceivedMediaStrip from "./ReceivedMediaStrip.svelte";
 
 	const conversationState = $derived(getConversationState()());
 </script>
 
 <ProgressiveBlur
 	direction="topToBottom"
-	class="absolute z-10 h-19 w-full shrink-0"
+	class="absolute z-10 w-full shrink-0"
 	bgClass="bg-linear-to-b max-split:from-background split:from-card to-transparent"
-	contentClass="flex items-center h-full"
+	contentClass="flex flex-col"
 	tag="nav"
 	aria-label="Conversation"
 	{@attach topChrome}
 >
+	<div class="flex h-19 w-full items-center">
 	<BackLink
 		href="/chat"
 		label="Volver a chats"
@@ -31,7 +32,6 @@
 	</BackLink>
 	{#if conversationState.profile !== null}
 		<ConversationNavBarProfile profile={conversationState.profile} />
-		<ReceivedMediaLink />
 		<ChatDecisionButtons
 			profileId={conversationState.profile.profileId}
 			conversationId={conversationState.conversationId}
@@ -48,5 +48,9 @@
 				<Skeleton class="h-3 w-12 rounded-md" />
 			</div>
 		</div>
+	{/if}
+	</div>
+	{#if conversationState.profile !== null}
+		<ReceivedMediaStrip />
 	{/if}
 </ProgressiveBlur>

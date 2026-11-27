@@ -410,6 +410,11 @@ class ReceivedArchive {
 		if (unknown.length > 0) this.#indexPut(...unknown);
 	}
 
+	/** Web version: show now what the phones sent (also runs every minute). */
+	refresh(): Promise<void> {
+		return this.#refreshFromStore();
+	}
+
 	/** Web version: list again what is in the store (the phone may have sent
 	 *  more) and show it. */
 	async #refreshFromStore(): Promise<void> {

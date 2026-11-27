@@ -192,6 +192,8 @@ pub async fn run(app: &App, command: &str, args: &Value) -> Option<Result<Value,
 		// The durable list of what is saved here (see phone.rs).
 		"archive_index_read" => Ok(Value::Object(crate::phone::all_entries(app))),
 		"archive_index_merge" => archive_index_merge(app, args).await,
+		"sync_request_all" => Ok(json!(crate::phone::request_sync_all())),
+		"sync_status" => Ok(crate::phone::sync_status()),
 		_ => return None,
 	};
 	Some(result)

@@ -113,6 +113,18 @@ pub async fn home_server_manifest(url: String, password: String) -> Result<Strin
 	checked(response).await?.text().await.map_err(text)
 }
 
+/// Whether the web version asked every device to sync (`{requested,…}`).
+#[tauri::command]
+pub async fn home_server_sync_status(url: String, password: String) -> Result<String, String> {
+	let response = client()?
+		.get(format!("{}/api/sync/request", base(&url)?))
+		.header("x-og-password", password)
+		.send()
+		.await
+		.map_err(text)?;
+	checked(response).await?.text().await.map_err(text)
+}
+
 /// Send one stored file with its entry (JSON), for the server's Recibidos.
 #[tauri::command]
 pub async fn home_server_put_item(

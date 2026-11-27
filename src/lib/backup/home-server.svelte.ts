@@ -20,6 +20,7 @@ export const DEFAULT_URL = "http://192.168.3.150:8099";
 const EVERY_MS = 5 * 60 * 1000;
 const FIRST_DELAY_MS = 15 * 1000;
 const MAX_FAILURES = 3;
+const REQUEST_CHECK_MS = 30 * 1000;
 
 type Config = { url: string; password: string };
 
@@ -80,6 +81,32 @@ class HomeServer {
 		this.password = config.password;
 		setTimeout(() => void this.sync(), FIRST_DELAY_MS);
 		setInterval(() => void this.sync(), EVERY_MS);
+		setInterval(() => void this.#checkRequest(), REQUEST_CHECK_MS);
+	}
+
+	/** Last "sincronizar con otros dispositivos" from the web this phone ran. */
+	#handledRequest = 0;
+
+	/** The web version may ask every device to sync now. */
+	async #checkRequest(): Promise<void> {
+		if (!this.configured || this.running) return;
+		try {
+			const text = await invoke<string>("home_server_sync_status", {
+				url: this.url,
+				password: this.password,
+			});
+			const { requested } = JSON.parse(text) as { requested?: unknown };
+			if (typeof requested !== "number" || requested <= this.#handledRequest)
+				return;
+			const first = this.#handledRequest === 0;
+			this.#handledRequest = requested;
+			// A request from before this app was opened: the start-up sync
+			// already covers it, unless it is recent.
+			if (first && Date.now() - requested > EVERY_MS) return;
+			void this.sync();
+		} catch {
+			/* away from home: try again later */
+		}
 	}
 
 	get configured(): boolean {

@@ -19,6 +19,8 @@
 	import BackdropBlurSetting from "./BackdropBlurSetting.svelte";
 	import BackupSetting from "./BackupSetting.svelte";
 	import HomeServerSetting from "./HomeServerSetting.svelte";
+	import SyncDevicesSetting from "./SyncDevicesSetting.svelte";
+	import { isWebServer } from "$lib/platform/os";
 	import GeminiKeySetting from "./GeminiKeySetting.svelte";
 	import PreferenceSwitchSetting from "./PreferenceSwitchSetting.svelte";
 	import UnitsSetting from "./UnitsSetting.svelte";
@@ -67,6 +69,9 @@
 <h2>Búsqueda</h2>
 <GeminiKeySetting />
 <h2>Backup</h2>
+{#if isWebServer()}
+	<SyncDevicesSetting />
+{/if}
 <HomeServerSetting />
 <BackupSetting />
 <h2>Pantalla</h2>

@@ -201,8 +201,42 @@ pub fn phone_entries(app: &App) -> Vec<serde_json::Value> {
 		.collect()
 }
 
+// "Sincronizar con otros dispositivos" in the web version: it notes the time
+// here; every phone with the app open asks every 30 s and, when it sees a
+// newer request, runs its sync. Phones also note when they last synced.
+static SYNC_REQUESTED: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+static LAST_PHONE_SYNC: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+fn now_ms() -> u64 {
+	std::time::SystemTime::now()
+		.duration_since(std::time::UNIX_EPOCH)
+		.map(|d| d.as_millis() as u64)
+		.unwrap_or(0)
+}
+
+/// The web page asks every device to sync now.
+pub fn request_sync_all() -> u64 {
+	let now = now_ms();
+	SYNC_REQUESTED.store(now, std::sync::atomic::Ordering::SeqCst);
+	now
+}
+
+/// `{ requested, lastPhone }` in milliseconds (0 = never).
+pub fn sync_status() -> serde_json::Value {
+	serde_json::json!({
+		"requested": SYNC_REQUESTED.load(std::sync::atomic::Ordering::SeqCst),
+		"lastPhone": LAST_PHONE_SYNC.load(std::sync::atomic::Ordering::SeqCst),
+	})
+}
+
+/// For the phones: is there a newer request?
+pub async fn sync_request() -> Json<serde_json::Value> {
+	Json(sync_status())
+}
+
 /// Everything kept here: the web version's own saves and the phone's.
 pub async fn manifest(State(app): State<App>) -> Response {
+	LAST_PHONE_SYNC.store(now_ms(), std::sync::atomic::Ordering::SeqCst);
 	let mut all = serde_json::Map::new();
 	if let Some(text) = app.store.read_app_data(WEB_MANIFEST_KEY) {
 		if let Ok(serde_json::Value::Object(web)) = serde_json::from_str(&text) {
